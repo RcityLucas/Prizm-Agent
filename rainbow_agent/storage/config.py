@@ -10,7 +10,7 @@ from typing import Dict, Any
 DEFAULT_SURREAL_CONFIG = {
     "url": "ws://localhost:8000/rpc",
     "namespace": "rainbow",
-    "database": "test",
+    "database": "agent",  # 更改为项目编码中使用的 'agent' 数据库
     "username": "root",
     "password": "root"
 }

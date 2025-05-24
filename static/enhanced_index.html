@@ -601,7 +601,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
         // 全局变量
-        const API_BASE_URL = 'http://localhost:5001/api';
+        const API_BASE_URL = 'http://localhost:5000/api';
         let currentSessionId = null;
         let availableTools = [];
         
@@ -693,25 +693,49 @@
         async function loadSessions() {
             try {
                 const userId = localStorage.getItem('userId');
+                console.log(`加载用户 ${userId} 的会话列表`);
                 const response = await fetch(`${API_BASE_URL}/dialogue/sessions?userId=${userId}`);
                 const data = await response.json();
+                console.log('会话数据:', data);
                 
-                if (data.sessions && data.sessions.length > 0) {
+                // 处理不同格式的响应
+                let sessions = [];
+                if (data.sessions) {
+                    // 直接使用sessions字段
+                    sessions = data.sessions;
+                } else if (data.data && data.data.sessions) {
+                    // 使用标准化格式中的data.sessions
+                    sessions = data.data.sessions;
+                } else if (data.items) {
+                    // 兼容增强版前端的items格式
+                    sessions = data.items;
+                }
+                
+                if (sessions && sessions.length > 0) {
+                    console.log(`找到 ${sessions.length} 个会话`);
                     sessionsList.innerHTML = '';
-                    data.sessions.forEach(session => {
+                    sessions.forEach(session => {
+                        // 支持不同的字段命名
+                        const sessionId = session.id;
+                        const sessionTitle = session.title || session.name || '未命名会话';
+                        const lastActivity = session.updated_at || session.last_activity_at || session.lastActivity || new Date().toISOString();
+                        
+                        console.log(`添加会话: ${sessionId} - ${sessionTitle}`);
+                        
                         const sessionItem = document.createElement('div');
                         sessionItem.className = 'session-item';
-                        sessionItem.dataset.id = session.id;
+                        sessionItem.dataset.id = sessionId;
                         sessionItem.innerHTML = `
-                            <div class="session-title">${session.name}</div>
+                            <div class="session-title">${sessionTitle}</div>
                             <div class="session-meta">
-                                <span>${new Date(session.last_activity_at).toLocaleString()}</span>
+                                <span>${new Date(lastActivity).toLocaleString()}</span>
                             </div>
                         `;
-                        sessionItem.addEventListener('click', () => loadSession(session.id));
+                        sessionItem.addEventListener('click', () => loadSession(sessionId));
                         sessionsList.appendChild(sessionItem);
                     });
                 } else {
+                    console.log('没有找到会话');
                     sessionsList.innerHTML = '<div class="system-message">没有可用的会话</div>';
                 }
             } catch (error) {
@@ -724,9 +748,11 @@
         async function createNewSession() {
             try {
                 const userId = localStorage.getItem('userId');
+                console.log(`使用用户ID ${userId} 创建新会话`);
                 const sessionData = {
-                    name: `新对话 ${new Date().toLocaleString()}`,
-                    dialogue_type: "human_to_ai_private",
+                    userId: userId,  // 在请求中使用userId字段
+                    title: `新对话 ${new Date().toLocaleString()}`,
+                    dialogueType: "HUMAN_AI_PRIVATE",  // 更新为大写的对话类型
                     participants: [
                         {
                             id: userId,
@@ -741,6 +767,7 @@
                     ]
                 };
                 
+                console.log('发送创建会话请求:', sessionData);
                 const response = await fetch(`${API_BASE_URL}/dialogue/sessions`, {
                     method: 'POST',
                     headers: {
@@ -750,15 +777,40 @@
                 });
                 
                 const data = await response.json();
+                console.log('创建会话响应:', data);
+                
+                // 处理不同格式的响应
+                let sessionInfo = null;
                 if (data.id) {
-                    currentSessionId = data.id;
-                    currentSessionTitle.textContent = data.name;
+                    // 直接使用根层级字段
+                    sessionInfo = data;
+                } else if (data.data && data.data.id) {
+                    // 使用标准化格式中的data字段
+                    sessionInfo = data.data;
+                }
+                
+                if (sessionInfo && sessionInfo.id) {
+                    console.log(`成功创建会话: ${sessionInfo.id}`);
+                    // 更新当前会话 ID
+                    currentSessionId = sessionInfo.id;
+                    // 更新会话标题，兼容不同字段名
+                    currentSessionTitle.textContent = sessionInfo.title || sessionInfo.name || '新会话';
+                    
+                    // 更新聊天界面
                     chatMessages.innerHTML = `
                         <div class="system-message">
-                            <i class="bi bi-info-circle"></i> 新会话已创建。请输入您的问题或指令。
+                            <i class="bi bi-info-circle"></i> 新会话已创建 (会话ID: ${currentSessionId})。请输入您的问题或指令。
                         </div>
                     `;
+                    
+                    // 刷新会话列表
                     loadSessions();
+                    
+                    // 聚焦到输入框
+                    userInput.focus();
+                } else {
+                    console.error('创建会话成功但响应中无效的会话ID:', data);
+                    alert('创建新会话成功，但响应数据无效');
                 }
             } catch (error) {
                 console.error('创建新会话失败:', error);
@@ -769,35 +821,77 @@
         // 加载特定会话
         async function loadSession(sessionId) {
             try {
+                console.log(`加载会话: ${sessionId}`);
                 const response = await fetch(`${API_BASE_URL}/dialogue/sessions/${sessionId}`);
-                const session = await response.json();
+                const data = await response.json();
+                console.log('会话数据:', data);
+                
+                // 处理不同格式的响应
+                let session = null;
+                if (data && data.id) {
+                    // 直接使用根层级字段
+                    session = data;
+                } else if (data && data.data && data.data.id) {
+                    // 使用标准化格式中的data字段
+                    session = data.data;
+                } else if (data && data.session) {
+                    // 使用session字段
+                    session = data.session;
+                }
                 
                 if (session) {
+                    console.log(`成功加载会话: ${session.id}`);
                     currentSessionId = session.id;
-                    currentSessionTitle.textContent = session.name;
+                    currentSessionTitle.textContent = session.title || session.name || '未命名会话';
                     
                     // 加载会话的轮次
+                    console.log(`加载会话轮次: ${sessionId}`);
                     const turnsResponse = await fetch(`${API_BASE_URL}/dialogue/sessions/${sessionId}/turns`);
-                    const turnsData = await turnsResponse.json();
+                    const turnsRawData = await turnsResponse.json();
+                    console.log('轮次数据:', turnsRawData);
+                    
+                    // 处理不同格式的响应
+                    let turnsData = turnsRawData;
+                    if (turnsRawData.data) {
+                        turnsData = turnsRawData.data;
+                    }
                     
                     chatMessages.innerHTML = '';
                     
-                    if (turnsData.turns && turnsData.turns.length > 0) {
-                        turnsData.turns.forEach(turn => {
+                    // 处理不同格式的轮次数据
+                    let turns = [];
+                    if (turnsData.turns) {
+                        turns = turnsData.turns;
+                    } else if (Array.isArray(turnsData)) {
+                        turns = turnsData;
+                    }
+                    
+                    if (turns && turns.length > 0) {
+                        console.log(`找到 ${turns.length} 个轮次`);
+                        turns.forEach(turn => {
+                            // 兼容不同的字段命名
+                            const requestMsgs = turn.request_messages || turn.requestMessages || [];
+                            const responseMsgs = turn.response_messages || turn.responseMessages || [];
+                            
                             // 添加请求消息
-                            turn.request_messages.forEach(msg => {
-                                addMessage(msg.content, 'user', new Date(msg.timestamp));
+                            requestMsgs.forEach(msg => {
+                                const msgContent = msg.content || msg.text || '';
+                                const msgTime = msg.timestamp || msg.created_at || new Date().toISOString();
+                                addMessage(msgContent, 'user', new Date(msgTime));
                             });
                             
                             // 添加响应消息
-                            turn.response_messages.forEach(msg => {
-                                addMessage(msg.content, 'ai', new Date(msg.timestamp));
+                            responseMsgs.forEach(msg => {
+                                const msgContent = msg.content || msg.text || '';
+                                const msgTime = msg.timestamp || msg.created_at || new Date().toISOString();
+                                addMessage(msgContent, 'ai', new Date(msgTime));
                             });
                         });
                     } else {
+                        console.log('没有找到轮次数据');
                         chatMessages.innerHTML = `
                             <div class="system-message">
-                                <i class="bi bi-info-circle"></i> 这是一个新会话。请输入您的问题或指令。
+                                <i class="bi bi-info-circle"></i> 这是一个新会话 (会话ID: ${sessionId})。请输入您的问题或指令。
                             </div>
                         `;
                     }
@@ -810,8 +904,14 @@
                         }
                     });
                     
+                    // 聚焦到输入框
+                    userInput.focus();
+                    
                     // 滚动到底部
                     chatMessages.scrollTop = chatMessages.scrollHeight;
+                } else {
+                    console.error('无效的会话数据:', data);
+                    alert('加载会话失败: 无效的会话数据');
                 }
             } catch (error) {
                 console.error('加载会话失败:', error);
@@ -862,6 +962,14 @@
             const message = userInput.value.trim();
             if (!message) return;
             
+            // 检查会话ID
+            if (!currentSessionId) {
+                addSystemMessage('错误: 没有活跃的会话，请创建新会话或选择一个现有会话');
+                return;
+            }
+            
+            console.log(`准备发送消息到会话: ${currentSessionId}`);
+            
             // 添加用户消息到聊天窗口
             addMessage(message, 'user');
             userInput.value = '';
@@ -878,29 +986,52 @@
             
             try {
                 const userId = localStorage.getItem('userId');
+                
+                // 准备请求数据
+                const requestData = {
+                    sessionId: currentSessionId,  // 使用驼峰命名法的参数名
+                    userId: userId,
+                    input: message,
+                    type: 'text'
+                };
+                
+                console.log('发送输入请求:', requestData);
                 const response = await fetch(`${API_BASE_URL}/dialogue/input`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        content: message,
-                        type: 'text',
-                        session_id: currentSessionId,
-                        user_id: userId
-                    })
+                    body: JSON.stringify(requestData)
                 });
                 
                 const data = await response.json();
+                console.log('收到输入响应:', data);
                 
                 // 移除加载指示器
                 chatMessages.removeChild(loadingElement);
                 
-                // 添加AI响应
-                if (data.final_response) {
-                    addMessage(data.final_response, 'ai');
-                } else if (data.error) {
-                    addSystemMessage(`错误: ${data.error}`);
+                // 处理不同格式的响应
+                if (data.success === false) {
+                    // 处理错误响应
+                    const errorMessage = data.error || data.message || '未知错误';
+                    addSystemMessage(`错误: ${errorMessage}`);
+                    return;
+                }
+                
+                // 提取响应数据
+                let responseData = data;
+                if (data.data) {
+                    // 新格式响应，使用data字段
+                    responseData = data.data;
+                }
+                
+                // 展示AI响应
+                const aiResponse = responseData.final_response || responseData.response || responseData.text || responseData.content;
+                if (aiResponse) {
+                    addMessage(aiResponse, 'ai');
+                } else {
+                    addSystemMessage('服务器响应了，但没有找到可用的回复内容');
+                    console.warn('没有找到可用的回复内容：', data);
                 }
             } catch (error) {
                 console.error('发送消息失败:', error);

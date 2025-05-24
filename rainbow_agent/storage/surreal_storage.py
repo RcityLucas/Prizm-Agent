@@ -242,25 +242,57 @@ class SurrealStorage(BaseStorage):
             else:
                 query_str = f"SELECT * FROM {table} LIMIT {limit} START {offset}"
             
-            # 执行查询
-            results = await self.db.query(query_str)
-            
-            # 处理结果
-            if results and hasattr(results, "result") and results.result:
-                records = results.result[0]
-                # 确保每条记录都有ID
-                for record in records:
-                    if "id" not in record and hasattr(record, "id"):
-                        # 从记录ID中提取纯ID部分
-                        full_id = record.id
-                        if ":" in full_id:
-                            record["id"] = full_id.split(":", 1)[1]
+            try:
+                # 检查表结构，使用更简单的查询方式
+                try:
+                    # 检查 sessions 表是否存在
+                    await self.db.query("SELECT * FROM sessions LIMIT 1")
+                    logger.info("sessions 表已存在")
+                except Exception:
+                    # 如果表不存在，创建之
+                    logger.info("创建 sessions 表")
+                    try:
+                        await self.db.query("DEFINE TABLE sessions")
+                        logger.info("sessions 表创建成功")
+                    except Exception as e:
+                        logger.error(f"sessions 表创建失败: {e}")
                 
-                logger.info(f"读取多条记录成功: {table}, 共 {len(records)} 条")
-                return records
-            else:
-                logger.info(f"没有找到记录: {table}")
+                try:
+                    # 检查 turns 表是否存在
+                    await self.db.query("SELECT * FROM turns LIMIT 1")
+                    logger.info("turns 表已存在")
+                except Exception:
+                    # 如果表不存在，创建之
+                    logger.info("创建 turns 表")
+                    try:
+                        await self.db.query("DEFINE TABLE turns")
+                        logger.info("turns 表创建成功")
+                    except Exception as e:
+                        logger.error(f"turns 表创建失败: {e}")
+            except Exception as table_error:
+                logger.warning(f"检查和创建表结构失败: {table_error}")
+                # 不抛出异常，继续执行
                 return []
+            else:
+                # 执行查询
+                results = await self.db.query(query_str)
+                
+                # 处理结果
+                if results and hasattr(results, "result") and results.result:
+                    records = results.result[0]
+                    # 确保每条记录都有ID
+                    for record in records:
+                        if "id" not in record and hasattr(record, "id"):
+                            # 从记录ID中提取纯ID部分
+                            full_id = record.id
+                            if ":" in full_id:
+                                record["id"] = full_id.split(":", 1)[1]
+                    
+                    logger.info(f"读取多条记录成功: {table}, 共 {len(records)} 条")
+                    return records
+                else:
+                    logger.info(f"没有找到记录: {table}")
+                    return []
         except Exception as e:
             logger.error(f"读取多条记录失败: {e}")
             raise

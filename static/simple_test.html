@@ -61,6 +61,30 @@
         </div>
         
         <div class="card">
+            <h2>增强版 - 获取指定用户的会话列表</h2>
+            <input type="text" id="enhancedUserId" placeholder="用户ID" value="user_dg88v9qg">
+            <button id="getEnhancedSessionsBtn">获取会话列表</button>
+            <pre id="enhancedSessionsResult">结果将显示在这里...</pre>
+        </div>
+        
+        <div class="card">
+            <h2>增强版 - 创建新会话</h2>
+            <input type="text" id="enhancedCreateUserId" placeholder="用户ID" value="user_dg88v9qg">
+            <input type="text" id="enhancedTitle" placeholder="会话标题" value="测试会话">
+            <select id="enhancedDialogueType">
+                <option value="HUMAN_AI_PRIVATE">人类与AI私聊</option>
+                <option value="HUMAN_HUMAN_PRIVATE">人类与人类私聊</option>
+                <option value="HUMAN_HUMAN_GROUP">人类与人类群聊</option>
+                <option value="AI_AI_DIALOGUE">AI与AI对话</option>
+                <option value="AI_SELF_REFLECTION">AI自我反思</option>
+                <option value="HUMAN_AI_GROUP">人类与AI群聊</option>
+                <option value="AI_MULTI_HUMAN_GROUP">AI与多个人类群聊</option>
+            </select>
+            <button id="createEnhancedSessionBtn">创建会话</button>
+            <pre id="enhancedCreateResult">结果将显示在这里...</pre>
+        </div>
+        
+        <div class="card">
             <h2>获取会话轮次</h2>
             <input type="text" id="sessionId" placeholder="会话ID">
             <button id="getTurnsBtn">获取轮次</button>
@@ -86,6 +110,52 @@
                 document.getElementById('sessionsResult').textContent = JSON.stringify(data, null, 2);
             } catch (error) {
                 document.getElementById('sessionsResult').textContent = `错误: ${error.message}`;
+            }
+        });
+        
+        // 增强版 - 获取指定用户的会话列表
+        document.getElementById('getEnhancedSessionsBtn').addEventListener('click', async () => {
+            try {
+                const userId = document.getElementById('enhancedUserId').value;
+                document.getElementById('enhancedSessionsResult').textContent = '正在获取指定用户的会话列表...';
+                const response = await fetch(`/api/dialogue/sessions?userId=${userId}`);
+                const data = await response.json();
+                document.getElementById('enhancedSessionsResult').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('enhancedSessionsResult').textContent = `错误: ${error.message}`;
+            }
+        });
+        
+        // 增强版 - 创建新会话
+        document.getElementById('createEnhancedSessionBtn').addEventListener('click', async () => {
+            try {
+                const userId = document.getElementById('enhancedCreateUserId').value;
+                const title = document.getElementById('enhancedTitle').value;
+                const dialogueType = document.getElementById('enhancedDialogueType').value;
+                
+                document.getElementById('enhancedCreateResult').textContent = '正在创建新会话...';
+                const response = await fetch('/api/dialogue/sessions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        title: title,
+                        dialogueType: dialogueType,
+                        participants: [userId]
+                    })
+                });
+                const data = await response.json();
+                document.getElementById('enhancedCreateResult').textContent = JSON.stringify(data, null, 2);
+                
+                // 如果创建成功，自动填充会话ID到其他输入框
+                if (data.id) {
+                    document.getElementById('sessionId').value = data.id;
+                    document.getElementById('inputSessionId').value = data.id;
+                }
+            } catch (error) {
+                document.getElementById('enhancedCreateResult').textContent = `错误: ${error.message}`;
             }
         });
         
