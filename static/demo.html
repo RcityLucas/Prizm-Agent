@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>彩虹城 AI Agent - 演示页面</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #6e8efb;
+            --secondary-color: #a777e3;
+            --accent-color: #1890ff;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+            line-height: 1.6;
+            padding-top: 56px;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, rgba(110, 142, 251, 0.8), rgba(167, 119, 227, 0.8)), url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=1352&q=80');
+            background-size: cover;
+            background-position: center;
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .hero-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .demo-card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            padding: 25px;
+            margin-bottom: 30px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: 100%;
+        }
+        
+        .demo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .demo-icon {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+        
+        .demo-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            padding: 10px 25px;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feature-list {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .feature-list i {
+            color: var(--accent-color);
+            margin-right: 10px;
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 30px 0;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-rainbow"></i> 彩虹城 AI Agent
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/demo">演示</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/enhanced">增强版</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 英雄区域 -->
+    <section class="hero-section">
+        <div class="container">
+            <h1 class="hero-title">彩虹城 AI Agent 功能演示</h1>
+            <p class="hero-subtitle">
+                探索我们的 AI Agent 系统如何通过会话管理、多模态交互和动态工具发现提升您的体验
+            </p>
+            <a href="/enhanced" class="btn btn-light btn-lg">
+                <i class="bi bi-rocket"></i> 体验增强版
+            </a>
+        </div>
+    </section>
+
+    <!-- 主要内容区域 -->
+    <div class="container mb-5">
+        <div class="row mb-5">
+            <div class="col-md-6 mb-4">
+                <div class="demo-card">
+                    <div class="demo-icon">
+                        <i class="bi bi-chat-square-text"></i>
+                    </div>
+                    <h3 class="demo-title">会话管理</h3>
+                    <p>通过独立的 SessionManager 类实现高效的会话管理，确保多线程环境下的稳定性和可靠性。</p>
+                    <ul class="feature-list mt-4">
+                        <li><i class="bi bi-check-circle"></i> 线程安全的数据库连接</li>
+                        <li><i class="bi bi-check-circle"></i> SQLite WAL 日志模式提高并发性能</li>
+                        <li><i class="bi bi-check-circle"></i> 避免数据库锁定问题</li>
+                        <li><i class="bi bi-check-circle"></i> 详细的错误处理和日志记录</li>
+                    </ul>
+                    <a href="#" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#sessionModal">
+                        查看演示
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="demo-card">
+                    <div class="demo-icon">
+                        <i class="bi bi-image-alt"></i>
+                    </div>
+                    <h3 class="demo-title">多模态支持</h3>
+                    <p>支持文本、图像等多种输入模式，提供更丰富的交互体验和更全面的信息处理能力。</p>
+                    <ul class="feature-list mt-4">
+                        <li><i class="bi bi-check-circle"></i> 文本对话处理</li>
+                        <li><i class="bi bi-check-circle"></i> 图像识别与分析</li>
+                        <li><i class="bi bi-check-circle"></i> 混合模态输入处理</li>
+                        <li><i class="bi bi-check-circle"></i> 多模态响应生成</li>
+                    </ul>
+                    <a href="#" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#multimodalModal">
+                        查看演示
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="demo-card">
+                    <div class="demo-icon">
+                        <i class="bi bi-tools"></i>
+                    </div>
+                    <h3 class="demo-title">动态工具发现</h3>
+                    <p>自动发现和注册可用工具，使 AI Agent 能够灵活地使用各种功能来解决用户问题。</p>
+                    <ul class="feature-list mt-4">
+                        <li><i class="bi bi-check-circle"></i> 自动工具注册</li>
+                        <li><i class="bi bi-check-circle"></i> 工具功能描述生成</li>
+                        <li><i class="bi bi-check-circle"></i> 基于上下文的工具选择</li>
+                        <li><i class="bi bi-check-circle"></i> 工具调用结果处理</li>
+                    </ul>
+                    <a href="#" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#toolsModal">
+                        查看演示
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="demo-card">
+                    <div class="demo-icon">
+                        <i class="bi bi-gear"></i>
+                    </div>
+                    <h3 class="demo-title">工具版本管理</h3>
+                    <p>管理工具的不同版本，确保兼容性和功能一致性，同时支持工具的升级和回退。</p>
+                    <ul class="feature-list mt-4">
+                        <li><i class="bi bi-check-circle"></i> 工具版本跟踪</li>
+                        <li><i class="bi bi-check-circle"></i> 版本兼容性检查</li>
+                        <li><i class="bi bi-check-circle"></i> 工具升级管理</li>
+                        <li><i class="bi bi-check-circle"></i> 版本回退支持</li>
+                    </ul>
+                    <a href="#" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#versionModal">
+                        查看演示
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-5">
+            <div class="col-12 text-center">
+                <h2 class="mb-4">开始体验彩虹城 AI Agent</h2>
+                <p class="mb-4">选择您喜欢的界面版本，开始与我们的 AI Agent 进行对话</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="/" class="btn btn-outline-primary">
+                        <i class="bi bi-chat"></i> 标准版
+                    </a>
+                    <a href="/enhanced" class="btn btn-primary">
+                        <i class="bi bi-stars"></i> 增强版
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框 -->
+    <div class="modal fade" id="sessionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">会话管理演示</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <img src="https://via.placeholder.com/800x400?text=会话管理演示" class="img-fluid rounded" alt="会话管理演示">
+                    </div>
+                    <h5>主要特点</h5>
+                    <p>我们的会话管理系统通过独立的 SessionManager 类实现，确保在多线程环境下的稳定性和可靠性。主要优化包括：</p>
+                    <ul>
+                        <li>使用线程安全的数据库连接，通过 thread_local 确保每个线程使用独立的连接</li>
+                        <li>启用 SQLite 的 WAL 日志模式，提高并发性能</li>
+                        <li>添加详细的错误处理和日志记录，方便问题排查</li>
+                        <li>优化数据库操作，避免锁定问题</li>
+                    </ul>
+                    <p>这些改进解决了多线程环境下的数据库锁定问题，确保了会话创建和管理的稳定性。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <a href="/enhanced" class="btn btn-primary">体验增强版</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="multimodalModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">多模态支持演示</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <img src="https://via.placeholder.com/800x400?text=多模态支持演示" class="img-fluid rounded" alt="多模态支持演示">
+                    </div>
+                    <h5>主要特点</h5>
+                    <p>我们的多模态支持系统允许用户通过文本、图像等多种方式与 AI Agent 进行交互，提供更丰富的体验。主要功能包括：</p>
+                    <ul>
+                        <li>文本对话处理：处理用户的文本输入并生成相应的回复</li>
+                        <li>图像识别与分析：分析用户上传的图像并提取关键信息</li>
+                        <li>混合模态输入处理：同时处理文本和图像等多种输入</li>
+                        <li>多模态响应生成：根据需要生成文本、图像等多种形式的响应</li>
+                    </ul>
+                    <p>通过多模态支持，我们的 AI Agent 能够更全面地理解用户意图并提供更准确的响应。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <a href="/enhanced" class="btn btn-primary">体验增强版</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="toolsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">动态工具发现演示</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <img src="https://via.placeholder.com/800x400?text=动态工具发现演示" class="img-fluid rounded" alt="动态工具发现演示">
+                    </div>
+                    <h5>主要特点</h5>
+                    <p>我们的动态工具发现系统能够自动发现和注册可用工具，使 AI Agent 能够灵活地使用各种功能来解决用户问题。主要功能包括：</p>
+                    <ul>
+                        <li>自动工具注册：自动发现并注册系统中可用的工具</li>
+                        <li>工具功能描述生成：自动生成工具的功能描述，便于 AI Agent 理解工具用途</li>
+                        <li>基于上下文的工具选择：根据对话上下文选择最合适的工具</li>
+                        <li>工具调用结果处理：处理工具调用的结果并生成相应的响应</li>
+                    </ul>
+                    <p>通过动态工具发现，我们的 AI Agent 能够更灵活地解决各种问题，提供更全面的服务。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <a href="/enhanced" class="btn btn-primary">体验增强版</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="versionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">工具版本管理演示</h5>
+                    <button type="button" "btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <img src="https://via.placeholder.com/800x400?text=工具版本管理演示" class="img-fluid rounded" alt="工具版本管理演示">
+                    </div>
+                    <h5>主要特点</h5>
+                    <p>我们的工具版本管理系统能够管理工具的不同版本，确保兼容性和功能一致性，同时支持工具的升级和回退。主要功能包括：</p>
+                    <ul>
+                        <li>工具版本跟踪：跟踪工具的不同版本及其变更</li>
+                        <li>版本兼容性检查：检查工具版本与系统的兼容性</li>
+                        <li>工具升级管理：管理工具的升级过程</li>
+                        <li>版本回退支持：支持在需要时回退到工具的早期版本</li>
+                    </ul>
+                    <p>通过工具版本管理，我们的 AI Agent 能够更稳定地使用各种工具，避免因版本不兼容导致的问题。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <a href="/enhanced" class="btn btn-primary">体验增强版</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>彩虹城 AI Agent</h5>
+                    <p>一个强大的 AI 代理系统，支持会话管理、多模态交互和动态工具发现。</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p>&copy; 2025 彩虹城 AI Agent. 保留所有权利。</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化工具提示
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function(tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
+    </script>
+</body>
+</html>

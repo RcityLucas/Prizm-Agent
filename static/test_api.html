@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>SurrealDB API 测试</h1>
+    
+    <div class="container">
+        <div class="card">
+            <h2>获取会话列表</h2>
+            <button id="getSessionsBtn">获取会话列表</button>
+            <pre id="sessionsResult">结果将显示在这里...</pre>
+        </div>
+        
+        <div class="card">
+            <h2>创建新会话</h2>
+            <input type="text" id="userId" placeholder="用户ID" value="test_user">
+            <button id="createSessionBtn">创建会话</button>
+            <pre id="createSessionResult">结果将显示在这里...</pre>
+        </div>
+        
+        <div class="card">
+            <h2>获取会话轮次</h2>
+            <input type="text" id="sessionId" placeholder="会话ID">
+            <button id="getTurnsBtn">获取轮次</button>
+            <pre id="turnsResult">结果将显示在这里...</pre>
+        </div>
+        
+        <div class="card">
+            <h2>发送用户输入</h2>
+            <input type="text" id="inputSessionId" placeholder="会话ID">
+            <input type="text" id="userInput" placeholder="用户输入" value="你好，这是一个测试">
+            <button id="sendInputBtn">发送输入</button>
+            <pre id="inputResult">结果将显示在这里...</pre>
+        </div>
+    </div>
+
+    <script>
+        // 获取会话列表
+        document.getElementById('getSessionsBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/dialogue/sessions');
+                const data = await response.json();
+                document.getElementById('sessionsResult').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('sessionsResult').textContent = `错误: ${error.message}`;
+            }
+        });
+        
+        // 创建新会话
+        document.getElementById('createSessionBtn').addEventListener('click', async () => {
+            try {
+                const userId = document.getElementById('userId').value;
+                const response = await fetch('/api/dialogue/sessions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userId })
+                });
+                const data = await response.json();
+                document.getElementById('createSessionResult').textContent = JSON.stringify(data, null, 2);
+                
+                // 如果创建成功，自动填充会话ID到其他输入框
+                if (data.id) {
+                    document.getElementById('sessionId').value = data.id;
+                    document.getElementById('inputSessionId').value = data.id;
+                }
+            } catch (error) {
+                document.getElementById('createSessionResult').textContent = `错误: ${error.message}`;
+            }
+        });
+        
+        // 获取会话轮次
+        document.getElementById('getTurnsBtn').addEventListener('click', async () => {
+            try {
+                const sessionId = document.getElementById('sessionId').value;
+                if (!sessionId) {
+                    document.getElementById('turnsResult').textContent = '请先输入会话ID';
+                    return;
+                }
+                
+                const response = await fetch(`/api/dialogue/sessions/${sessionId}/turns`);
+                const data = await response.json();
+                document.getElementById('turnsResult').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('turnsResult').textContent = `错误: ${error.message}`;
+            }
+        });
+        
+        // 发送用户输入
+        document.getElementById('sendInputBtn').addEventListener('click', async () => {
+            try {
+                const sessionId = document.getElementById('inputSessionId').value;
+                const input = document.getElementById('userInput').value;
+                
+                if (!sessionId) {
+                    document.getElementById('inputResult').textContent = '请先输入会话ID';
+                    return;
+                }
+                
+                if (!input) {
+                    document.getElementById('inputResult').textContent = '请输入用户输入';
+                    return;
+                }
+                
+                const response = await fetch('/api/dialogue/input', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ sessionId, input })
+                });
+                const data = await response.json();
+                document.getElementById('inputResult').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('inputResult').textContent = `错误: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>

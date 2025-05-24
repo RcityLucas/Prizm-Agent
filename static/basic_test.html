@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 基础测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        input {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>API 基础测试</h1>
+    
+    <div class="test-section">
+        <h2>1. 获取会话列表</h2>
+        <button onclick="getSessionsList()">获取会话列表</button>
+        <div id="sessions-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. 创建新会话</h2>
+        <input type="text" id="user-id" value="test_user" placeholder="用户ID">
+        <button onclick="createSession()">创建会话</button>
+        <div id="create-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. 获取会话轮次</h2>
+        <input type="text" id="session-id" placeholder="会话ID">
+        <button onclick="getSessionTurns()">获取轮次</button>
+        <div id="turns-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. 发送用户输入</h2>
+        <input type="text" id="input-session-id" placeholder="会话ID">
+        <input type="text" id="user-input" value="你好，这是一个测试" placeholder="用户输入">
+        <button onclick="sendUserInput()">发送输入</button>
+        <div id="input-result"></div>
+    </div>
+
+    <script>
+        // 显示结果的辅助函数
+        function showResult(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            
+            if (isError) {
+                element.innerHTML = `<div class="error">错误: ${data}</div>`;
+            } else {
+                let content = '';
+                
+                if (typeof data === 'object') {
+                    content = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    content = `<pre>${data}</pre>`;
+                }
+                
+                element.innerHTML = `<div class="success">成功!</div>${content}`;
+            }
+        }
+        
+        // 1. 获取会话列表
+        async function getSessionsList() {
+            const resultElement = document.getElementById('sessions-result');
+            resultElement.innerHTML = '<div>正在获取会话列表...</div>';
+            
+            try {
+                const response = await fetch('/api/dialogue/sessions');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误 ${response.status}`);
+                }
+                
+                const data = await response.json();
+                showResult('sessions-result', data);
+                
+                // 如果有会话，自动填充第一个会话ID到其他输入框
+                if (data.items && data.items.length > 0) {
+                    const sessionId = data.items[0].id;
+                    document.getElementById('session-id').value = sessionId;
+                    document.getElementById('input-session-id').value = sessionId;
+                }
+            } catch (error) {
+                showResult('sessions-result', error.message, true);
+            }
+        }
+        
+        // 2. 创建新会话
+        async function createSession() {
+            const resultElement = document.getElementById('create-result');
+            resultElement.innerHTML = '<div>正在创建会话...</div>';
+            
+            try {
+                const userId = document.getElementById('user-id').value || 'test_user';
+                
+                const response = await fetch('/api/dialogue/sessions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userId })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误 ${response.status}`);
+                }
+                
+                const data = await response.json();
+                showResult('create-result', data);
+                
+                // 自动填充会话ID到其他输入框
+                if (data.id) {
+                    document.getElementById('session-id').value = data.id;
+                    document.getElementById('input-session-id').value = data.id;
+                }
+            } catch (error) {
+                showResult('create-result', error.message, true);
+            }
+        }
+        
+        // 3. 获取会话轮次
+        async function getSessionTurns() {
+            const resultElement = document.getElementById('turns-result');
+            const sessionId = document.getElementById('session-id').value;
+            
+            if (!sessionId) {
+                showResult('turns-result', '请先输入会话ID', true);
+                return;
+            }
+            
+            resultElement.innerHTML = '<div>正在获取会话轮次...</div>';
+            
+            try {
+                const response = await fetch(`/api/dialogue/sessions/${sessionId}/turns`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误 ${response.status}`);
+                }
+                
+                const data = await response.json();
+                showResult('turns-result', data);
+            } catch (error) {
+                showResult('turns-result', error.message, true);
+            }
+        }
+        
+        // 4. 发送用户输入
+        async function sendUserInput() {
+            const resultElement = document.getElementById('input-result');
+            const sessionId = document.getElementById('input-session-id').value;
+            const input = document.getElementById('user-input').value;
+            
+            if (!sessionId) {
+                showResult('input-result', '请先输入会话ID', true);
+                return;
+            }
+            
+            if (!input) {
+                showResult('input-result', '请输入用户输入', true);
+                return;
+            }
+            
+            resultElement.innerHTML = '<div>正在发送用户输入...</div>';
+            
+            try {
+                const response = await fetch('/api/dialogue/input', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ sessionId, input })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误 ${response.status}`);
+                }
+                
+                const data = await response.json();
+                showResult('input-result', data);
+            } catch (error) {
+                showResult('input-result', error.message, true);
+            }
+        }
+        
+        // 页面加载完成后自动获取会话列表
+        window.onload = function() {
+            getSessionsList();
+        };
+    </script>
+</body>
+</html>
