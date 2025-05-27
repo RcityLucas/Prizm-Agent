@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>彩虹城 AI Agent - 会话管理演示</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-top: 56px;
+        }
+        .chat-container {
+            height: calc(100vh - 150px);
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        .message {
+            margin-bottom: 15px;
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            position: relative;
+        }
+        .message.user {
+            align-self: flex-end;
+            background-color: #007bff;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        .message.ai {
+            align-self: flex-start;
+            background-color: #e9ecef;
+            color: #212529;
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+        .message.system {
+            align-self: center;
+            background-color: #ffc107;
+            color: #212529;
+            font-style: italic;
+            font-size: 0.9rem;
+            border-radius: 10px;
+        }
+        .input-area {
+            padding: 15px;
+            background-color: white;
+            border-top: 1px solid #dee2e6;
+        }
+        .loading-spinner {
+            width: 25px;
+            height: 25px;
+            border: 3px solid rgba(0, 123, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #007bff;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+        .session-item {
+            cursor: pointer;
+            padding: 10px 15px;
+            border-bottom: 1px solid #dee2e6;
+            transition: background-color 0.2s;
+        }
+        .session-item:hover {
+            background-color: #f8f9fa;
+        }
+        .session-item.active {
+            background-color: #e9ecef;
+            border-left: 3px solid #007bff;
+        }
+        .sessions-list {
+            max-height: calc(100vh - 250px);
+            overflow-y: auto;
+        }
+        pre {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        code {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">彩虹城 AI Agent - 会话管理演示</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="chat_demo.html">聊天演示</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="session_demo.html">会话管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="multimodal_demo.html">多模态演示</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="tools_demo.html">工具调用</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">会话列表</h5>
+                        <button id="newSessionBtn" class="btn btn-sm btn-primary">
+                            <i class="bi bi-plus-circle"></i> 新会话
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="sessionsList" class="sessions-list">
+                            <div class="loading-indicator">
+                                <div class="loading-spinner"></div>
+                                <span class="ms-2">加载会话列表中...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">会话类型</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="dialogueType" class="form-label">选择会话类型</label>
+                            <select id="dialogueType" class="form-select">
+                                <option value="human_to_ai_private">人类与AI私聊</option>
+                                <option value="human_to_human_private">人类与人类私聊</option>
+                                <option value="human_to_human_group">人类与人类群聊</option>
+                                <option value="ai_to_ai">AI与AI对话</option>
+                                <option value="ai_self_reflection">AI自我反思</option>
+                                <option value="human_to_ai_group">人类与AI群聊</option>
+                                <option value="ai_to_humans">AI与多个人类群聊</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="sessionTitle" class="form-label">会话标题</label>
+                            <input type="text" id="sessionTitle" class="form-control" placeholder="输入会话标题">
+                        </div>
+                        <button id="createSessionBtn" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-circle"></i> 创建会话
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 id="currentSessionTitle" class="mb-0">未选择会话</h5>
+                        <div>
+                            <button id="clearChatBtn" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-trash"></i> 清空对话
+                            </button>
+                            <button id="exportChatBtn" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-download"></i> 导出对话
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="chat-container">
+                            <div id="chatMessages" class="chat-messages d-flex flex-column">
+                                <div class="message system">
+                                    请选择一个会话或创建新会话。
+                                </div>
+                            </div>
+                            <div class="input-area">
+                                <div class="input-group">
+                                    <textarea id="userInput" class="form-control" placeholder="输入消息..." rows="2" disabled></textarea>
+                                    <button id="sendBtn" class="btn btn-primary" disabled>
+                                        <i class="bi bi-send"></i> 发送
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // API 基础 URL
+        const API_BASE_URL = '/api/v1';
+        
+        // 全局变量
+        let currentSessionId = null;
+        let userId = localStorage.getItem('userId') || `user_${Math.random().toString(36).substring(2, 10)}`;
+        
+        // DOM 元素
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const chatMessages = document.getElementById('chatMessages');
+        const sessionsList = document.getElementById('sessionsList');
+        const currentSessionTitle = document.getElementById('currentSessionTitle');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+        const exportChatBtn = document.getElementById('exportChatBtn');
+        const newSessionBtn = document.getElementById('newSessionBtn');
+        const createSessionBtn = document.getElementById('createSessionBtn');
+        const dialogueTypeSelect = document.getElementById('dialogueType');
+        const sessionTitleInput = document.getElementById('sessionTitle');
+        
+        // 初始化
+        function init() {
+            // 保存用户 ID
+            localStorage.setItem('userId', userId);
+            
+            // 加载会话列表
+            loadSessions();
+            
+            // 设置事件监听器
+            setupEventListeners();
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 发送消息
+            sendBtn.addEventListener('click', sendMessage);
+            userInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            // 会话管理
+            newSessionBtn.addEventListener('click', () => {
+                // 清空输入框
+                sessionTitleInput.value = `与${userId}的对话`;
+                dialogueTypeSelect.value = 'human_to_ai_private';
+            });
+            
+            createSessionBtn.addEventListener('click', createNewSession);
+            clearChatBtn.addEventListener('click', clearChat);
+            exportChatBtn.addEventListener('click', exportChat);
+        }
+        
+        // 加载会话列表
+        async function loadSessions() {
+            try {
+                sessionsList.innerHTML = `
+                    <div class="loading-indicator">
+                        <div class="loading-spinner"></div>
+                        <span class="ms-2">加载会话列表中...</span>
+                    </div>
+                `;
+                
+                const response = await fetch(`${API_BASE_URL}/sessions?user_id=${userId}`);
+                const data = await response.json();
+                console.log('会话列表数据:', data);
+                
+                // 处理不同格式的响应
+                let sessions = [];
+                if (data.success && data.sessions) {
+                    sessions = data.sessions;
+                } else if (data.success && data.data && data.data.sessions) {
+                    sessions = data.data.sessions;
+                } else if (data.items) {
+                    sessions = data.items;
+                }
+                
+                if (sessions.length === 0) {
+                    sessionsList.innerHTML = `
+                        <div class="p-3 text-center text-muted">
+                            暂无会话，请创建新会话。
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // 渲染会话列表
+                sessionsList.innerHTML = '';
+                sessions.forEach(session => {
+                    const sessionItem = document.createElement('div');
+                    sessionItem.className = 'session-item';
+                    sessionItem.dataset.id = session.id;
+                    
+                    // 格式化时间
+                    const createdAt = new Date(session.created_at || session.createdAt).toLocaleString();
+                    
+                    // 获取会话类型的显示名称
+                    const dialogueTypeDisplay = getDialogueTypeDisplay(session.dialogue_type || session.dialogueType);
+                    
+                    sessionItem.innerHTML = `
+                        <div class="d-flex justify-content-between">
+                            <h6 class="mb-1">${session.title}</h6>
+                            <small class="text-muted">${createdAt}</small>
+                        </div>
+                        <p class="mb-1 text-muted">${dialogueTypeDisplay}</p>
+                    `;
+                    
+                    sessionItem.addEventListener('click', () => loadSession(session.id));
+                    sessionsList.appendChild(sessionItem);
+                });
+            } catch (error) {
+                console.error('加载会话列表失败:', error);
+                sessionsList.innerHTML = `
+                    <div class="p-3 text-center text-danger">
+                        加载会话列表失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        // 获取会话类型的显示名称
+        function getDialogueTypeDisplay(type) {
+            const typeMap = {
+                'human_to_ai_private': '人类与AI私聊',
+                'human_to_human_private': '人类与人类私聊',
+                'human_to_human_group': '人类与人类群聊',
+                'ai_to_ai': 'AI与AI对话',
+                'ai_self_reflection': 'AI自我反思',
+                'human_to_ai_group': '人类与AI群聊',
+                'ai_to_humans': 'AI与多个人类群聊',
+                'HUMAN_AI_PRIVATE': '人类与AI私聊',
+                'HUMAN_HUMAN_PRIVATE': '人类与人类私聊',
+                'HUMAN_HUMAN_GROUP': '人类与人类群聊',
+                'AI_AI': 'AI与AI对话',
+                'AI_SELF_REFLECTION': 'AI自我反思',
+                'HUMAN_AI_GROUP': '人类与AI群聊',
+                'AI_HUMANS': 'AI与多个人类群聊'
+            };
+            
+            return typeMap[type] || type;
+        }
+        
+        // 加载会话
+        async function loadSession(sessionId) {
+            try {
+                // 更新当前会话 ID
+                currentSessionId = sessionId;
+                
+                // 更新会话列表中的活动项
+                const sessionItems = document.querySelectorAll('.session-item');
+                sessionItems.forEach(item => {
+                    if (item.dataset.id === sessionId) {
+                        item.classList.add('active');
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+                
+                // 清空聊天消息
+                clearChat(false);
+                
+                // 添加加载指示器
+                addSystemMessage('加载会话中...');
+                
+                // 获取会话详情
+                const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`);
+                const data = await response.json();
+                console.log('会话详情:', data);
+                
+                if (data.success === false) {
+                    throw new Error(data.error || '加载会话失败');
+                }
+                
+                // 提取会话数据
+                let session = null;
+                if (data.session) {
+                    session = data.session;
+                } else if (data.data && data.data.session) {
+                    session = data.data.session;
+                } else {
+                    session = data;
+                }
+                
+                // 更新会话标题
+                currentSessionTitle.textContent = session.title || '未命名会话';
+                
+                // 启用输入框和发送按钮
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                
+                // 加载会话轮次
+                await loadTurns(sessionId);
+            } catch (error) {
+                console.error('加载会话失败:', error);
+                addSystemMessage(`加载会话失败: ${error.message}`);
+            }
+        }
+        
+        // 加载会话轮次
+        async function loadTurns(sessionId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/turns`);
+                const data = await response.json();
+                console.log('会话轮次:', data);
+                
+                if (data.success === false) {
+                    throw new Error(data.error || '加载会话轮次失败');
+                }
+                
+                // 提取轮次数据
+                let turns = [];
+                if (data.turns) {
+                    turns = data.turns;
+                } else if (data.data && data.data.turns) {
+                    turns = data.data.turns;
+                } else if (data.items) {
+                    turns = data.items;
+                }
+                
+                // 清空聊天消息
+                clearChat(false);
+                
+                if (turns.length === 0) {
+                    addSystemMessage('会话中暂无消息');
+                    return;
+                }
+                
+                // 渲染轮次
+                turns.forEach(turn => {
+                    const role = turn.role || (turn.user_id ? 'user' : 'assistant');
+                    const content = turn.content;
+                    
+                    if (content) {
+                        addMessage(content, role === 'user' ? 'user' : 'ai');
+                    }
+                });
+                
+                // 滚动到底部
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } catch (error) {
+                console.error('加载会话轮次失败:', error);
+                addSystemMessage(`加载会话轮次失败: ${error.message}`);
+            }
+        }
+        
+        // 创建新会话
+        async function createNewSession() {
+            try {
+                const title = sessionTitleInput.value.trim() || `与${userId}的对话`;
+                const dialogueType = dialogueTypeSelect.value;
+                
+                addSystemMessage("正在创建新会话...");
+                
+                const requestData = {
+                    user_id: userId,
+                    title: title,
+                    dialogue_type: dialogueType
+                };
+                
+                console.log('创建会话请求:', requestData);
+                const response = await fetch(`${API_BASE_URL}/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                console.log('创建会话响应:', data);
+                
+                if (data.success === false) {
+                    throw new Error(data.error || '创建会话失败');
+                }
+                
+                // 提取会话 ID
+                let sessionId = null;
+                if (data.session && data.session.id) {
+                    sessionId = data.session.id;
+                } else if (data.data && data.data.session && data.data.session.id) {
+                    sessionId = data.data.session.id;
+                } else if (data.id) {
+                    sessionId = data.id;
+                }
+                
+                if (!sessionId) {
+                    throw new Error('无法获取会话 ID');
+                }
+                
+                // 重新加载会话列表
+                await loadSessions();
+                
+                // 加载新创建的会话
+                await loadSession(sessionId);
+                
+                // 启用输入框和发送按钮
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+            } catch (error) {
+                console.error('创建会话失败:', error);
+                addSystemMessage(`创建会话失败: ${error.message}`);
+            }
+        }
+        
+        // 发送消息
+        async function sendMessage() {
+            if (!currentSessionId) {
+                addSystemMessage('请先选择或创建一个会话');
+                return;
+            }
+            
+            const message = userInput.value.trim();
+            if (!message) return;
+            
+            // 清空输入框
+            userInput.value = '';
+            
+            // 添加用户消息
+            addMessage(message, 'user');
+            
+            // 添加加载指示器
+            const loadingElement = document.createElement('div');
+            loadingElement.className = 'loading-indicator';
+            loadingElement.innerHTML = `
+                <div class="loading-spinner"></div>
+                <span class="ms-2">AI 正在思考...</span>
+            `;
+            chatMessages.appendChild(loadingElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            try {
+                // 使用对话处理 API
+                const requestData = {
+                    session_id: currentSessionId,
+                    user_id: userId,
+                    content: message
+                };
+                
+                console.log('发送对话处理请求:', requestData);
+                const response = await fetch(`${API_BASE_URL}/dialogue/process`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                console.log('收到输入响应:', data);
+                
+                // 移除加载指示器
+                chatMessages.removeChild(loadingElement);
+                
+                // 处理错误响应
+                if (data.success === false) {
+                    const errorMessage = data.error || data.message || '未知错误';
+                    addSystemMessage(`错误: ${errorMessage}`);
+                    return;
+                }
+                
+                // 提取响应数据
+                if (data.ai_turn && data.ai_turn.content) {
+                    // 新格式响应
+                    addMessage(data.ai_turn.content, 'ai');
+                } else if (data.response) {
+                    // 旧格式响应
+                    addMessage(data.response, 'ai');
+                } else {
+                    // 尝试其他可能的字段
+                    const aiResponse = data.final_response || data.text || data.content;
+                    if (aiResponse) {
+                        addMessage(aiResponse, 'ai');
+                    } else {
+                        addSystemMessage('服务器响应了，但没有找到可用的回复内容');
+                        console.warn('没有找到可用的回复内容：', data);
+                    }
+                }
+            } catch (error) {
+                console.error('发送消息失败:', error);
+                
+                // 移除加载指示器
+                if (loadingElement.parentNode === chatMessages) {
+                    chatMessages.removeChild(loadingElement);
+                }
+                
+                addSystemMessage(`发送消息失败: ${error.message}`);
+            }
+        }
+        
+        // 添加消息到聊天窗口
+        function addMessage(content, role) {
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${role}`;
+            
+            // 支持 Markdown 渲染
+            if (role === 'ai') {
+                messageElement.innerHTML = marked.parse(content);
+            } else {
+                messageElement.textContent = content;
+            }
+            
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // 添加系统消息
+        function addSystemMessage(content) {
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message system';
+            messageElement.textContent = content;
+            
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // 清空聊天
+        function clearChat(notify = true) {
+            chatMessages.innerHTML = '';
+            
+            if (notify) {
+                addSystemMessage('对话已清空');
+            } else {
+                addSystemMessage('请开始对话');
+            }
+        }
+        
+        // 导出对话
+        function exportChat() {
+            if (!currentSessionId) {
+                addSystemMessage('请先选择一个会话');
+                return;
+            }
+            
+            // 获取所有消息
+            const messages = [];
+            document.querySelectorAll('.message').forEach(el => {
+                if (el.classList.contains('system')) {
+                    return;
+                }
+                
+                const role = el.classList.contains('user') ? 'User' : 'AI';
+                const content = el.classList.contains('user') ? el.textContent : el.innerHTML;
+                
+                messages.push(`${role}: ${content}`);
+            });
+            
+            if (messages.length === 0) {
+                addSystemMessage('没有可导出的消息');
+                return;
+            }
+            
+            // 创建下载链接
+            const title = currentSessionTitle.textContent;
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `${title}_${timestamp}.txt`;
+            const content = messages.join('\n\n');
+            
+            const element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+            
+            addSystemMessage(`对话已导出为 ${filename}`);
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

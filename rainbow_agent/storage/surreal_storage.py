@@ -36,7 +36,7 @@ class SurrealStorage(BaseStorage):
     def __init__(self, 
                  url: str = "ws://localhost:8000/rpc",
                  namespace: str = "rainbow",
-                 database: str = "test",
+                 database: str = "agent",
                  username: str = "root",
                  password: str = "root"):
         """初始化SurrealDB存储
