@@ -3,130 +3,1516 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>彩虹城 AI Agent 对话管理系统</title>
+    <title>彩虹城 AI Agent | 多模态智能对话系统</title>
+    
+    <!-- 引入字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- 引入图标和基础样式 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-okaidia.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
+    
     <style>
         :root {
-            --primary-color: #6e8efb;
-            --secondary-color: #a777e3;
-            --accent-color: #1890ff;
-            --light-bg: #f8f9fa;
-            --dark-bg: #343a40;
-            --success-color: #28a745;
-            --info-color: #17a2b8;
-            --warning-color: #ffc107;
-            --danger-color: #dc3545;
+            /* 主色调 */
+            --primary-dark: #0a1929;
+            --primary-light: #f8f9fa;
+            
+            /* 强调色 - 彩虹渐变 */
+            --gradient-start: #6e8efb;
+            --gradient-mid: #a777e3;
+            --gradient-end: #ff9e9e;
+            
+            /* 功能色 */
+            --success-color: #00c853;
+            --info-color: #00b0ff;
+            --warning-color: #ffab00;
+            --danger-color: #ff5252;
+            
+            /* 文本色 */
+            --text-primary: rgba(255, 255, 255, 0.95);
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-tertiary: rgba(255, 255, 255, 0.5);
+            
+            /* 卡片和组件 */
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            
+            /* 动画时间 */
+            --transition-fast: 0.2s;
+            --transition-normal: 0.3s;
+            --transition-slow: 0.5s;
         }
         
+        /* 基础样式 */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #333;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--primary-dark);
+            color: var(--text-primary);
             line-height: 1.6;
-            padding-top: 56px;
-            position: relative;
-            min-height: 100vh;
-            scroll-behavior: smooth;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 25% 25%, rgba(110, 142, 251, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(167, 119, 227, 0.1) 0%, transparent 50%),
+                linear-gradient(to bottom, var(--primary-dark), #050a14);
+            background-attachment: fixed;
+            background-size: cover;
         }
         
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* 导航栏 */
         .navbar {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            background: rgba(10, 25, 41, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--card-border);
+            padding: 0.75rem 0;
+            transition: all var(--transition-normal);
+        }
+        
+        .navbar.scrolled {
+            padding: 0.5rem 0;
+            background: rgba(10, 25, 41, 0.95);
         }
         
         .navbar-brand {
             font-weight: 700;
             font-size: 1.5rem;
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            position: relative;
         }
         
-        .hero-section {
-            background: linear-gradient(135deg, rgba(110, 142, 251, 0.8), rgba(167, 119, 227, 0.8)), url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=1352&q=80');
-            background-size: cover;
-            background-position: center;
+        .navbar-brand::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+            transform: scaleX(0);
+            transform-origin: right;
+            transition: transform var(--transition-normal);
+        }
+        
+        .navbar-brand:hover::after {
+            transform: scaleX(1);
+            transform-origin: left;
+        }
+        
+        .nav-link {
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin: 0 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            transition: all var(--transition-fast);
+        }
+        
+        .nav-link:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .nav-link.active {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .btn-rainbow {
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid));
+            border: none;
             color: white;
-            padding: 100px 0;
-            text-align: center;
-            margin-bottom: 50px;
+            font-weight: 600;
+            padding: 0.6rem 1.5rem;
+            border-radius: 8px;
+            transition: all var(--transition-fast);
+            box-shadow: 0 4px 12px rgba(110, 142, 251, 0.3);
+        }
+        
+        .btn-rainbow:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(110, 142, 251, 0.4);
+            color: white;
+        }
+        
+        .btn-outline-rainbow {
+            background: transparent;
+            border: 1px solid rgba(110, 142, 251, 0.5);
+            color: var(--text-primary);
+            font-weight: 500;
+            padding: 0.6rem 1.5rem;
+            border-radius: 8px;
+            transition: all var(--transition-fast);
+        }
+        
+        .btn-outline-rainbow:hover {
+            background: rgba(110, 142, 251, 0.1);
+            border-color: var(--gradient-start);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-rainbow me-2"></i>彩虹城 AI Agent
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <i class="bi bi-list text-white"></i>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#features">特性</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#dialogue-types">对话类型</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#architecture">架构</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#api-docs">API 文档</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#demo">演示</a>
+                    </li>
+                    <li class="nav-item ms-lg-2 mt-2 mt-lg-0">
+                        <a class="btn btn-rainbow" href="/chat">
+                            <i class="bi bi-chat-text me-1"></i>进入对话
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <!-- 英雄区域 -->
+    <section class="hero-section py-5 mt-5">
+        <div class="container">
+            <div class="row align-items-center py-5">
+                <div class="col-lg-7 mb-5 mb-lg-0">
+                    <div class="hero-content" data-aos="fade-right">
+                        <h1 class="hero-title mb-4">
+                            <span class="gradient-text">多模态智能对话系统</span>
+                            <br>重新定义 AI 交互体验
+                        </h1>
+                        <p class="hero-subtitle mb-5">
+                            彩虹城 AI Agent 是一个强大的对话管理系统，支持七种对话类型、多模态输入和工具集成，
+                            让 AI 交互更加自然、高效、智能。
+                        </p>
+                        <div class="hero-buttons">
+                            <a href="#features" class="btn btn-rainbow me-3 mb-3">
+                                <i class="bi bi-stars me-2"></i>探索特性
+                            </a>
+                            <a href="/chat" class="btn btn-outline-rainbow mb-3">
+                                <i class="bi bi-chat-text me-2"></i>开始对话
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="hero-image text-center" data-aos="fade-left">
+                        <div class="image-container">
+                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg" class="floating-icon icon-react" alt="React">
+                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" class="floating-icon icon-python" alt="Python">
+                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg" class="floating-icon icon-node" alt="Node.js">
+                            <div class="main-illustration">
+                                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="blob-animation">
+                                    <path fill="url(#gradient)" d="M40.8,-68.3C52.9,-61.5,62.9,-49.4,69.9,-35.8C76.9,-22.2,80.8,-7.1,79.8,8.1C78.8,23.3,72.8,38.5,62.4,49.8C52,61.1,37.2,68.5,22.1,72.5C7,76.4,-8.4,77,-22.1,72.3C-35.8,67.6,-47.8,57.7,-57.2,45.6C-66.6,33.5,-73.3,19.1,-76.2,3.1C-79.1,-12.9,-78.2,-30.6,-70.1,-44.3C-62,-58,-46.8,-67.8,-31.8,-73.1C-16.8,-78.4,-2,-79.3,11.8,-77.7C25.7,-76.1,28.7,-75.1,40.8,-68.3Z" transform="translate(100 100)" />
+                                </svg>
+                            </div>
+                            <div class="chat-bubble bubble-1">
+                                <i class="bi bi-chat-dots"></i>
+                            </div>
+                            <div class="chat-bubble bubble-2">
+                                <i class="bi bi-image"></i>
+                            </div>
+                            <div class="chat-bubble bubble-3">
+                                <i class="bi bi-tools"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 统计数字 -->
+            <div class="row stats-row text-center mt-5 py-4">
+                <div class="col-md-3 col-6 mb-4 mb-md-0">
+                    <div class="stat-item" data-aos="fade-up" data-aos-delay="100">
+                        <div class="stat-number gradient-text">7</div>
+                        <div class="stat-label">对话类型</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-4 mb-md-0">
+                    <div class="stat-item" data-aos="fade-up" data-aos-delay="200">
+                        <div class="stat-number gradient-text">4</div>
+                        <div class="stat-label">层数据结构</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stat-item" data-aos="fade-up" data-aos-delay="300">
+                        <div class="stat-number gradient-text">∞</div>
+                        <div class="stat-label">工具集成</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stat-item" data-aos="fade-up" data-aos-delay="400">
+                        <div class="stat-number gradient-text">3+</div>
+                        <div class="stat-label">模态支持</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 特性部分 -->
+    <section id="features" class="section-padding">
+        <div class="container">
+            <div class="section-header text-center mb-5" data-aos="fade-up">
+                <h6 class="section-pre-title">核心优势</h6>
+                <h2 class="section-title">系统特性</h2>
+                <div class="section-divider"></div>
+                <p class="section-subtitle">
+                    彩虹城 AI Agent 对话管理系统拥有多项创新特性，为用户提供更智能、更自然的 AI 交互体验
+                </p>
+            </div>
+
+            <div class="row g-4">
+                <!-- 特性卡片 1 -->
+                <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="100">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-chat-dots"></i>
+                        </div>
+                        <h3 class="feature-title">多种对话类型</h3>
+                        <p class="feature-text">
+                            支持七种对话类型，包括人对AI、AI对AI、多轮对话等多种交互模式，满足不同场景需求。
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- 特性卡片 2 -->
+                <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="200">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-layers"></i>
+                        </div>
+                        <h3 class="feature-title">四层架构</h3>
+                        <p class="feature-text">
+                            采用消息、轮次、会话、对话四层架构设计，提供清晰的数据组织和管理能力。
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- 特性卡片 3 -->
+                <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="300">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-tools"></i>
+                        </div>
+                        <h3 class="feature-title">工具集成</h3>
+                        <p class="feature-text">
+                            支持工具调用和结果处理，让AI代理能够使用外部工具和服务，增强问题解决能力。
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- 特性卡片 4 -->
+                <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="400">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-images"></i>
+                        </div>
+                        <h3 class="feature-title">多模态支持</h3>
+                        <p class="feature-text">
+                            支持文本、图像等多种输入模式，为用户提供更丰富的交互体验。
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- 特性卡片 5 -->
+                <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="500">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-database"></i>
+                        </div>
+                        <h3 class="feature-title">持久化存储</h3>
+                        <p class="feature-text">
+                            所有对话数据都保存在数据库中，支持历史记录查询和对话恢复。
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- 特性卡片 6 -->
+                <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="600">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-code-slash"></i>
+                        </div>
+                        <h3 class="feature-title">RESTful API</h3>
+                        <p class="feature-text">
+                            提供标准的RESTful API接口，方便与各种应用和服务集成。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        /* 英雄区域样式 */
+        .hero-section {
+            position: relative;
+            padding: 100px 0 50px;
+            overflow: hidden;
+        }
+        
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(110, 142, 251, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(167, 119, 227, 0.15) 0%, transparent 50%);
+            z-index: -1;
         }
         
         .hero-title {
             font-size: 3.5rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 1.5rem;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
         }
         
         .hero-subtitle {
-            font-size: 1.5rem;
-            margin-bottom: 30px;
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
         }
         
-        .section {
-            padding: 80px 0;
-        }
-        
-        .section-title {
-            text-align: center;
-            margin-bottom: 50px;
-            font-weight: 700;
-            color: var(--dark-bg);
+        .hero-image {
             position: relative;
         }
         
-        .section-title:after {
-            content: '';
-            display: block;
-            width: 100px;
-            height: 3px;
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-            margin: 20px auto 0;
+        .image-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        
+        .main-illustration {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+        }
+        
+        .blob-animation {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 0 20px rgba(110, 142, 251, 0.3));
+        }
+        
+        @keyframes float {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-15px) rotate(5deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
+        }
+        
+        .floating-icon {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.3));
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        .icon-react {
+            top: 20%;
+            left: 20%;
+            animation-delay: 0s;
+        }
+        
+        .icon-python {
+            top: 30%;
+            right: 20%;
+            animation-delay: 1s;
+        }
+        
+        .icon-node {
+            bottom: 25%;
+            left: 30%;
+            animation-delay: 2s;
+        }
+        
+        .chat-bubble {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            animation: float 5s ease-in-out infinite;
+        }
+        
+        .bubble-1 {
+            top: 15%;
+            right: 25%;
+            animation-delay: 0.5s;
+        }
+        
+        .bubble-2 {
+            bottom: 20%;
+            right: 30%;
+            animation-delay: 1.5s;
+        }
+        
+        .bubble-3 {
+            bottom: 35%;
+            left: 20%;
+            animation-delay: 2.5s;
+        }
+        
+        /* 统计数字样式 */
+        .stats-row {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            backdrop-filter: blur(5px);
+            border: 1px solid var(--card-border);
+        }
+        
+        .stat-item {
+            padding: 1rem;
+        }
+        
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+        
+        /* 特性部分样式 */
+        .section-padding {
+            padding: 100px 0;
+        }
+        
+        .section-pre-title {
+            color: var(--gradient-start);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 1rem;
+        }
+        
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .section-divider {
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid));
+            margin: 1.5rem auto;
+            border-radius: 2px;
+        }
+        
+        .section-subtitle {
+            color: var(--text-secondary);
+            max-width: 700px;
+            margin: 0 auto;
         }
         
         .feature-card {
-            border: none;
-            border-radius: 10px;
-            overflow: hidden;
-            transition: transform 0.3s, box-shadow 0.3s;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            backdrop-filter: blur(5px);
+            border: 1px solid var(--card-border);
+            padding: 2rem;
             height: 100%;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            transition: all var(--transition-normal);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid));
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform var(--transition-normal);
         }
         
         .feature-card:hover {
             transform: translateY(-10px);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--card-shadow);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .feature-card:hover::before {
+            transform: scaleX(1);
         }
         
         .feature-icon {
             font-size: 2.5rem;
-            margin-bottom: 20px;
-            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            color: var(--gradient-start);
+            background: rgba(110, 142, 251, 0.1);
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+        }
+        
+        .feature-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        
+        .feature-text {
+            color: var(--text-secondary);
+            margin-bottom: 0;
+        }
+    </style>
+    <!-- 对话类型部分 -->
+    <section id="dialogue-types" class="section-padding bg-gradient-subtle">
+        <div class="container">
+            <div class="section-header text-center mb-5" data-aos="fade-up">
+                <h6 class="section-pre-title">交互模式</h6>
+                <h2 class="section-title">支持的对话类型</h2>
+                <div class="section-divider"></div>
+                <p class="section-subtitle">
+                    彩虹城 AI Agent 支持七种不同的对话类型，满足各种复杂场景的需求
+                </p>
+            </div>
+
+            <div class="row g-4">
+                <!-- 对话类型 1 -->
+                <div class="col-md-6 col-lg-3 mb-4" data-aos="fade-up" data-aos-delay="100">
+                    <div class="dialogue-type-card">
+                        <div class="dialogue-type-icon">
+                            <div class="icon-container">
+                                <i class="bi bi-person-fill"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                        </div>
+                        <h4 class="dialogue-type-title">人类与AI私聊</h4>
+                        <p class="dialogue-type-desc">
+                            用户与AI助手之间的标准一对一对话模式
+                        </p>
+                        <div class="dialogue-type-badge">基础模式</div>
+                    </div>
+                </div>
+
+                <!-- 对话类型 2 -->
+                <div class="col-md-6 col-lg-3 mb-4" data-aos="fade-up" data-aos-delay="200">
+                    <div class="dialogue-type-card">
+                        <div class="dialogue-type-icon">
+                            <div class="icon-container">
+                                <i class="bi bi-people-fill"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                        </div>
+                        <h4 class="dialogue-type-title">人类与AI群聊</h4>
+                        <p class="dialogue-type-desc">
+                            多个用户同时与一个AI助手交互的群聊模式
+                        </p>
+                        <div class="dialogue-type-badge">协作模式</div>
+                    </div>
+                </div>
+
+                <!-- 对话类型 3 -->
+                <div class="col-md-6 col-lg-3 mb-4" data-aos="fade-up" data-aos-delay="300">
+                    <div class="dialogue-type-card">
+                        <div class="dialogue-type-icon">
+                            <div class="icon-container">
+                                <i class="bi bi-robot"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                        </div>
+                        <h4 class="dialogue-type-title">AI与AI对话</h4>
+                        <p class="dialogue-type-desc">
+                            两个AI代理之间的自动对话交互模式
+                        </p>
+                        <div class="dialogue-type-badge">自动模式</div>
+                    </div>
+                </div>
+
+                <!-- 对话类型 4 -->
+                <div class="col-md-6 col-lg-3 mb-4" data-aos="fade-up" data-aos-delay="400">
+                    <div class="dialogue-type-card">
+                        <div class="dialogue-type-icon">
+                            <div class="icon-container">
+                                <i class="bi bi-robot"></i>
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </div>
+                        </div>
+                        <h4 class="dialogue-type-title">AI自我反思</h4>
+                        <p class="dialogue-type-desc">
+                            AI进行自我思考和反思的内部对话模式
+                        </p>
+                        <div class="dialogue-type-badge">思考模式</div>
+                    </div>
+                </div>
+
+                <!-- 对话类型 5 -->
+                <div class="col-md-6 col-lg-3 mb-4" data-aos="fade-up" data-aos-delay="500">
+                    <div class="dialogue-type-card">
+                        <div class="dialogue-type-icon">
+                            <div class="icon-container">
+                                <i class="bi bi-person-fill"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-robot"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                        </div>
+                        <h4 class="dialogue-type-title">人类与多AI对话</h4>
+                        <p class="dialogue-type-desc">
+                            用户同时与多个AI助手交互的模式
+                        </p>
+                        <div class="dialogue-type-badge">多智能体</div>
+                    </div>
+                </div>
+
+                <!-- 对话类型 6 -->
+                <div class="col-md-6 col-lg-3 mb-4" data-aos="fade-up" data-aos-delay="600">
+                    <div class="dialogue-type-card">
+                        <div class="dialogue-type-icon">
+                            <div class="icon-container">
+                                <i class="bi bi-person-fill"></i>
+                                <i class="bi bi-person-fill"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                        </div>
+                        <h4 class="dialogue-type-title">人类与人类私聊</h4>
+                        <p class="dialogue-type-desc">
+                            两个人类用户之间的私人对话模式
+                        </p>
+                        <div class="dialogue-type-badge">社交模式</div>
+                    </div>
+                </div>
+
+                <!-- 对话类型 7 -->
+                <div class="col-md-6 col-lg-3 mb-4" data-aos="fade-up" data-aos-delay="700">
+                    <div class="dialogue-type-card">
+                        <div class="dialogue-type-icon">
+                            <div class="icon-container">
+                                <i class="bi bi-person-fill"></i>
+                                <i class="bi bi-person-fill"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                        </div>
+                        <h4 class="dialogue-type-title">人类与人类群聊</h4>
+                        <p class="dialogue-type-desc">
+                            多个人类用户之间的群组对话模式
+                        </p>
+                        <div class="dialogue-type-badge">群组模式</div>
+                    </div>
+                </div>
+
+                <!-- 自定义对话类型 -->
+                <div class="col-md-6 col-lg-3 mb-4" data-aos="fade-up" data-aos-delay="800">
+                    <div class="dialogue-type-card dialogue-type-custom">
+                        <div class="dialogue-type-icon">
+                            <div class="icon-container">
+                                <i class="bi bi-plus-circle"></i>
+                            </div>
+                        </div>
+                        <h4 class="dialogue-type-title">自定义对话类型</h4>
+                        <p class="dialogue-type-desc">
+                            根据需求定制专属的对话交互模式
+                        </p>
+                        <div class="dialogue-type-badge">扩展模式</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 架构部分 -->
+    <section id="architecture" class="section-padding">
+        <div class="container">
+            <div class="section-header text-center mb-5" data-aos="fade-up">
+                <h6 class="section-pre-title">技术设计</h6>
+                <h2 class="section-title">系统架构</h2>
+                <div class="section-divider"></div>
+                <p class="section-subtitle">
+                    彩虹城 AI Agent 采用四层架构设计，提供清晰的数据组织和管理能力
+                </p>
+            </div>
+
+            <div class="row align-items-center">
+                <div class="col-lg-6 mb-5 mb-lg-0" data-aos="fade-right">
+                    <div class="architecture-content">
+                        <h3 class="mb-4">四层对话管理架构</h3>
+                        <p class="mb-4">
+                            彩虹城 AI Agent 对话管理系统采用了四层架构设计，提供清晰的数据组织和管理能力，
+                            确保对话的连贯性、上下文理解和多模态支持。
+                        </p>
+                        
+                        <div class="architecture-layers">
+                            <div class="layer-item" data-aos="fade-up" data-aos-delay="100">
+                                <div class="layer-icon">
+                                    <i class="bi bi-chat-text"></i>
+                                </div>
+                                <div class="layer-content">
+                                    <h5 class="layer-title">消息层（Message）</h5>
+                                    <p class="layer-desc">单条消息内容，支持文本、图像等多种类型</p>
+                                </div>
+                            </div>
+                            
+                            <div class="layer-item" data-aos="fade-up" data-aos-delay="200">
+                                <div class="layer-icon">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </div>
+                                <div class="layer-content">
+                                    <h5 class="layer-title">轮次层（Turn）</h5>
+                                    <p class="layer-desc">单轮对话，包含用户输入和系统响应</p>
+                                </div>
+                            </div>
+                            
+                            <div class="layer-item" data-aos="fade-up" data-aos-delay="300">
+                                <div class="layer-icon">
+                                    <i class="bi bi-collection"></i>
+                                </div>
+                                <div class="layer-content">
+                                    <h5 class="layer-title">会话层（Session）</h5>
+                                    <p class="layer-desc">一次完整交互，包含多个轮次</p>
+                                </div>
+                            </div>
+                            
+                            <div class="layer-item" data-aos="fade-up" data-aos-delay="400">
+                                <div class="layer-icon">
+                                    <i class="bi bi-diagram-3"></i>
+                                </div>
+                                <div class="layer-content">
+                                    <h5 class="layer-title">对话层（Dialogue）</h5>
+                                    <p class="layer-desc">最高层级，包含多个会话和对话元数据</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6" data-aos="fade-left">
+                    <div class="architecture-diagram-container">
+                        <div class="architecture-diagram">
+                            <img src="https://mermaid.ink/img/pako:eNp1kc9OwzAMxl8l8glUCY4cOFSIf-LQCxI3L3GXiDRJlbhDVdV3x2m7bmxwSuzz-_zZcnrQxhPX2r6D9eiJHhwGcI4e0HWwWMKLQWsJXsGiNQE9GXjEQCDLxSKDJRgXgFZgPQUyaAJBB5FmkCUZZHmWQb7KYZ3DJv_3Ks_gGWzA4FvwNDjHVVvCO_YdOQzQWrRE9qjb4Ht0tIQP9I6qEu5vq7vqcX_YVfXh_raqD_uqLuH2pqrr3X5XH+9OVb3fHR-q+vR0rJ_r3fG0e3ys6tPzqf45fO3_hnmeZzHOY1zEuIxxFeM6xk2MRYzFN_QkUZU" 
+                                 alt="架构图" class="img-fluid architecture-img">
+                            <div class="diagram-overlay"></div>
+                        </div>
+                        
+                        <div class="architecture-nodes">
+                            <div class="node node-1" data-aos="fade-up" data-aos-delay="100">
+                                <div class="node-dot"></div>
+                                <div class="node-label">多模态输入</div>
+                            </div>
+                            
+                            <div class="node node-2" data-aos="fade-up" data-aos-delay="200">
+                                <div class="node-dot"></div>
+                                <div class="node-label">上下文管理</div>
+                            </div>
+                            
+                            <div class="node node-3" data-aos="fade-up" data-aos-delay="300">
+                                <div class="node-dot"></div>
+                                <div class="node-label">工具调用</div>
+                            </div>
+                            
+                            <div class="node node-4" data-aos="fade-up" data-aos-delay="400">
+                                <div class="node-dot"></div>
+                                <div class="node-label">持久化存储</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        /* 对话类型部分样式 */
+        .bg-gradient-subtle {
+            background: linear-gradient(180deg, var(--primary-dark) 0%, rgba(10, 25, 41, 0.8) 100%);
+            position: relative;
+        }
+        
+        .bg-gradient-subtle::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(circle at 10% 10%, rgba(110, 142, 251, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 90% 90%, rgba(167, 119, 227, 0.1) 0%, transparent 50%);
+            z-index: -1;
+        }
+        
+        .dialogue-type-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            backdrop-filter: blur(5px);
+            border: 1px solid var(--card-border);
+            padding: 1.5rem;
+            height: 100%;
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .dialogue-type-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--card-shadow);
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .dialogue-type-icon {
+            margin-bottom: 1.5rem;
+        }
+        
+        .icon-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.5rem;
+            color: var(--gradient-start);
+        }
+        
+        .dialogue-type-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        
+        .dialogue-type-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        
+        .dialogue-type-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(110, 142, 251, 0.2);
+            color: var(--gradient-start);
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+        
+        .dialogue-type-custom {
+            border: 1px dashed var(--card-border);
+            background: rgba(255, 255, 255, 0.01);
+        }
+        
+        .dialogue-type-custom:hover {
+            border: 1px dashed rgba(255, 255, 255, 0.3);
+        }
+        
+        /* 架构部分样式 */
+        .architecture-content {
+            padding-right: 2rem;
+        }
+        
+        .architecture-layers {
+            margin-top: 2rem;
+        }
+        
+        .layer-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            transition: all var(--transition-normal);
+        }
+        
+        .layer-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateX(5px);
+        }
+        
+        .layer-icon {
+            flex-shrink: 0;
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            background: rgba(110, 142, 251, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: var(--gradient-start);
+            margin-right: 1rem;
+        }
+        
+        .layer-content {
+            flex-grow: 1;
+        }
+        
+        .layer-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .layer-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 0;
+        }
+        
+        .architecture-diagram-container {
+            position: relative;
+        }
+        
+        .architecture-diagram {
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .architecture-img {
+            width: 100%;
+            border-radius: 16px;
+            transition: all var(--transition-normal);
+        }
+        
+        .diagram-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(110, 142, 251, 0.2), rgba(167, 119, 227, 0.2));
+            border-radius: 16px;
+            pointer-events: none;
+        }
+        
+        .architecture-nodes {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .node {
+            position: absolute;
+            display: flex;
+            align-items: center;
+        }
+        
+        .node-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--gradient-start);
+            margin-right: 8px;
+            box-shadow: 0 0 10px rgba(110, 142, 251, 0.5);
+        }
+        
+        .node-label {
+            background: rgba(10, 25, 41, 0.8);
+            backdrop-filter: blur(5px);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        .node-1 {
+            top: 15%;
+            left: 10%;
+        }
+        
+        .node-2 {
+            top: 35%;
+            right: 5%;
+        }
+        
+        .node-3 {
+            bottom: 30%;
+            left: 15%;
+        }
+        
+        .node-4 {
+            bottom: 15%;
+            right: 10%;
+        }
+    </style>
+    <!-- API文档部分 -->
+    <section id="api-docs" class="section-padding bg-gradient-subtle">
+        <div class="container">
+            <div class="section-header text-center mb-5" data-aos="fade-up">
+                <h6 class="section-pre-title">开发接口</h6>
+                <h2 class="section-title">API 文档</h2>
+                <div class="section-divider"></div>
+                <p class="section-subtitle">
+                    彩虹城 AI Agent 提供完整的 RESTful API，方便与各种应用和服务集成
+                </p>
+            </div>
+
+            <div class="api-tabs-container">
+                <ul class="nav nav-pills api-tabs mb-5 justify-content-center" id="api-tab" role="tablist" data-aos="fade-up">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="dialogue-tab" data-bs-toggle="pill" data-bs-target="#dialogue" type="button" role="tab">对话管理</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="session-tab" data-bs-toggle="pill" data-bs-target="#session" type="button" role="tab">会话管理</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="turn-tab" data-bs-toggle="pill" data-bs-target="#turn" type="button" role="tab">轮次管理</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="message-tab" data-bs-toggle="pill" data-bs-target="#message" type="button" role="tab">消息管理</button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" id="api-tabContent">
+                    <!-- 对话管理API -->
+                    <div class="tab-pane fade show active" id="dialogue" role="tabpanel">
+                        <div class="row">
+                            <div class="col-lg-6 mb-4" data-aos="fade-up" data-aos-delay="100">
+                                <div class="api-card">
+                                    <div class="api-card-header">
+                                        <span class="api-method method-post">POST</span>
+                                        <span class="api-endpoint">/api/dialogue/input</span>
+                                    </div>
+                                    <div class="api-card-body">
+                                        <h5 class="api-title">处理用户输入</h5>
+                                        <p class="api-desc">接收用户输入，创建或继续会话，并返回AI响应。</p>
+                                        
+                                        <div class="api-details">
+                                            <div class="api-section">
+                                                <h6>请求参数：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "input": "string",  // 用户输入内容
+  "session_id": "string",  // 可选，会话 ID
+  "dialogue_type": "human_to_ai",  // 对话类型
+  "metadata": {}  // 可选，元数据
+}</code></pre>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="api-section">
+                                                <h6>响应：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "response": "string",  // AI 响应内容
+  "session_id": "string",  // 会话 ID
+  "turn_id": "string",  // 轮次 ID
+  "tool_calls": []  // 工具调用结果（如有）
+}</code></pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-6 mb-4" data-aos="fade-up" data-aos-delay="200">
+                                <div class="api-card">
+                                    <div class="api-card-header">
+                                        <span class="api-method method-get">GET</span>
+                                        <span class="api-endpoint">/api/dialogue/types</span>
+                                    </div>
+                                    <div class="api-card-body">
+                                        <h5 class="api-title">获取支持的对话类型</h5>
+                                        <p class="api-desc">返回系统支持的所有对话类型。</p>
+                                        
+                                        <div class="api-details">
+                                            <div class="api-section">
+                                                <h6>响应：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "dialogue_types": [
+    "human_to_ai",
+    "ai_to_ai",
+    "human_to_multi_ai",
+    "multi_human_to_ai",
+    "multi_human_to_multi_ai",
+    "moderated_human_to_ai",
+    "moderated_ai_to_ai"
+  ]
+}</code></pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 会话管理API -->
+                    <div class="tab-pane fade" id="session" role="tabpanel">
+                        <div class="row">
+                            <div class="col-lg-6 mb-4" data-aos="fade-up" data-aos-delay="100">
+                                <div class="api-card">
+                                    <div class="api-card-header">
+                                        <span class="api-method method-post">POST</span>
+                                        <span class="api-endpoint">/api/session</span>
+                                    </div>
+                                    <div class="api-card-body">
+                                        <h5 class="api-title">创建新会话</h5>
+                                        <p class="api-desc">创建新的对话会话。</p>
+                                        
+                                        <div class="api-details">
+                                            <div class="api-section">
+                                                <h6>请求参数：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "dialogue_type": "human_to_ai",  // 对话类型
+  "metadata": {}  // 可选，元数据
+}</code></pre>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="api-section">
+                                                <h6>响应：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "session_id": "string",  // 新创建的会话 ID
+  "created_at": "2023-01-01T12:00:00Z",  // 创建时间
+  "dialogue_type": "human_to_ai"  // 对话类型
+}</code></pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-6 mb-4" data-aos="fade-up" data-aos-delay="200">
+                                <div class="api-card">
+                                    <div class="api-card-header">
+                                        <span class="api-method method-get">GET</span>
+                                        <span class="api-endpoint">/api/session/{session_id}</span>
+                                    </div>
+                                    <div class="api-card-body">
+                                        <h5 class="api-title">获取会话信息</h5>
+                                        <p class="api-desc">获取指定会话的详细信息和历史记录。</p>
+                                        
+                                        <div class="api-details">
+                                            <div class="api-section">
+                                                <h6>响应：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "session_id": "string",
+  "created_at": "2023-01-01T12:00:00Z",
+  "updated_at": "2023-01-01T12:05:00Z",
+  "dialogue_type": "human_to_ai",
+  "turns": [  // 会话中的轮次列表
+    {
+      "turn_id": "string",
+      "created_at": "2023-01-01T12:01:00Z",
+      "messages": []  // 轮次中的消息列表
+    }
+  ]
+}</code></pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 轮次管理API -->
+                    <div class="tab-pane fade" id="turn" role="tabpanel">
+                        <div class="row">
+                            <div class="col-lg-6 mb-4" data-aos="fade-up" data-aos-delay="100">
+                                <div class="api-card">
+                                    <div class="api-card-header">
+                                        <span class="api-method method-post">POST</span>
+                                        <span class="api-endpoint">/api/session/{session_id}/turn</span>
+                                    </div>
+                                    <div class="api-card-body">
+                                        <h5 class="api-title">创建新轮次</h5>
+                                        <p class="api-desc">在指定会话中创建新的对话轮次。</p>
+                                        
+                                        <div class="api-details">
+                                            <div class="api-section">
+                                                <h6>请求参数：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "metadata": {}  // 可选，元数据
+}</code></pre>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="api-section">
+                                                <h6>响应：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "turn_id": "string",  // 新创建的轮次 ID
+  "session_id": "string",  // 会话 ID
+  "created_at": "2023-01-01T12:00:00Z"  // 创建时间
+}</code></pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-6 mb-4" data-aos="fade-up" data-aos-delay="200">
+                                <div class="api-card">
+                                    <div class="api-card-header">
+                                        <span class="api-method method-get">GET</span>
+                                        <span class="api-endpoint">/api/turn/{turn_id}</span>
+                                    </div>
+                                    <div class="api-card-body">
+                                        <h5 class="api-title">获取轮次信息</h5>
+                                        <p class="api-desc">获取指定轮次的详细信息和消息列表。</p>
+                                        
+                                        <div class="api-details">
+                                            <div class="api-section">
+                                                <h6>响应：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "turn_id": "string",
+  "session_id": "string",
+  "created_at": "2023-01-01T12:00:00Z",
+  "messages": [  // 轮次中的消息列表
+    {
+      "message_id": "string",
+      "role": "user",
+      "content": "string",
+      "created_at": "2023-01-01T12:01:00Z"
+    }
+  ]
+}</code></pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 消息管理API -->
+                    <div class="tab-pane fade" id="message" role="tabpanel">
+                        <div class="row">
+                            <div class="col-lg-6 mb-4" data-aos="fade-up" data-aos-delay="100">
+                                <div class="api-card">
+                                    <div class="api-card-header">
+                                        <span class="api-method method-post">POST</span>
+                                        <span class="api-endpoint">/api/turn/{turn_id}/message</span>
+                                    </div>
+                                    <div class="api-card-body">
+                                        <h5 class="api-title">添加消息</h5>
+                                        <p class="api-desc">在指定轮次中添加新消息。</p>
+                                        
+                                        <div class="api-details">
+                                            <div class="api-section">
+                                                <h6>请求参数：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "role": "user",  // 消息发送者角色（user 或 assistant）
+  "content": "string",  // 消息内容
+  "content_type": "text",  // 内容类型（text, image 等）
+  "metadata": {}  // 可选，元数据
+}</code></pre>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="api-section">
+                                                <h6>响应：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "message_id": "string",  // 新创建的消息 ID
+  "turn_id": "string",  // 轮次 ID
+  "role": "user",  // 消息发送者角色
+  "content": "string",  // 消息内容
+  "created_at": "2023-01-01T12:00:00Z"  // 创建时间
+}</code></pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-6 mb-4" data-aos="fade-up" data-aos-delay="200">
+                                <div class="api-card">
+                                    <div class="api-card-header">
+                                        <span class="api-method method-get">GET</span>
+                                        <span class="api-endpoint">/api/message/{message_id}</span>
+                                    </div>
+                                    <div class="api-card-body">
+                                        <h5 class="api-title">获取消息信息</h5>
+                                        <p class="api-desc">获取指定消息的详细信息。</p>
+                                        
+                                        <div class="api-details">
+                                            <div class="api-section">
+                                                <h6>响应：</h6>
+                                                <div class="code-block">
+<pre><code class="language-json">{
+  "message_id": "string",
+  "turn_id": "string",
+  "role": "user",
+  "content": "string",
+  "content_type": "text",
+  "created_at": "2023-01-01T12:00:00Z",
+  "metadata": {}
+}</code></pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        /* API文档部分样式 */
+        .api-tabs-container {
+            position: relative;
+        }
+        
+        .api-tabs {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .api-tabs .nav-link {
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            border-radius: 30px;
+            padding: 0.75rem 1.5rem;
+            margin: 0 0.5rem 1rem;
+            transition: all var(--transition-normal);
+        }
+        
+        .api-tabs .nav-link:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+        
+        .api-tabs .nav-link.active {
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid));
+            color: white;
+            box-shadow: 0 5px 15px rgba(110, 142, 251, 0.3);
+            border-color: transparent;
         }
         
         .api-card {
-            border: none;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            backdrop-filter: blur(5px);
+            border: 1px solid var(--card-border);
+            overflow: hidden;
+            height: 100%;
+            transition: all var(--transition-normal);
         }
         
-        .api-card .card-header {
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            font-weight: 600;
-            border-radius: 10px 10px 0 0;
+        .api-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--card-shadow);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .api-card-header {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
         }
         
         .api-method {
             display: inline-block;
-            padding: 5px 10px;
-            border-radius: 5px;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
             font-weight: 600;
-            margin-right: 10px;
+            font-size: 0.8rem;
+            margin-right: 1rem;
+            text-transform: uppercase;
         }
         
         .method-get {
@@ -149,695 +1535,694 @@
             color: white;
         }
         
+        .api-endpoint {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .api-card-body {
+            padding: 1.5rem;
+        }
+        
+        .api-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .api-desc {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+        
+        .api-details {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .api-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .api-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .api-section h6 {
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+        
         .code-block {
-            border-radius: 5px;
-            margin: 15px 0;
-        }
-        
-        .footer {
-            background-color: var(--dark-bg);
-            color: white;
-            padding: 50px 0 20px;
-            margin-top: 50px;
-        }
-        
-        .footer-title {
-            font-weight: 700;
-            margin-bottom: 20px;
-            color: white;
-        }
-        
-        .footer-links {
-            list-style: none;
-            padding: 0;
-        }
-        
-        .footer-links li {
-            margin-bottom: 10px;
-        }
-        
-        .footer-links a {
-            color: rgba(255, 255, 255, 0.7);
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-        
-        .footer-links a:hover {
-            color: white;
-        }
-        
-        .footer-bottom {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            text-align: center;
-            color: rgba(255, 255, 255, 0.5);
-        }
-        
-        .social-icons {
-            font-size: 1.5rem;
-            margin-right: 15px;
-            color: rgba(255, 255, 255, 0.7);
-            transition: color 0.3s;
-        }
-        
-        .social-icons:hover {
-            color: white;
-        }
-        
-        .btn-gradient {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            border: none;
-            color: white;
-            font-weight: 600;
-            padding: 10px 25px;
-            border-radius: 30px;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        
-        .btn-gradient:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            color: white;
-        }
-        
-        .nav-pills .nav-link.active {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        }
-        
-        .nav-pills .nav-link {
-            color: var(--dark-bg);
-            border-radius: 30px;
-            padding: 10px 20px;
-            margin: 0 5px;
-            transition: all 0.3s;
-        }
-        
-        .nav-pills .nav-link:hover:not(.active) {
-            background-color: rgba(110, 142, 251, 0.1);
-        }
-        
-        #demo-chat {
-            height: 400px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
             overflow: hidden;
-            display: flex;
-            flex-direction: column;
         }
         
-        .chat-header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            padding: 15px;
-            text-align: center;
-            font-weight: 600;
+        .code-block pre {
+            margin: 0;
+            padding: 1rem;
+            overflow-x: auto;
         }
         
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            background-color: #f8f9fa;
-        }
-        
-        .message {
-            margin-bottom: 15px;
-            display: flex;
-        }
-        
-        .user-message {
-            justify-content: flex-end;
-        }
-        
-        .agent-message {
-            justify-content: flex-start;
-        }
-        
-        .message-content {
-            max-width: 70%;
-            padding: 10px 15px;
-            border-radius: 18px;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-        }
-        
-        .user-message .message-content {
-            background-color: #dcf8c6;
-        }
-        
-        .agent-message .message-content {
-            background-color: white;
-        }
-        
-        .chat-input {
-            display: flex;
-            padding: 15px;
-            background-color: white;
-            border-top: 1px solid #e0e0e0;
-        }
-        
-        .chat-input input {
-            flex: 1;
-            padding: 10px 15px;
-            border: 1px solid #ddd;
-            border-radius: 30px;
-            outline: none;
-        }
-        
-        .chat-input button {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            margin-left: 10px;
-            border-radius: 30px;
-            cursor: pointer;
-        }
-        
-        .architecture-diagram {
-            max-width: 100%;
-            height: auto;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-        
-        .dialogue-type {
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            background-color: white;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s;
-        }
-        
-        .dialogue-type:hover {
-            transform: translateY(-5px);
-        }
-        
-        .dialogue-type-title {
-            font-weight: 700;
-            color: var(--primary-color);
-            margin-bottom: 10px;
-        }
-        
-        .dialogue-type-icon {
-            font-size: 2rem;
-            margin-bottom: 15px;
-            color: var(--secondary-color);
-        }
-        
-        @media (max-width: 768px) {
-            .hero-title {
-                font-size: 2.5rem;
-            }
-            
-            .hero-subtitle {
-                font-size: 1.2rem;
-            }
-            
-            .section {
-                padding: 50px 0;
-            }
+        .code-block code {
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 0.9rem;
         }
     </style>
-</head>
-<body>
-    <!-- 导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
-        <div class="container">
-            <a class="navbar-brand" href="#">彩虹城 AI Agent</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#features">特性</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#architecture">架构</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#api-docs">API 文档</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#demo">在线演示</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link btn btn-light text-primary rounded-pill ms-3 px-3" href="/chat">进入对话界面</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <!-- 英雄区域 -->
-    <section class="hero-section">
-        <div class="container">
-            <h1 class="hero-title">彩虹城 AI Agent 对话管理系统</h1>
-            <p class="hero-subtitle">强大的对话管理API，支持多种对话类型、多模态输入和工具集成</p>
-            <div class="mt-5">
-                <a href="#api-docs" class="btn btn-gradient me-3">查看 API 文档</a>
-                <a href="/chat" class="btn btn-outline-light">进入对话界面</a>
-            </div>
-        </div>
-    </section>
-
-    <!-- 特性部分 -->
-    <section id="features" class="section">
-        <div class="container">
-            <h2 class="section-title">系统特性</h2>
-            <div class="row g-4">
-                <div class="col-md-4">
-                    <div class="card feature-card h-100">
-                        <div class="card-body text-center p-4">
-                            <div class="feature-icon">
-                                <i class="bi bi-chat-dots"></i>
-                            </div>
-                            <h4>多种对话类型</h4>
-                            <p>支持七种对话类型，包括人对AI、AI对AI、多轮对话等多种交互模式，满足不同场景需求。</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100">
-                        <div class="card-body text-center p-4">
-                            <div class="feature-icon">
-                                <i class="bi bi-layers"></i>
-                            </div>
-                            <h4>四层架构</h4>
-                            <p>采用消息、轮次、会话、对话四层架构设计，提供清晰的数据组织和管理能力。</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100">
-                        <div class="card-body text-center p-4">
-                            <div class="feature-icon">
-                                <i class="bi bi-tools"></i>
-                            </div>
-                            <h4>工具集成</h4>
-                            <p>支持工具调用和结果处理，让AI代理能够使用外部工具和服务，增强问题解决能力。</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100">
-                        <div class="card-body text-center p-4">
-                            <div class="feature-icon">
-                                <i class="bi bi-images"></i>
-                            </div>
-                            <h4>多模态支持</h4>
-                            <p>支持文本、图像等多种输入模式，为用户提供更丰富的交互体验。</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100">
-                        <div class="card-body text-center p-4">
-                            <div class="feature-icon">
-                                <i class="bi bi-database"></i>
-                            </div>
-                            <h4>持久化存储</h4>
-                            <p>所有对话数据都保存在数据库中，支持历史记录查询和对话恢复。</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100">
-                        <div class="card-body text-center p-4">
-                            <div class="feature-icon">
-                                <i class="bi bi-code-slash"></i>
-                            </div>
-                            <h4>RESTful API</h4>
-                            <p>提供标准的RESTful API接口，方便与各种应用和服务集成。</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- 对话类型部分 -->
-    <section class="section bg-light">
-        <div class="container">
-            <h2 class="section-title">支持的对话类型</h2>
-            <div class="row g-4">
-                <div class="col-md-6 col-lg-3">
-                    <div class="dialogue-type">
-                        <div class="dialogue-type-icon"><i class="bi bi-person-fill"></i> → <i class="bi bi-robot"></i></div>
-                        <h5 class="dialogue-type-title">人对AI对话</h5>
-                        <p>用户与AI助手之间的标准对话模式</p>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-3">
-                    <div class="dialogue-type">
-                        <div class="dialogue-type-icon"><i class="bi bi-robot"></i> → <i class="bi bi-robot"></i></div>
-                        <h5 class="dialogue-type-title">AI对AI对话</h5>
-                        <p>两个AI代理之间的自动对话交互</p>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-3">
-                    <div class="dialogue-type">
-                        <div class="dialogue-type-icon"><i class="bi bi-people-fill"></i> → <i class="bi bi-robot"></i></div>
-                        <h5 class="dialogue-type-title">多人对AI对话</h5>
-                        <p>多个用户同时与一个AI助手交互</p>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-3">
-                    <div class="dialogue-type">
-                        <div class="dialogue-type-icon"><i class="bi bi-person-fill"></i> → <i class="bi bi-robot"></i> → <i class="bi bi-robot"></i></div>
-                        <h5 class="dialogue-type-title">人对多AI对话</h5>
-                        <p>用户同时与多个AI助手交互</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- 架构部分 -->
-    <section id="architecture" class="section">
-        <div class="container">
-            <h2 class="section-title">系统架构</h2>
-            <div class="row align-items-center">
-                <div class="col-lg-6">
-                    <h3 class="mb-4">四层对话管理架构</h3>
-                    <p class="mb-4">彩虹城 AI Agent 对话管理系统采用了四层架构设计，提供清晰的数据组织和管理能力。</p>
-                    <ul class="list-group list-group-flush mb-4">
-                        <li class="list-group-item bg-transparent"><i class="bi bi-chat-text me-2 text-primary"></i> <strong>消息层（Message）</strong>: 单条消息内容，支持文本、图像等多种类型</li>
-                        <li class="list-group-item bg-transparent"><i class="bi bi-arrow-repeat me-2 text-primary"></i> <strong>轮次层（Turn）</strong>: 单轮对话，包含用户输入和系统响应</li>
-                        <li class="list-group-item bg-transparent"><i class="bi bi-collection me-2 text-primary"></i> <strong>会话层（Session）</strong>: 一次完整交互，包含多个轮次</li>
-                        <li class="list-group-item bg-transparent"><i class="bi bi-diagram-3 me-2 text-primary"></i> <strong>对话层（Dialogue）</strong>: 最高层级，包含多个会话和对话元数据</li>
-                    </ul>
-                </div>
-                <div class="col-lg-6">
-                    <div class="text-center">
-                        <img src="https://mermaid.ink/img/pako:eNp1kc9OwzAMxl8l8glUCY4cOFSIf-LQCxI3L3GXiDRJlbhDVdV3x2m7bmxwSuzz-_zZcnrQxhPX2r6D9eiJHhwGcI4e0HWwWMKLQWsJXsGiNQE9GXjEQCDLxSKDJRgXgFZgPQUyaAJBB5FmkCUZZHmWQb7KYZ3DJv_3Ks_gGWzA4FvwNDjHVVvCO_YdOQzQWrRE9qjb4Ht0tIQP9I6qEu5vq7vqcX_YVfXh_raqD_uqLuH2pqrr3X5XH-9OVb3fHR-q-vR0rJ_r3fG0e3ys6tPzqf45fO3_hnmeZzHOY1zEuIxxFeM6xk2MRYzFN_QkUZU" alt="架构图" class="architecture-diagram img-fluid">
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- API文档部分 -->
-    <section id="api-docs" class="section bg-light">
-        <div class="container">
-            <h2 class="section-title">API 文档</h2>
-            
-            <ul class="nav nav-pills mb-5 justify-content-center" id="api-tab" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="dialogue-tab" data-bs-toggle="pill" data-bs-target="#dialogue" type="button" role="tab">对话管理</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="session-tab" data-bs-toggle="pill" data-bs-target="#session" type="button" role="tab">会话管理</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="turn-tab" data-bs-toggle="pill" data-bs-target="#turn" type="button" role="tab">轮次管理</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="message-tab" data-bs-toggle="pill" data-bs-target="#message" type="button" role="tab">消息管理</button>
-                </li>
-            </ul>
-            
-            <div class="tab-content" id="api-tabContent">
-                <!-- 对话管理API -->
-                <div class="tab-pane fade show active" id="dialogue" role="tabpanel">
-                    <div class="card api-card">
-                        <div class="card-header">
-                            <span class="api-method method-post">POST</span> /api/dialogue/input
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title">处理用户输入</h5>
-                            <p class="card-text">接收用户输入，创建或继续会话，并返回AI响应。</p>
-                            <h6>请求参数：</h6>
-<pre><code class="language-json">{
-  "input": "string",  // 用户输入内容
-  "session_id": "string",  // 可选，会话 ID
-  "dialogue_type": "human_to_ai",  // 对话类型
-  "metadata": {}  // 可选，元数据
-}</code></pre>
-                            <h6>响应：</h6>
-<pre><code class="language-json">{
-  "response": "string",  // AI 响应内容
-  "session_id": "string",  // 会话 ID
-  "turn_id": "string",  // 轮次 ID
-  "tool_calls": []  // 工具调用结果（如有）
-}</code></pre>
-                        </div>
-                    </div>
-                    
-                    <div class="card api-card mt-4">
-                        <div class="card-header">
-                            <span class="api-method method-get">GET</span> /api/dialogue/types
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title">获取支持的对话类型</h5>
-                            <p class="card-text">返回系统支持的所有对话类型。</p>
-                            <h6>响应：</h6>
-<pre><code class="language-json">{
-  "dialogue_types": [
-    "human_to_ai",
-    "ai_to_ai",
-    "human_to_multi_ai",
-    "multi_human_to_ai",
-    "multi_human_to_multi_ai",
-    "moderated_human_to_ai",
-    "moderated_ai_to_ai"
-  ]
-}</code></pre>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 会话管理API -->
-                <div class="tab-pane fade" id="session" role="tabpanel">
-                    <div class="card api-card">
-                        <div class="card-header">
-                            <span class="api-method method-post">POST</span> /api/session
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title">创建新会话</h5>
-                            <p class="card-text">创建新的对话会话。</p>
-                            <h6>请求参数：</h6>
-<pre><code class="language-json">{
-  "dialogue_type": "human_to_ai",  // 对话类型
-  "metadata": {}  // 可选，元数据
-}</code></pre>
-                            <h6>响应：</h6>
-<pre><code class="language-json">{
-  "session_id": "string",  // 新创建的会话 ID
-  "created_at": "2023-01-01T12:00:00Z",  // 创建时间
-  "dialogue_type": "human_to_ai"  // 对话类型
-}</code></pre>
-                        </div>
-                    </div>
-                    
-                    <div class="card api-card mt-4">
-                        <div class="card-header">
-                            <span class="api-method method-get">GET</span> /api/session/{session_id}
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title">获取会话信息</h5>
-                            <p class="card-text">获取指定会话的详细信息和历史记录。</p>
-                            <h6>响应：</h6>
-<pre><code class="language-json">{
-  "session_id": "string",
-  "created_at": "2023-01-01T12:00:00Z",
-  "updated_at": "2023-01-01T12:05:00Z",
-  "dialogue_type": "human_to_ai",
-  "turns": [  // 会话中的轮次列表
-    {
-      "turn_id": "string",
-      "created_at": "2023-01-01T12:01:00Z",
-      "messages": []  // 轮次中的消息列表
-    }
-  ]
-}</code></pre>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 轮次管理API -->
-                <div class="tab-pane fade" id="turn" role="tabpanel">
-                    <div class="card api-card">
-                        <div class="card-header">
-                            <span class="api-method method-post">POST</span> /api/session/{session_id}/turn
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title">创建新轮次</h5>
-                            <p class="card-text">在指定会话中创建新的对话轮次。</p>
-                            <h6>请求参数：</h6>
-<pre><code class="language-json">{
-  "metadata": {}  // 可选，元数据
-}</code></pre>
-                            <h6>响应：</h6>
-<pre><code class="language-json">{
-  "turn_id": "string",  // 新创建的轮次 ID
-  "session_id": "string",  // 会话 ID
-  "created_at": "2023-01-01T12:00:00Z"  // 创建时间
-}</code></pre>
-                        </div>
-                    </div>
-                    
-                    <div class="card api-card mt-4">
-                        <div class="card-header">
-                            <span class="api-method method-get">GET</span> /api/turn/{turn_id}
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title">获取轮次信息</h5>
-                            <p class="card-text">获取指定轮次的详细信息和消息列表。</p>
-                            <h6>响应：</h6>
-<pre><code class="language-json">{
-  "turn_id": "string",
-  "session_id": "string",
-  "created_at": "2023-01-01T12:00:00Z",
-  "messages": [  // 轮次中的消息列表
-    {
-      "message_id": "string",
-      "role": "user",
-      "content": "string",
-      "created_at": "2023-01-01T12:01:00Z"
-    }
-  ]
-}</code></pre>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 消息管理API -->
-                <div class="tab-pane fade" id="message" role="tabpanel">
-                    <div class="card api-card">
-                        <div class="card-header">
-                            <span class="api-method method-post">POST</span> /api/turn/{turn_id}/message
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title">添加消息</h5>
-                            <p class="card-text">在指定轮次中添加新消息。</p>
-                            <h6>请求参数：</h6>
-<pre><code class="language-json">{
-  "role": "user",  // 消息发送者角色（user 或 assistant）
-  "content": "string",  // 消息内容
-  "content_type": "text",  // 内容类型（text, image 等）
-  "metadata": {}  // 可选，元数据
-}</code></pre>
-                            <h6>响应：</h6>
-<pre><code class="language-json">{
-  "message_id": "string",  // 新创建的消息 ID
-  "turn_id": "string",  // 轮次 ID
-  "role": "user",  // 消息发送者角色
-  "content": "string",  // 消息内容
-  "created_at": "2023-01-01T12:00:00Z"  // 创建时间
-}</code></pre>
-                        </div>
-                    </div>
-                    
-                    <div class="card api-card mt-4">
-                        <div class="card-header">
-                            <span class="api-method method-get">GET</span> /api/message/{message_id}
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title">获取消息信息</h5>
-                            <p class="card-text">获取指定消息的详细信息。</p>
-                            <h6>响应：</h6>
-<pre><code class="language-json">{
-  "message_id": "string",
-  "turn_id": "string",
-  "role": "user",
-  "content": "string",
-  "content_type": "text",
-  "created_at": "2023-01-01T12:00:00Z",
-  "metadata": {}
-}</code></pre>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
     <!-- 演示部分 -->
-    <section id="demo" class="section">
+    <section id="demo" class="section-padding">
         <div class="container">
-            <h2 class="section-title">在线演示</h2>
-            <div class="row justify-content-center">
-                <div class="col-md-8">
-                    <div id="demo-chat">
-                        <div class="chat-header">
-                            彩虹城 AI Agent 对话演示
-                        </div>
-        <div class="chat-messages" id="chat-messages">
-            <div class="message agent-message">
-                <div class="message-content">
-                    你好！我是彩虹城 AI Agent，一个强大的对话管理系统。我可以帮助你了解我的功能和使用方式。请随时提问！
-                </div>
+            <div class="section-header text-center mb-5" data-aos="fade-up">
+                <h6 class="section-pre-title">互动体验</h6>
+                <h2 class="section-title">在线演示</h2>
+                <div class="section-divider"></div>
+                <p class="section-subtitle">
+                    体验彩虹城 AI Agent 的强大功能，直接与我们的智能助手进行对话
+                </p>
             </div>
-        </div>
-        <div class="chat-input">
-            <input type="text" id="message-input" placeholder="输入你的问题..." autofocus>
-            <button id="send-button" class="btn btn-gradient">发送</button>
-        </div>
+
+            <div class="row justify-content-center">
+                <div class="col-lg-8" data-aos="fade-up">
+                    <div class="demo-chat-container">
+                        <div class="demo-chat-header">
+                            <div class="chat-title">
+                                <i class="bi bi-robot me-2"></i>彩虹城 AI Agent 演示
+                            </div>
+                            <div class="chat-actions">
+                                <button class="btn-icon" id="clearChatBtn" title="清除对话">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                <button class="btn-icon" id="exportChatBtn" title="导出对话">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="demo-chat-messages" id="chatMessages">
+                            <div class="system-message">
+                                <i class="bi bi-info-circle me-2"></i>欢迎使用彩虹城 AI Agent 对话管理系统。请输入您的问题或指令。
+                            </div>
+                            
+                            <div class="message message-ai">
+                                <div class="message-avatar">
+                                    <i class="bi bi-robot"></i>
+                                </div>
+                                <div class="message-content">
+                                    <div class="message-text">
+                                        你好！我是彩虹城 AI Agent，一个强大的对话管理系统。我可以帮助你了解我的功能和使用方式。请随时提问！
+                                    </div>
+                                    <div class="message-time">刚刚</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="demo-chat-toolbar">
+                            <button class="tool-button" id="imageBtn" title="上传图片">
+                                <i class="bi bi-image"></i>
+                            </button>
+                            <button class="tool-button" id="audioBtn" title="语音输入">
+                                <i class="bi bi-mic"></i>
+                            </button>
+                            <button class="tool-button" id="toolsBtn" title="工具">
+                                <i class="bi bi-tools"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="demo-chat-input">
+                            <textarea id="userInput" class="chat-textarea" placeholder="输入您的问题或指令..." rows="1"></textarea>
+                            <button id="sendBtn" class="send-button">
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="demo-features mt-4">
+                        <div class="row g-3">
+                            <div class="col-md-4" data-aos="fade-up" data-aos-delay="100">
+                                <div class="demo-feature-item">
+                                    <i class="bi bi-image"></i>
+                                    <span>支持图像输入</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4" data-aos="fade-up" data-aos-delay="200">
+                                <div class="demo-feature-item">
+                                    <i class="bi bi-tools"></i>
+                                    <span>工具调用能力</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4" data-aos="fade-up" data-aos-delay="300">
+                                <div class="demo-feature-item">
+                                    <i class="bi bi-clock-history"></i>
+                                    <span>对话历史保存</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
+            
+            <div class="text-center mt-5" data-aos="fade-up">
+                <a href="/chat" class="btn btn-rainbow">
+                    <i class="bi bi-box-arrow-up-right me-2"></i>进入完整对话界面
+                </a>
+                <p class="mt-3 text-muted">体验更多功能，包括多模态输入、工具调用和对话历史管理</p>
             </div>
         </div>
     </section>
 
     <!-- 页脚部分 -->
-    <footer class="footer">
+    <footer class="footer-section">
         <div class="container">
-            <div class="row">
-                <div class="col-md-4 mb-4 mb-md-0">
-                    <h4 class="footer-title">彩虹城 AI Agent</h4>
-                    <p class="text-muted">强大的对话管理系统，支持多种对话类型、多模态输入和工具集成。</p>
-                    <div class="mt-3">
-                        <a href="#" class="social-icons"><i class="bi bi-github"></i></a>
-                        <a href="#" class="social-icons"><i class="bi bi-twitter"></i></a>
-                        <a href="#" class="social-icons"><i class="bi bi-linkedin"></i></a>
+            <div class="footer-content">
+                <div class="row">
+                    <div class="col-lg-4 mb-5 mb-lg-0">
+                        <div class="footer-brand">
+                            <a href="#" class="footer-logo">
+                                <i class="bi bi-rainbow me-2"></i>彩虹城 AI Agent
+                            </a>
+                            <p class="footer-desc">
+                                强大的对话管理系统，支持多种对话类型、多模态输入和工具集成，让 AI 交互更加自然、高效、智能。
+                            </p>
+                            <div class="social-links">
+                                <a href="#" class="social-link"><i class="bi bi-github"></i></a>
+                                <a href="#" class="social-link"><i class="bi bi-twitter-x"></i></a>
+                                <a href="#" class="social-link"><i class="bi bi-linkedin"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-2 col-md-4 mb-4 mb-md-0">
+                        <h5 class="footer-title">导航</h5>
+                        <ul class="footer-links">
+                            <li><a href="#features">特性</a></li>
+                            <li><a href="#dialogue-types">对话类型</a></li>
+                            <li><a href="#architecture">架构</a></li>
+                            <li><a href="#api-docs">API 文档</a></li>
+                            <li><a href="#demo">演示</a></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-4 mb-4 mb-md-0">
+                        <h5 class="footer-title">资源</h5>
+                        <ul class="footer-links">
+                            <li><a href="/docs">完整 API 文档</a></li>
+                            <li><a href="#">开发者指南</a></li>
+                            <li><a href="#">使用案例</a></li>
+                            <li><a href="#">常见问题</a></li>
+                            <li><a href="#">更新日志</a></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-4">
+                        <h5 class="footer-title">联系我们</h5>
+                        <ul class="footer-contact">
+                            <li>
+                                <i class="bi bi-envelope"></i>
+                                <a href="mailto:contact@rainbowcity.ai">contact@rainbowcity.ai</a>
+                            </li>
+                            <li>
+                                <i class="bi bi-geo-alt"></i>
+                                <span>彩虹城, 中国</span>
+                            </li>
+                        </ul>
+                        <div class="newsletter">
+                            <h6>订阅更新</h6>
+                            <div class="newsletter-form">
+                                <input type="email" placeholder="您的邮箱地址" class="form-control">
+                                <button class="btn btn-rainbow btn-sm">订阅</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="col-md-2 mb-4 mb-md-0">
-                    <h5 class="footer-title">导航</h5>
-                    <ul class="footer-links">
-                        <li><a href="#features">特性</a></li>
-                        <li><a href="#architecture">架构</a></li>
-                        <li><a href="#api-docs">API 文档</a></li>
-                        <li><a href="#demo">演示</a></li>
-                    </ul>
-                </div>
-                <div class="col-md-3 mb-4 mb-md-0">
-                    <h5 class="footer-title">相关资源</h5>
-                    <ul class="footer-links">
-                        <li><a href="/docs">完整API文档</a></li>
-                        <li><a href="#">开发者指南</a></li>
-                        <li><a href="#">使用案例</a></li>
-                        <li><a href="#">常见问题</a></li>
-                    </ul>
-                </div>
-                <div class="col-md-3">
-                    <h5 class="footer-title">联系我们</h5>
-                    <ul class="footer-links">
-                        <li><i class="bi bi-envelope me-2"></i> contact@rainbowcity.ai</li>
-                        <li><i class="bi bi-geo-alt me-2"></i> 彩虹城, 中国</li>
-                    </ul>
-                </div>
             </div>
+            
             <div class="footer-bottom">
-                <p>&copy; 2023 彩虹城 AI Agent 对话管理系统 | 所有权利均已保留</p>
+                <div class="copyright">
+                    &copy; 2025 彩虹城 AI Agent 对话管理系统 | 所有权利均已保留
+                </div>
+                <div class="footer-bottom-links">
+                    <a href="#">隐私政策</a>
+                    <a href="#">服务条款</a>
+                </div>
             </div>
         </div>
     </footer>
 
+    <style>
+        /* 演示部分样式 */
+        .demo-chat-container {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            backdrop-filter: blur(5px);
+            border: 1px solid var(--card-border);
+            overflow: hidden;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .demo-chat-header {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chat-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .chat-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .btn-icon {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: var(--text-secondary);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+        
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+        }
+        
+        .demo-chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .system-message {
+            background: rgba(23, 162, 184, 0.1);
+            border-left: 3px solid var(--info-color);
+            padding: 0.75rem 1rem;
+            border-radius: 0 8px 8px 0;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .message {
+            display: flex;
+            gap: 1rem;
+            max-width: 85%;
+        }
+        
+        .message-ai {
+            align-self: flex-start;
+        }
+        
+        .message-user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(110, 142, 251, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: var(--gradient-start);
+            flex-shrink: 0;
+        }
+        
+        .message-user .message-avatar {
+            background: rgba(167, 119, 227, 0.1);
+            color: var(--gradient-mid);
+        }
+        
+        .message-content {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 12px;
+            position: relative;
+        }
+        
+        .message-ai .message-content {
+            border-top-left-radius: 0;
+        }
+        
+        .message-user .message-content {
+            border-top-right-radius: 0;
+            background: rgba(110, 142, 251, 0.1);
+        }
+        
+        .message-text {
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+        
+        .message-time {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            margin-top: 0.5rem;
+            text-align: right;
+        }
+        
+        .demo-chat-toolbar {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-top: 1px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .tool-button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            padding: 0.5rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+            cursor: pointer;
+        }
+        
+        .tool-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+        
+        .demo-chat-input {
+            display: flex;
+            padding: 1rem;
+            border-top: 1px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .chat-textarea {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            padding: 0.75rem 1rem;
+            resize: none;
+            transition: all var(--transition-fast);
+        }
+        
+        .chat-textarea:focus {
+            outline: none;
+            border-color: rgba(110, 142, 251, 0.5);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .send-button {
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid));
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            margin-left: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+            cursor: pointer;
+        }
+        
+        .send-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(110, 142, 251, 0.3);
+        }
+        
+        .demo-features {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+        
+        .demo-feature-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            transition: all var(--transition-fast);
+        }
+        
+        .demo-feature-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            transform: translateY(-2px);
+        }
+        
+        /* 页脚部分样式 */
+        .footer-section {
+            background: linear-gradient(180deg, var(--primary-dark) 0%, #050a14 100%);
+            color: var(--text-secondary);
+            padding: 80px 0 30px;
+            position: relative;
+            margin-top: 100px;
+        }
+        
+        .footer-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--gradient-start), var(--gradient-mid), var(--gradient-end), transparent);
+        }
+        
+        .footer-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .footer-desc {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        
+        .social-links {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .social-link {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            transition: all var(--transition-fast);
+        }
+        
+        .social-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            transform: translateY(-3px);
+        }
+        
+        .footer-title {
+            color: var(--text-primary);
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            position: relative;
+            padding-bottom: 0.75rem;
+        }
+        
+        .footer-title::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 30px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid));
+        }
+        
+        .footer-links {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .footer-links li {
+            margin-bottom: 0.75rem;
+        }
+        
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all var(--transition-fast);
+            display: inline-block;
+        }
+        
+        .footer-links a:hover {
+            color: var(--text-primary);
+            transform: translateX(5px);
+        }
+        
+        .footer-contact {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 1.5rem;
+        }
+        
+        .footer-contact li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+        
+        .footer-contact li i {
+            margin-right: 0.75rem;
+            color: var(--gradient-start);
+        }
+        
+        .footer-contact a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color var(--transition-fast);
+        }
+        
+        .footer-contact a:hover {
+            color: var(--text-primary);
+        }
+        
+        .newsletter h6 {
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+        
+        .newsletter-form {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .newsletter-form .form-control {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+        }
+        
+        .newsletter-form .form-control:focus {
+            outline: none;
+            border-color: rgba(110, 142, 251, 0.5);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .footer-bottom {
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 1.5rem;
+            margin-top: 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .copyright {
+            color: var(--text-tertiary);
+            font-size: 0.9rem;
+        }
+        
+        .footer-bottom-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+        
+        .footer-bottom-links a {
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color var(--transition-fast);
+        }
+        
+        .footer-bottom-links a:hover {
+            color: var(--text-primary);
+        }
+        
+        @media (max-width: 768px) {
+            .footer-bottom {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+    <!-- 返回顶部按钮 -->
+    <button id="backToTop" class="back-to-top">
+        <i class="bi bi-arrow-up"></i>
+    </button>
+
+    <!-- JavaScript 库 -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+    
     <script>
         // 全局变量
         let sessionId = null;
-        const messagesContainer = document.getElementById('chat-messages');
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-button');
+        const chatMessages = document.getElementById('chatMessages');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+        const exportChatBtn = document.getElementById('exportChatBtn');
+        const imageBtn = document.getElementById('imageBtn');
+        const audioBtn = document.getElementById('audioBtn');
+        const toolsBtn = document.getElementById('toolsBtn');
+        const backToTopBtn = document.getElementById('backToTop');
         
-        // 初始化
+        // 初始化函数
         function init() {
+            // 初始化 AOS 动画库
+            AOS.init({
+                duration: 800,
+                once: true,
+                offset: 100
+            });
+            
             // 从本地存储获取会话ID
             sessionId = localStorage.getItem('rainbow_session_id');
             if (!sessionId) {
@@ -846,11 +2231,84 @@
             }
             
             // 添加事件监听器
-            sendButton.addEventListener('click', sendMessage);
-            messageInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
+            setupEventListeners();
+            
+            // 导航栏滚动效果
+            handleNavbarScroll();
+            
+            // 自动调整文本区域高度
+            setupTextareaAutoResize();
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 发送消息
+            sendBtn.addEventListener('click', sendMessage);
+            userInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
                     sendMessage();
                 }
+            });
+            
+            // 清除聊天
+            clearChatBtn.addEventListener('click', clearChat);
+            
+            // 导出聊天
+            exportChatBtn.addEventListener('click', exportChat);
+            
+            // 工具按钮
+            imageBtn.addEventListener('click', () => {
+                alert('图片上传功能将在完整版中提供');
+            });
+            
+            audioBtn.addEventListener('click', () => {
+                alert('语音输入功能将在完整版中提供');
+            });
+            
+            toolsBtn.addEventListener('click', () => {
+                alert('工具调用功能将在完整版中提供');
+            });
+            
+            // 返回顶部按钮
+            window.addEventListener('scroll', toggleBackToTopButton);
+            backToTopBtn.addEventListener('click', scrollToTop);
+            
+            // 平滑滚动
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href');
+                    if (targetId === '#') return;
+                    
+                    const targetElement = document.querySelector(targetId);
+                    if (targetElement) {
+                        targetElement.scrollIntoView({
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+        }
+        
+        // 导航栏滚动效果
+        function handleNavbarScroll() {
+            const navbar = document.querySelector('.navbar');
+            
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 50) {
+                    navbar.classList.add('scrolled');
+                } else {
+                    navbar.classList.remove('scrolled');
+                }
+            });
+        }
+        
+        // 自动调整文本区域高度
+        function setupTextareaAutoResize() {
+            userInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
             });
         }
         
@@ -865,18 +2323,19 @@
         
         // 发送消息
         function sendMessage() {
-            const message = messageInput.value.trim();
+            const message = userInput.value.trim();
             if (!message) return;
             
             // 添加用户消息到界面
             addMessage(message, 'user');
-            messageInput.value = '';
+            userInput.value = '';
+            userInput.style.height = 'auto';
             
             // 显示加载指示器
             showLoading();
             
             // 发送请求到API
-            fetch('http://localhost:5000/api/chat', {
+            fetch('/api/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -892,7 +2351,7 @@
                 hideLoading();
                 
                 // 添加代理回复到界面
-                addMessage(data.message, 'agent', data.tool_results);
+                addMessage(data.message || data.response || data.content || '抱歉，我无法理解您的请求', 'ai', data.tool_results);
                 
                 // 更新会话ID
                 if (data.session_id) {
@@ -905,95 +2364,357 @@
                 hideLoading();
                 
                 // 显示错误消息
-                addMessage('抱歉，发生了错误: ' + error.message, 'agent');
+                addSystemMessage('发送消息失败: ' + error.message);
                 console.error('Error:', error);
+                
+                // 模拟响应（仅用于演示）
+                setTimeout(() => {
+                    const demoResponses = [
+                        "我是彩虹城 AI Agent，很高兴为您服务！我可以帮助您了解我们的系统功能和特性。",
+                        "彩虹城 AI Agent 支持七种不同的对话类型，包括人类与AI私聊、AI与AI对话、多人对话等多种模式。",
+                        "我们的系统采用四层架构设计，包括消息层、轮次层、会话层和对话层，提供清晰的数据组织和管理能力。",
+                        "您可以通过我们的 API 接口轻松集成彩虹城 AI Agent 到您的应用中，详情请查看 API 文档部分。"
+                    ];
+                    
+                    const randomResponse = demoResponses[Math.floor(Math.random() * demoResponses.length)];
+                    addMessage(randomResponse, 'ai');
+                }, 1000);
             });
         }
         
         // 添加消息到界面
-        function addMessage(message, sender, toolResults = []) {
+        function addMessage(content, sender, toolResults = null) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}-message`;
+            messageDiv.className = `message message-${sender}`;
+            
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'message-avatar';
+            avatarDiv.innerHTML = sender === 'ai' ? '<i class="bi bi-robot"></i>' : '<i class="bi bi-person"></i>';
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
             
-            // 将消息文本中的换行符转换为<br>
-            contentDiv.innerHTML = message.replace(/\n/g, '<br>');
+            // 处理消息内容（支持 Markdown）
+            let formattedContent = content;
+            if (sender === 'ai') {
+                try {
+                    formattedContent = marked.parse(content);
+                } catch (e) {
+                    console.error('Markdown parsing error:', e);
+                    formattedContent = content;
+                }
+            }
             
-            messageDiv.appendChild(contentDiv);
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text';
+            textDiv.innerHTML = formattedContent;
+            
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'message-time';
+            timeDiv.textContent = '刚刚';
+            
+            contentDiv.appendChild(textDiv);
             
             // 如果有工具结果，添加到消息中
             if (toolResults && toolResults.length > 0) {
-                // 创建工具部分的容器
-                const toolSection = document.createElement('div');
-                toolSection.className = 'tool-section';
+                const toolResultsDiv = document.createElement('div');
+                toolResultsDiv.className = 'tool-results';
+                toolResultsDiv.innerHTML = `<div class="tool-results-header">工具调用结果 (${toolResults.length})</div>`;
                 
-                // 添加工具部分的标题
-                const toolHeader = document.createElement('div');
-                toolHeader.className = 'tool-header';
-                toolHeader.innerHTML = `分析工具 (${toolResults.length} 个工具被调用)`;
-                toolSection.appendChild(toolHeader);
-                
-                // 添加每个工具的结果
-                for (const result of toolResults) {
+                toolResults.forEach(result => {
                     const toolDiv = document.createElement('div');
-                    toolDiv.className = 'tool-result';
-                    
-                    // 创建工具名称和参数的容器
-                    const toolInfoDiv = document.createElement('div');
-                    toolInfoDiv.innerHTML = `<span class="tool-name">${result.tool}</span><span class="tool-args">参数: ${result.args}</span>`;
-                    toolDiv.appendChild(toolInfoDiv);
-                    
-                    // 创建工具结果的容器
-                    const resultDiv = document.createElement('div');
-                    resultDiv.style.marginTop = '5px';
-                    resultDiv.innerHTML = result.result.replace(/\n/g, '<br>');
-                    toolDiv.appendChild(resultDiv);
-                    
-                    toolSection.appendChild(toolDiv);
-                }
+                    toolDiv.className = 'tool-result-item';
+                    toolDiv.innerHTML = `
+                        <div class="tool-name">${result.tool || result.name}</div>
+                        <div class="tool-content">${result.result || result.output || JSON.stringify(result.data || {})}</div>
+                    `;
+                    toolResultsDiv.appendChild(toolDiv);
+                });
                 
-                contentDiv.appendChild(toolSection);
+                contentDiv.appendChild(toolResultsDiv);
             }
             
-            messagesContainer.appendChild(messageDiv);
+            contentDiv.appendChild(timeDiv);
+            
+            if (sender === 'ai') {
+                messageDiv.appendChild(avatarDiv);
+                messageDiv.appendChild(contentDiv);
+            } else {
+                messageDiv.appendChild(contentDiv);
+                messageDiv.appendChild(avatarDiv);
+            }
+            
+            chatMessages.appendChild(messageDiv);
             
             // 滚动到底部
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // 如果是AI响应，高亮代码块
+            if (sender === 'ai') {
+                setTimeout(() => {
+                    messageDiv.querySelectorAll('pre code').forEach(block => {
+                        Prism.highlightElement(block);
+                    });
+                }, 100);
+            }
+        }
+        
+        // 添加系统消息
+        function addSystemMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'system-message';
+            messageDiv.innerHTML = `<i class="bi bi-info-circle me-2"></i>${message}`;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
         // 显示加载指示器
         function showLoading() {
             const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'loading';
-            loadingDiv.id = 'loading-indicator';
+            loadingDiv.className = 'loading-indicator';
+            loadingDiv.id = 'loadingIndicator';
+            loadingDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            `;
             
-            const dotsDiv = document.createElement('div');
-            dotsDiv.className = 'loading-dots';
-            
-            for (let i = 0; i < 3; i++) {
-                const span = document.createElement('span');
-                dotsDiv.appendChild(span);
-            }
-            
-            loadingDiv.appendChild(dotsDiv);
-            messagesContainer.appendChild(loadingDiv);
-            
-            // 滚动到底部
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            chatMessages.appendChild(loadingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
         // 隐藏加载指示器
         function hideLoading() {
-            const loadingIndicator = document.getElementById('loading-indicator');
+            const loadingIndicator = document.getElementById('loadingIndicator');
             if (loadingIndicator) {
                 loadingIndicator.remove();
             }
         }
         
-        // 初始化应用
-        init();
+        // 清除聊天
+        function clearChat() {
+            if (confirm('确定要清除当前对话吗？这将删除所有消息。')) {
+                // 保留系统欢迎消息和第一条AI消息
+                const welcomeMessage = chatMessages.querySelector('.system-message');
+                const firstAIMessage = chatMessages.querySelector('.message-ai');
+                
+                chatMessages.innerHTML = '';
+                
+                if (welcomeMessage) {
+                    chatMessages.appendChild(welcomeMessage.cloneNode(true));
+                } else {
+                    addSystemMessage('欢迎使用彩虹城 AI Agent 对话管理系统。请输入您的问题或指令。');
+                }
+                
+                if (firstAIMessage) {
+                    chatMessages.appendChild(firstAIMessage.cloneNode(true));
+                }
+            }
+        }
+        
+        // 导出聊天
+        function exportChat() {
+            const messages = document.querySelectorAll('.message');
+            let exportText = `# 彩虹城 AI Agent 对话记录\n\n`;
+            exportText += `时间: ${new Date().toLocaleString()}\n\n`;
+            
+            messages.forEach(msg => {
+                const isUser = msg.classList.contains('message-user');
+                const sender = isUser ? '用户' : 'AI';
+                const content = msg.querySelector('.message-text').textContent;
+                
+                exportText += `## ${sender}\n\n${content}\n\n`;
+            });
+            
+            const blob = new Blob([exportText], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chat_export_${new Date().toISOString().slice(0, 10)}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // 切换返回顶部按钮显示状态
+        function toggleBackToTopButton() {
+            if (window.scrollY > 300) {
+                backToTopBtn.classList.add('show');
+            } else {
+                backToTopBtn.classList.remove('show');
+            }
+        }
+        
+        // 滚动到顶部
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
     </script>
+    
+    <style>
+        /* 返回顶部按钮 */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid));
+            color: white;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            cursor: pointer;
+            opacity: 0;
+            visibility: hidden;
+            transition: all var(--transition-normal);
+            z-index: 999;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .back-to-top.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .back-to-top:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* 加载指示器 */
+        .loading-indicator {
+            align-self: flex-start;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px 20px;
+            border-radius: 30px;
+        }
+        
+        .typing-indicator span {
+            height: 10px;
+            width: 10px;
+            margin: 0 2px;
+            background-color: var(--gradient-start);
+            border-radius: 50%;
+            display: inline-block;
+            opacity: 0.4;
+        }
+        
+        .typing-indicator span:nth-child(1) {
+            animation: pulse 1s infinite;
+        }
+        
+        .typing-indicator span:nth-child(2) {
+            animation: pulse 1s infinite 0.2s;
+        }
+        
+        .typing-indicator span:nth-child(3) {
+            animation: pulse 1s infinite 0.4s;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 0.4;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 0.4;
+            }
+        }
+        
+        /* 工具结果样式 */
+        .tool-results {
+            margin-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 10px;
+        }
+        
+        .tool-results-header {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+        
+        .tool-result-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .tool-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--gradient-start);
+            margin-bottom: 5px;
+        }
+        
+        .tool-content {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+            }
+            
+            .section-title {
+                font-size: 2rem;
+            }
+            
+            .message {
+                max-width: 90%;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .hero-title {
+                font-size: 2rem;
+            }
+            
+            .section-title {
+                font-size: 1.75rem;
+            }
+            
+            .message {
+                max-width: 95%;
+            }
+            
+            .message-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 1rem;
+            }
+        }
+    </style>
 </body>
 </html>

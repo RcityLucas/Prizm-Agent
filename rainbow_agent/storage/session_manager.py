@@ -1,7 +1,7 @@
 """
 会话管理器
 
-使用SurrealDB存储系统管理会话
+使用SurrealDB存储系统管理会话，继承自BaseManager
 """
 import os
 import uuid
@@ -11,7 +11,8 @@ import asyncio
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
-from .surreal_storage import SurrealStorage
+from .base_manager import BaseManager
+from .models import SessionModel
 
 # 配置日志
 logging.basicConfig(
@@ -21,15 +22,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class SessionManager:
-    """会话管理器"""
+class SessionManager(BaseManager):
+    """会话管理器，继承自BaseManager"""
+    
+    # 内存缓存
+    _session_cache = {}
     
     def __init__(self, 
-                 url: str = "ws://localhost:8000/rpc",
-                 namespace: str = "rainbow",
-                 database: str = "agent",
-                 username: str = "root",
-                 password: str = "root"):
+                 url: Optional[str] = None,
+                 namespace: Optional[str] = None,
+                 database: Optional[str] = None,
+                 username: Optional[str] = None,
+                 password: Optional[str] = None):
         """初始化会话管理器
         
         Args:
@@ -39,113 +43,90 @@ class SessionManager:
             username: 用户名
             password: 密码
         """
-        self.storage = SurrealStorage(url, namespace, database, username, password)
-        logger.info("会话管理器初始化完成")
+        super().__init__(url, namespace, database, username, password, "SessionManager")
+        
+        # 确保表结构存在
+        self._ensure_table_structure()
+        
+    def _ensure_table_structure(self):
+        """确保表结构存在"""
+        try:
+            # 创建会话表
+            create_sessions_table_sql = """
+            DEFINE TABLE sessions SCHEMAFULL;
+            DEFINE FIELD id ON sessions TYPE string;
+            DEFINE FIELD user_id ON sessions TYPE string;
+            DEFINE FIELD title ON sessions TYPE string;
+            DEFINE FIELD dialogue_type ON sessions TYPE string;
+            DEFINE FIELD created_at ON sessions TYPE datetime;
+            DEFINE FIELD updated_at ON sessions TYPE datetime;
+            DEFINE FIELD last_activity_at ON sessions TYPE datetime;
+            DEFINE FIELD summary ON sessions TYPE string;
+            DEFINE FIELD topics ON sessions TYPE array;
+            DEFINE FIELD sentiment ON sessions TYPE string;
+            DEFINE FIELD metadata ON sessions TYPE object;
+            """
+            self.execute_sql(create_sessions_table_sql)
+            logger.info("会话表结构初始化成功")
+        except Exception as e:
+            logger.warning(f"会话表结构初始化失败，可能已存在: {e}")
     
-    async def connect(self) -> None:
-        """连接到存储系统"""
-        await self.storage.connect()
+
     
-    async def disconnect(self) -> None:
-        """断开与存储系统的连接"""
-        await self.storage.disconnect()
-    
-    async def create_session(self, user_id: str, title: Optional[str] = None) -> Dict[str, Any]:
+    async def create_session(self, user_id: str, title: Optional[str] = None,
+                    dialogue_type: str = "human_to_ai_private",
+                    summary: Optional[str] = None,
+                    topics: Optional[List[str]] = None,
+                    sentiment: Optional[str] = None,
+                    metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """创建新会话
         
         Args:
             user_id: 用户ID
             title: 会话标题，如果不提供则使用默认标题
+            dialogue_type: 对话类型
+            summary: 对话摘要
+            topics: 对话主题标签列表
+            sentiment: 整体情感基调
+            metadata: 元数据
             
         Returns:
             创建的会话
         """
-        logger.info(f"开始创建新会话: user_id={user_id}, title={title}")
-        
         try:
-            # 生成会话ID - 使用不带连字符的UUID，避免SurrealDB解析问题
-            session_id = str(uuid.uuid4()).replace('-', '')
+            # 创建会话模型
+            session_model = SessionModel(
+                user_id=user_id,
+                title=title,
+                dialogue_type=dialogue_type,
+                summary=summary,
+                topics=topics,
+                sentiment=sentiment,
+                metadata=metadata
+            )
             
-            # 创建会话数据
-            now = datetime.now()  # 使用datetime对象
-            now_iso = now.isoformat()  # 只在需要字符串时使用
-            session_title = title if title else f"新对话 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            # 转换为字典
+            session_data = session_model.to_dict()
             
-            # 使用SurrealDB的简化结构
-            session_data = {
-                "id": session_id,  # 只使用UUID作为ID，表名由storage.create方法添加
-                "title": session_title,
-                "user_id": user_id,
-                "timestamp": now,
-                "last_activity": datetime.now(),  # 使用datetime对象而不是字符串
-                # 保留原始数据结构以兼容现有代码
-                "name": session_title,
-                "dialogue_type": "human_to_ai_private",
-                "participants": [
-                    {
-                        "id": user_id,
-                        "name": "用户",
-                        "type": "human"
-                    },
-                    {
-                        "id": "ai_assistant",
-                        "name": "Rainbow助手",
-                        "type": "ai"
-                    }
-                ],
-                "metadata": {},
-                "created_at": now,
-                "updated_at": now,
-                "last_activity_at": now
-            }
+            # 使用SQL直接创建完整记录
+            logger.info(f"使用SQL直接创建会话: {session_model.id}")
             
-            logger.info(f"准备创建会话数据: {session_data}")
+            # 构建SQL语句
+            sql = self._build_insert_sql("sessions", session_data)
             
-            # 创建会话 - 使用多种方法尝试创建会话
-            # 方法1: 使用storage.create方法
-            try:
-                # 创建一个简化的会话数据，减少可能的错误
-                simple_session_data = {
-                    "id": session_id,
-                    "title": session_title,
-                    "user_id": user_id,
-                    "created_at": now.isoformat()
-                }
-                created_session = await self.storage.create("sessions", simple_session_data)
-                logger.info(f"创建新会话成功: {created_session}")
-                return created_session
-            except Exception as create_error:
-                logger.error(f"方法1创建会话失败: {create_error}")
-                
-                # 方法2: 尝试使用原始 SQL 查询创建
-                try:
-                    logger.info("尝试使用原始 SQL 查询创建会话...")
-                    # 使用非常简单的查询，减少错误可能性
-                    query_str = f"CREATE sessions:{session_id} SET title = '{session_title}', user_id = '{user_id}';"                
-                    result = await self.storage.query(query_str)
-                    logger.info(f"使用原始 SQL 查询创建会话成功: {result}")
-                    
-                    # 返回创建的会话数据
-                    if result and len(result) > 0 and result[0] and len(result[0]) > 0:
-                        return result[0][0]
-                except Exception as query_error:
-                    logger.error(f"方法2使用原始 SQL 查询创建会话失败: {query_error}")
-                
-                # 方法3: 如果前两种方法都失败，返回一个内存中的会话对象
-                logger.warning("所有创建方法失败，返回内存中的会话对象")
-                return {
-                    "id": session_id,
-                    "title": session_title,
-                    "user_id": user_id,
-                    "timestamp": now.isoformat(),
-                    "created_at": now.isoformat(),
-                    "in_memory_only": True  # 标记这是一个内存中的会话对象
-                }
+            # 执行SQL
+            logger.info(f"创建会话SQL: {sql}")
+            self.client.execute_sql(sql)
+            
+            # 将新创建的会话添加到内存缓存
+            SessionManager._session_cache[session_model.id] = session_model
+            
+            # 返回创建的会话
+            logger.info(f"会话创建成功: {session_model.id}")
+            return session_data
         except Exception as e:
-            import traceback
-            error_traceback = traceback.format_exc()
-            logger.error(f"创建会话失败: {e}\n{error_traceback}")
-            raise Exception(f"创建会话失败: {e}\n{error_traceback}")
+            logger.error(f"创建会话失败: {e}")
+            raise
     
     async def get_sessions(self, user_id: Optional[str] = None, limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
         """获取会话列表
@@ -158,98 +139,26 @@ class SessionManager:
         Returns:
             会话列表
         """
-        logger.info(f"开始获取会话列表: user_id={user_id}, limit={limit}, offset={offset}")
-        
-        # 首先确保存储已连接
-        if not hasattr(self.storage, '_connected') or not self.storage._connected:
-            logger.warning("存储未连接，尝试连接...")
-            try:
-                await self.connect()
-                logger.info("存储连接成功")
-            except Exception as conn_error:
-                logger.error(f"存储连接失败: {conn_error}")
-                # 返回空列表而不是抛出异常
-                return []
-        
         try:
-            # 初始化会话表
-            try:
-                # 创建会话表（如果不存在）
-                create_table_query = """
-                DEFINE TABLE sessions SCHEMAFULL;
-                DEFINE FIELD title ON sessions TYPE string;
-                DEFINE FIELD user_id ON sessions TYPE string;
-                DEFINE FIELD timestamp ON sessions TYPE datetime;
-                DEFINE FIELD last_activity ON sessions TYPE datetime;
-                """
-                logger.info("尝试创建会话表...")
-                await self.storage.query(create_table_query)
-                logger.info("会话表创建成功")
-            except Exception as table_error:
-                # 如果表已存在，忽略错误
-                logger.warning(f"创建会话表时出错，可能表已存在: {table_error}")
-            
             # 构建查询条件
-            if user_id:
-                logger.info(f"正在查询用户 {user_id} 的会话...")
-                # 在SurrealDB中，我们需要使用自定义查询来查找特定用户的会话
-                # 简化查询，使用user_id字段而不是participants数组
-                query_str = f"""
-                SELECT * FROM sessions 
-                WHERE user_id = '{user_id}'
-                LIMIT {limit} START {offset}
-                """
-                logger.info(f"执行查询: {query_str}")
-                
-                try:
-                    results = await self.storage.query(query_str)
-                    logger.info(f"查询结果: {results}")
-                    
-                    if results and len(results) > 0 and results[0]:
-                        sessions = results[0]
-                        logger.info(f"获取用户 {user_id} 的会话列表成功，共 {len(sessions)} 个")
-                        return sessions
-                    else:
-                        logger.info(f"用户 {user_id} 没有会话")
-                        # 创建一个测试会话，以便前端可以测试
-                        logger.info(f"为用户 {user_id} 创建测试会话...")
-                        try:
-                            test_session = await self.create_session(user_id, "测试会话")
-                            logger.info(f"测试会话创建成功: {test_session}")
-                            return [test_session]
-                        except Exception as create_error:
-                            logger.error(f"创建测试会话失败: {create_error}")
-                            return []
-                except Exception as query_error:
-                    logger.error(f"执行查询失败: {query_error}")
-                    return []
-            else:
-                # 获取所有会话
-                logger.info("正在获取所有会话...")
-                try:
-                    sessions = await self.storage.read_many("sessions", {}, limit, offset)
-                    logger.info(f"获取所有会话列表成功，共 {len(sessions)} 个")
-                    
-                    if not sessions or len(sessions) == 0:
-                        # 如果没有会话，创建一个测试会话
-                        logger.info("没有会话，创建测试会话...")
-                        try:
-                            test_session = await self.create_session("test_user", "测试会话")
-                            logger.info(f"测试会话创建成功: {test_session}")
-                            return [test_session]
-                        except Exception as create_error:
-                            logger.error(f"创建测试会话失败: {create_error}")
-                            return []
-                    
-                    return sessions
-                except Exception as read_error:
-                    logger.error(f"读取会话失败: {read_error}")
-                    return []
+            condition = f"user_id = '{user_id}'" if user_id else ""
+            
+            # 获取记录列表
+            sessions_data = self.get_records("sessions", condition, limit, offset)
+            
+            # 转换为模型并添加到内存缓存
+            sessions = []
+            for session_data in sessions_data:
+                session_model = SessionModel.from_dict(session_data)
+                session_id = session_model.id
+                if session_id:
+                    SessionManager._session_cache[session_id] = session_model
+                sessions.append(session_model.to_dict())
+            
+            logger.info(f"获取会话列表成功，共 {len(sessions)} 个")
+            return sessions
         except Exception as e:
-            import traceback
-            error_traceback = traceback.format_exc()
-            logger.error(f"获取会话列表失败: {e}\n{error_traceback}")
-            # 返回空列表而不是抛出异常
+            logger.error(f"获取会话列表失败: {e}")
             return []
     
     async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -262,15 +171,36 @@ class SessionManager:
             会话数据，如果不存在则返回None
         """
         try:
-            session = await self.storage.read("sessions", session_id)
-            if session:
-                logger.info(f"获取会话 {session_id} 成功")
+            # 先检查内存缓存
+            if session_id in SessionManager._session_cache:
+                logger.info(f"从内存缓存中获取会话: {session_id}")
+                cached_session = SessionManager._session_cache[session_id]
+                
+                # 如果缓存中的是模型，转换为字典
+                if isinstance(cached_session, SessionModel):
+                    return cached_session.to_dict()
+                elif isinstance(cached_session, dict):
+                    return cached_session
+                return cached_session
+            
+            # 如果内存缓存中没有，从数据库获取
+            logger.info(f"从数据库获取会话: {session_id}")
+            session_data = self.get_record("sessions", session_id)
+            
+            if session_data:
+                # 创建会话模型
+                session_model = SessionModel.from_dict(session_data)
+                
+                # 将会话添加到内存缓存
+                SessionManager._session_cache[session_id] = session_model
+                logger.info(f"会话获取成功并添加到内存缓存: {session_id}")
+                return session_model.to_dict()
             else:
                 logger.info(f"会话 {session_id} 不存在")
-            return session
+                return None
         except Exception as e:
             logger.error(f"获取会话失败: {e}")
-            raise
+            return None
     
     async def update_session(self, session_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """更新会话
@@ -283,22 +213,33 @@ class SessionManager:
             更新后的会话，如果会话不存在则返回None
         """
         try:
+            # 首先检查会话是否存在
+            existing_session = await self.get_session(session_id)
+            if not existing_session:
+                logger.info(f"会话 {session_id} 不存在，无法更新")
+                return None
+            
             # 添加更新时间
             if "updated_at" not in updates:
                 updates["updated_at"] = datetime.now().isoformat()
             
             # 更新会话
-            updated_session = await self.storage.update("sessions", session_id, updates)
+            updated_session_data = self.update_record("sessions", session_id, updates)
             
-            if updated_session:
-                logger.info(f"更新会话 {session_id} 成功")
-                return updated_session
+            if updated_session_data:
+                # 创建会话模型
+                updated_session = SessionModel.from_dict(updated_session_data)
+                
+                # 更新内存缓存
+                SessionManager._session_cache[session_id] = updated_session
+                logger.info(f"更新会话 {session_id} 成功并更新内存缓存")
+                return updated_session.to_dict()
             else:
-                logger.info(f"会话 {session_id} 不存在，无法更新")
+                logger.info(f"会话 {session_id} 更新失败")
                 return None
         except Exception as e:
             logger.error(f"更新会话失败: {e}")
-            raise
+            return None
     
     async def delete_session(self, session_id: str) -> bool:
         """删除会话
@@ -310,15 +251,22 @@ class SessionManager:
             是否删除成功
         """
         try:
-            result = await self.storage.delete("sessions", session_id)
+            # 删除会话
+            result = self.delete_record("sessions", session_id)
+            
+            # 如果删除成功，从内存缓存中移除
+            if result and session_id in SessionManager._session_cache:
+                del SessionManager._session_cache[session_id]
+            
             if result:
                 logger.info(f"删除会话 {session_id} 成功")
             else:
                 logger.info(f"会话 {session_id} 不存在，无法删除")
+            
             return result
         except Exception as e:
             logger.error(f"删除会话失败: {e}")
-            raise
+            return False
     
     async def record_activity(self, session_id: str) -> bool:
         """记录会话活动
@@ -336,7 +284,7 @@ class SessionManager:
             }
             
             # 更新会话
-            updated_session = await self.storage.update("sessions", session_id, updates)
+            updated_session = await self.update_session(session_id, updates)
             
             if updated_session:
                 logger.info(f"记录会话 {session_id} 活动成功")
@@ -346,4 +294,4 @@ class SessionManager:
                 return False
         except Exception as e:
             logger.error(f"记录会话活动失败: {e}")
-            raise
+            return False

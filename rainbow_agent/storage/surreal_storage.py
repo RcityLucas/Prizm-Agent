@@ -36,7 +36,7 @@ class SurrealStorage(BaseStorage):
     def __init__(self, 
                  url: str = "ws://localhost:8000/rpc",
                  namespace: str = "rainbow",
-                 database: str = "test",
+                 database: str = "agent",
                  username: str = "root",
                  password: str = "root"):
         """初始化SurrealDB存储
@@ -58,51 +58,61 @@ class SurrealStorage(BaseStorage):
         self._connection_lock = asyncio.Lock()  # 添加连接锁以防止并发连接问题
         logger.info(f"SurrealDB存储初始化: {url}, {namespace}, {database}")
     
-    async def connect(self) -> None:
-        """连接到SurrealDB"""
-        async with self._connection_lock:  # 使用锁防止并发连接
-            if self._connected and self.db is not None:
-                logger.info(f"已经连接到SurrealDB: {self.url}, {self.namespace}, {self.database}")
-                return
+    async def _ensure_connected(self) -> None:
+        """确保已连接到SurrealDB
+        
+        注意：每次调用此方法都会创建全新的连接实例，以确保连接有效
+        这种方式虽然效率不高，但可以解决SurrealDB客户端库的连接问题
+        """
+        # 完全重新创建连接实例，而不是重用现有实例
+        try:
+            # 如果已经有连接，先尝试关闭它
+            if self.db is not None:
+                try:
+                    await self.db.close()
+                except Exception:
+                    # 忽略关闭连接时的错误
+                    pass
             
-            try:
-                # 创建新的连接实例
-                self.db = Surreal()
-                
-                # 连接到SurrealDB
-                logger.info(f"正在连接到SurrealDB: {self.url}")
-                await self.db.connect(self.url)
-                logger.info("SurrealDB连接成功，正在进行身份验证")
-                
-                # 签名认证
-                try:
-                    await self.db.signin({
-                        "user": self.username,
-                        "pass": self.password
-                    })
-                    logger.info("SurrealDB身份验证成功")
-                except Exception as auth_error:
-                    logger.error(f"SurrealDB身份验证失败: {auth_error}")
-                    raise Exception(f"SurrealDB身份验证失败: {auth_error}")
-                
-                # 使用指定的命名空间和数据库
-                try:
-                    logger.info(f"正在使用命名空间和数据库: {self.namespace}, {self.database}")
-                    await self.db.use(self.namespace, self.database)
-                    logger.info(f"成功使用命名空间和数据库: {self.namespace}, {self.database}")
-                except Exception as use_error:
-                    logger.error(f"使用命名空间和数据库失败: {use_error}")
-                    raise Exception(f"使用命名空间和数据库失败: {use_error}")
-                
-                self._connected = True
-                logger.info(f"已成功连接到SurrealDB: {self.url}, {self.namespace}, {self.database}")
-            except Exception as e:
-                import traceback
-                error_traceback = traceback.format_exc()
-                logger.error(f"连接SurrealDB失败: {e}\n{error_traceback}")
-                self._connected = False
-                self.db = None  # 重置连接
-                raise Exception(f"连接SurrealDB失败: {e}\n{error_traceback}")
+            # 创建全新的连接实例
+            self.db = Surreal()
+            self._connected = False
+            
+            # 连接到SurrealDB
+            logger.info(f"正在连接到SurrealDB: {self.url}")
+            await self.db.connect(self.url)
+            logger.info("SurrealDB连接成功，正在进行身份验证")
+            
+            # 签名认证
+            await self.db.signin({
+                "user": self.username,
+                "pass": self.password
+            })
+            logger.info("SurrealDB身份验证成功")
+            
+            # 使用指定的命名空间和数据库
+            logger.info(f"正在使用命名空间和数据库: {self.namespace}, {self.database}")
+            await self.db.use(self.namespace, self.database)
+            logger.info(f"成功使用命名空间和数据库: {self.namespace}, {self.database}")
+            
+            self._connected = True
+            logger.info(f"已成功连接到SurrealDB: {self.url}, {self.namespace}, {self.database}")
+        except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
+            logger.error(f"确保连接时出错: {e}\n{error_traceback}")
+            self._connected = False
+            self.db = None
+            raise
+    
+    async def connect(self) -> None:
+        """连接到SurrealDB
+        
+        注意：此方法不再直接使用，而是通过_ensure_connected方法调用
+        保留此方法仅为了兼容性
+        """
+        # 调用_ensure_connected方法创建新连接
+        await self._ensure_connected()
     
     async def disconnect(self) -> None:
         """断开与SurrealDB的连接"""
@@ -120,14 +130,6 @@ class SurrealStorage(BaseStorage):
                 logger.error(f"断开SurrealDB连接失败: {e}")
                 raise
     
-    async def _ensure_connected(self) -> None:
-        """确保已连接到SurrealDB"""
-        # 每次操作都创建一个新的连接，而不是重用连接
-        # 这样可以避免并发问题
-        self.db = Surreal()
-        self._connected = False
-        await self.connect()
-    
     async def create(self, table: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """创建记录
         
@@ -138,6 +140,7 @@ class SurrealStorage(BaseStorage):
         Returns:
             创建的记录
         """
+        # 确保连接有效
         await self._ensure_connected()
         
         try:
@@ -191,6 +194,7 @@ class SurrealStorage(BaseStorage):
         Returns:
             记录数据，如果不存在则返回None
         """
+        # 确保连接有效
         await self._ensure_connected()
         
         try:
@@ -211,8 +215,7 @@ class SurrealStorage(BaseStorage):
             logger.error(f"读取记录失败: {e}")
             raise
     
-    async def read_many(self, table: str, query: Dict[str, Any] = None, 
-                        limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    async def read_many(self, table: str, query: Dict[str, Any] = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """读取多条记录
         
         Args:
@@ -224,6 +227,7 @@ class SurrealStorage(BaseStorage):
         Returns:
             记录列表
         """
+        # 确保连接有效
         await self._ensure_connected()
         
         try:
@@ -308,6 +312,7 @@ class SurrealStorage(BaseStorage):
         Returns:
             更新后的记录，如果记录不存在则返回None
         """
+        # 确保连接有效
         await self._ensure_connected()
         
         try:
@@ -342,6 +347,7 @@ class SurrealStorage(BaseStorage):
         Returns:
             是否删除成功
         """
+        # 确保连接有效
         await self._ensure_connected()
         
         try:
@@ -370,6 +376,7 @@ class SurrealStorage(BaseStorage):
         Returns:
             查询结果
         """
+        # 确保连接有效
         await self._ensure_connected()
         
         try:

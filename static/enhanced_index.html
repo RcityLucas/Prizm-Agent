@@ -3,1312 +3,467 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>彩虹城 AI Agent 对话管理系统 - 增强版</title>
+    <title>彩虹城 AI Agent | 高级对话系统</title>
+    
+    <!-- 引入字体和基础样式 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-okaidia.min.css">
-    <style>
-        :root {
-            --primary-color: #6e8efb;
-            --secondary-color: #a777e3;
-            --accent-color: #1890ff;
-            --light-bg: #f8f9fa;
-            --dark-bg: #343a40;
-            --success-color: #28a745;
-            --info-color: #17a2b8;
-            --warning-color: #ffc107;
-            --danger-color: #dc3545;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #333;
-            line-height: 1.6;
-            padding-top: 56px;
-            position: relative;
-            min-height: 100vh;
-            scroll-behavior: smooth;
-        }
-        
-        .navbar {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .navbar-brand {
-            font-weight: 700;
-            font-size: 1.5rem;
-        }
-        
-        .hero-section {
-            background: linear-gradient(135deg, rgba(110, 142, 251, 0.8), rgba(167, 119, 227, 0.8)), url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=1352&q=80');
-            background-size: cover;
-            background-position: center;
-            color: white;
-            padding: 80px 0;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .hero-title {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-        }
-        
-        .hero-subtitle {
-            font-size: 1.2rem;
-            margin-bottom: 30px;
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        
-        .feature-card {
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            padding: 25px;
-            margin-bottom: 30px;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            height: 100%;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-        }
-        
-        .feature-icon {
-            font-size: 2.5rem;
-            color: var(--primary-color);
-            margin-bottom: 20px;
-        }
-        
-        .feature-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 15px;
-        }
-        
-        .chat-container {
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            overflow: hidden;
-            height: 70vh;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .chat-header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .chat-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin: 0;
-        }
-        
-        .chat-messages {
-            flex-grow: 1;
-            padding: 20px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .message {
-            max-width: 80%;
-            margin-bottom: 15px;
-            padding: 12px 15px;
-            border-radius: 18px;
-            position: relative;
-        }
-        
-        .message-user {
-            background-color: var(--primary-color);
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 5px;
-        }
-        
-        .message-ai {
-            background-color: var(--light-bg);
-            color: #333;
-            align-self: flex-start;
-            border-bottom-left-radius: 5px;
-        }
-        
-        .message-time {
-            font-size: 0.7rem;
-            opacity: 0.7;
-            margin-top: 5px;
-            text-align: right;
-        }
-        
-        .chat-input {
-            padding: 15px;
-            border-top: 1px solid #eee;
-        }
-        
-        .input-group {
-            position: relative;
-        }
-        
-        .form-control {
-            border-radius: 30px;
-            padding-right: 100px;
-        }
-        
-        .btn-send {
-            position: absolute;
-            right: 5px;
-            top: 5px;
-            z-index: 10;
-            border-radius: 30px;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            border: none;
-            padding: 8px 20px;
-        }
-        
-        .btn-send:hover {
-            opacity: 0.9;
-        }
-        
-        .tool-bar {
-            padding: 10px 15px;
-            background-color: #f8f9fa;
-            border-top: 1px solid #eee;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .tool-button {
-            background-color: white;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            padding: 5px 15px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .tool-button:hover {
-            background-color: #f0f0f0;
-            border-color: #ccc;
-        }
-        
-        .tool-button i {
-            font-size: 1rem;
-        }
-        
-        .sessions-sidebar {
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            padding: 20px;
-            height: 70vh;
-            overflow-y: auto;
-        }
-        
-        .session-item {
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        
-        .session-item:hover {
-            background-color: #f8f9fa;
-        }
-        
-        .session-item.active {
-            background-color: var(--primary-color);
-            color: white;
-        }
-        
-        .session-title {
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-        
-        .session-meta {
-            font-size: 0.8rem;
-            opacity: 0.7;
-        }
-        
-        .modal-header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-        }
-        
-        .tool-card {
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
-            padding: 15px;
-            margin-bottom: 15px;
-            cursor: pointer;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .tool-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-        
-        .tool-card-title {
-            font-weight: 600;
-            margin-bottom: 5px;
-            color: var(--primary-color);
-        }
-        
-        .tool-card-description {
-            font-size: 0.9rem;
-            margin-bottom: 10px;
-        }
-        
-        .tool-card-meta {
-            font-size: 0.8rem;
-            color: #777;
-        }
-        
-        .badge-version {
-            background-color: var(--info-color);
-            color: white;
-        }
-        
-        .badge-provider {
-            background-color: var(--success-color);
-            color: white;
-        }
-        
-        .image-preview {
-            max-width: 100%;
-            border-radius: 10px;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .code-block {
-            background-color: #282c34;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 10px 0;
-            overflow-x: auto;
-            font-family: 'Courier New', Courier, monospace;
-            color: #abb2bf;
-        }
-        
-        .system-message {
-            background-color: #f8f9fa;
-            border-left: 4px solid var(--info-color);
-            padding: 10px 15px;
-            margin: 15px 0;
-            font-size: 0.9rem;
-            color: #555;
-        }
-        
-        .loading-indicator {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 20px 0;
-        }
-        
-        .loading-spinner {
-            width: 30px;
-            height: 30px;
-            border: 3px solid rgba(0, 0, 0, 0.1);
-            border-radius: 50%;
-            border-top-color: var(--primary-color);
-            animation: spin 1s ease-in-out infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
+    
+    <!-- 自定义样式 -->
+    <link rel="stylesheet" href="css/enhanced_styles.css">
 </head>
-<body>
+<body data-theme="dark">
     <!-- 导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
-        <div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top">
+        <div class="container-fluid px-4">
             <a class="navbar-brand" href="#">
-                <i class="bi bi-rainbow"></i> 彩虹城 AI Agent
+                <i class="bi bi-rainbow me-2"></i>彩虹城 AI Agent
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
+            <div class="d-flex align-items-center">
+                <div class="theme-switch me-3" id="themeSwitch">
+                    <i class="bi bi-sun-fill theme-icon" id="themeIcon"></i>
+                </div>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+                        aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <i class="bi bi-list text-white"></i>
+                </button>
+            </div>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link active" href="#"><i class="bi bi-chat-dots"></i> 对话</a>
+                        <a class="nav-link active" href="#chat">
+                            <i class="bi bi-chat-dots me-1"></i>对话
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#tools"><i class="bi bi-tools"></i> 工具</a>
+                        <a class="nav-link" href="#tools">
+                            <i class="bi bi-tools me-1"></i>工具
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#about"><i class="bi bi-info-circle"></i> 关于</a>
+                        <a class="nav-link" href="#settings">
+                            <i class="bi bi-gear me-1"></i>设置
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <button class="btn btn-light btn-sm ms-2" id="systemStatusBtn">
-                            <i class="bi bi-activity"></i> 系统状态
-                        </button>
+                        <a class="nav-link" href="#about">
+                            <i class="bi bi-info-circle me-1"></i>关于
+                        </a>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <!-- 英雄区域 -->
-    <section class="hero-section">
-        <div class="container">
-            <h1 class="hero-title">彩虹城 AI Agent 对话管理系统</h1>
-            <p class="hero-subtitle">
-                基于七种对话类型和四层数据结构的多模态智能对话系统，支持工具调用、多模态交互和自反思架构。
-            </p>
-            <button class="btn btn-light btn-lg" id="startChatBtn">
-                <i class="bi bi-chat-text"></i> 开始对话
-            </button>
-        </div>
-    </section>
-
     <!-- 主要内容区域 -->
-    <div class="container mb-5">
-        <div class="row">
-            <!-- 左侧会话列表 -->
-            <div class="col-md-3">
-                <div class="sessions-sidebar">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="mb-0">对话列表</h5>
-                        <button class="btn btn-sm btn-primary" id="newSessionBtn">
-                            <i class="bi bi-plus"></i> 新对话
+    <div class="main-content">
+        <div class="container-fluid p-0">
+            <div class="row g-0">
+                <!-- 侧边栏 -->
+                <div class="col-md-3 col-lg-2 sidebar">
+                    <div class="sidebar-header">
+                        <h5>会话列表</h5>
+                        <button class="btn btn-sm btn-rainbow" id="newSessionBtn">
+                            <i class="bi bi-plus"></i> 新会话
                         </button>
                     </div>
-                    <div class="sessions-list" id="sessionsList">
-                        <!-- 会话列表将通过JavaScript动态生成 -->
-                        <div class="system-message">加载会话列表中...</div>
+                    
+                    <div class="sidebar-search">
+                        <div class="search-input-wrapper">
+                            <i class="bi bi-search search-icon"></i>
+                            <input type="text" class="search-input" placeholder="搜索会话..." id="sessionSearch">
+                        </div>
                     </div>
-                </div>
-            </div>
-            
-            <!-- 右侧对话区域 -->
-            <div class="col-md-9">
-                <div class="chat-container">
-                    <div class="chat-header">
-                        <h5 class="chat-title" id="currentSessionTitle">新对话</h5>
-                        <div>
-                            <button class="btn btn-sm btn-light" id="clearChatBtn">
-                                <i class="bi bi-trash"></i>
+                    
+                    <div class="session-list" id="sessionList">
+                        <div class="loading-placeholder">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <span>加载会话列表...</span>
+                        </div>
+                        <!-- 会话列表将通过JavaScript动态生成 -->
+                    </div>
+                    
+                    <div class="sidebar-footer">
+                        <div class="sidebar-actions">
+                            <button class="sidebar-action-btn" id="importSessionBtn" title="导入会话">
+                                <i class="bi bi-upload"></i>
                             </button>
-                            <button class="btn btn-sm btn-light" id="exportChatBtn">
+                            <button class="sidebar-action-btn" id="exportAllSessionsBtn" title="导出所有会话">
                                 <i class="bi bi-download"></i>
                             </button>
-                        </div>
-                    </div>
-                    <div class="chat-messages" id="chatMessages">
-                        <div class="system-message">
-                            <i class="bi bi-info-circle"></i> 欢迎使用彩虹城 AI Agent 对话管理系统。请输入您的问题或指令。
-                        </div>
-                    </div>
-                    <div class="tool-bar">
-                        <button class="tool-button" id="uploadImageBtn">
-                            <i class="bi bi-image"></i> 图片
-                        </button>
-                        <button class="tool-button" id="uploadAudioBtn">
-                            <i class="bi bi-mic"></i> 语音
-                        </button>
-                        <button class="tool-button" id="showToolsBtn">
-                            <i class="bi bi-tools"></i> 工具
-                        </button>
-                        <button class="tool-button" id="codeBtn">
-                            <i class="bi bi-code-slash"></i> 代码
-                        </button>
-                        <button class="tool-button" id="drawingBtn">
-                            <i class="bi bi-brush"></i> 绘图
-                        </button>
-                    </div>
-                    <div class="chat-input">
-                        <div class="input-group">
-                            <textarea class="form-control" id="userInput" placeholder="输入您的问题或指令..."></textarea>
-                            <button class="btn btn-send" id="sendBtn">
-                                <i class="bi bi-send"></i> 发送
+                            <button class="sidebar-action-btn" id="clearAllSessionsBtn" title="清除所有会话">
+                                <i class="bi bi-trash"></i>
                             </button>
                         </div>
                     </div>
                 </div>
+                
+                <!-- 主聊天区域 -->
+                <div class="col-md-9 col-lg-10 main-chat-area">
+                    <div class="chat-container" id="chatContainer">
+                        <!-- 聊天头部 -->
+                        <div class="chat-header">
+                            <div class="chat-info">
+                                <h5 class="chat-title" id="currentChatTitle">新会话</h5>
+                                <span class="chat-subtitle" id="currentChatSubtitle">开始一个新的对话</span>
+                            </div>
+                            <div class="chat-actions">
+                                <div class="dropdown">
+                                    <button class="chat-action-btn" id="chatSettingsBtn" data-bs-toggle="dropdown" aria-expanded="false" title="会话设置">
+                                        <i class="bi bi-gear"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#" id="renameChatBtn"><i class="bi bi-pencil me-2"></i>重命名会话</a></li>
+                                        <li><a class="dropdown-item" href="#" id="changeChatTypeBtn"><i class="bi bi-people me-2"></i>更改对话类型</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="#" id="exportChatBtn"><i class="bi bi-download me-2"></i>导出会话</a></li>
+                                        <li><a class="dropdown-item text-danger" href="#" id="clearChatBtn"><i class="bi bi-trash me-2"></i>清除会话</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 聊天消息区域 -->
+                        <div class="chat-messages" style="max-height: 70vh;" id="chatMessages">
+                            <div class="welcome-message">
+                                <div class="welcome-icon">
+                                    <i class="bi bi-robot"></i>
+                                </div>
+                                <h3>欢迎使用彩虹城 AI Agent</h3>
+                                <p>这是一个强大的多模态对话系统，支持七种对话类型、工具调用和多模态输入。</p>
+                                <div class="welcome-suggestions">
+                                    <div class="suggestion-title">你可以尝试以下问题：</div>
+                                    <div class="suggestion-items">
+                                        <div class="suggestion-item" data-text="介绍一下彩虹城 AI Agent 的主要功能">
+                                            <i class="bi bi-stars"></i>
+                                            <span>介绍一下彩虹城 AI Agent 的主要功能</span>
+                                        </div>
+                                        <div class="suggestion-item" data-text="什么是多模态输入？如何使用？">
+                                            <i class="bi bi-image"></i>
+                                            <span>什么是多模态输入？如何使用？</span>
+                                        </div>
+                                        <div class="suggestion-item" data-text="展示一下工具调用功能">
+                                            <i class="bi bi-tools"></i>
+                                            <span>展示一下工具调用功能</span>
+                                        </div>
+                                        <div class="suggestion-item" data-text="如何创建一个 AI 对 AI 的对话？">
+                                            <i class="bi bi-robot"></i>
+                                            <span>如何创建一个 AI 对 AI 的对话？</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 消息内容将通过JavaScript动态生成 -->
+                        </div>
+                        
+                        <!-- 工具栏 -->
+                        <div class="chat-toolbar">
+                            <button class="tool-btn" id="imageUploadBtn" title="上传图片">
+                                <i class="bi bi-image"></i>
+                            </button>
+                            <button class="tool-btn" id="audioInputBtn" title="语音输入">
+                                <i class="bi bi-mic"></i>
+                            </button>
+                            <button class="tool-btn" id="toolsBtn" title="工具">
+                                <i class="bi bi-tools"></i>
+                            </button>
+                            <button class="tool-btn" id="codeBtn" title="代码块">
+                                <i class="bi bi-code-slash"></i>
+                            </button>
+                            <button class="tool-btn" id="drawingBtn" title="绘图">
+                                <i class="bi bi-brush"></i>
+                            </button>
+                            <div class="toolbar-divider"></div>
+                            <div class="model-selector">
+                                <select class="model-select" id="modelSelect">
+                                    <option value="gpt-4">GPT-4</option>
+                                    <option value="gpt-3.5-turbo" selected>GPT-3.5 Turbo</option>
+                                    <option value="claude-3">Claude 3</option>
+                                    <option value="gemini-pro">Gemini Pro</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- 输入区域 -->
+                        <div class="chat-input-container">
+                            <div class="chat-input-wrapper">
+                                <textarea id="userInput" class="chat-input" placeholder="输入消息或 / 使用命令..." rows="1"></textarea>
+                                <button id="sendBtn" class="send-btn" disabled>
+                                    <i class="bi bi-send"></i>
+                                </button>
+                            </div>
+                            <div class="input-footer">
+                                <div class="input-info">
+                                    <span class="token-counter" id="tokenCounter">0/4000</span>
+                                </div>
+                                <div class="input-actions">
+                                    <button class="input-action-btn" id="clearInputBtn" title="清除输入">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- 工具区域 -->
-    <section class="py-5 bg-light" id="tools">
-        <div class="container">
-            <h2 class="text-center mb-5">可用工具</h2>
-            <div class="row" id="toolsList">
-                <!-- 工具列表将通过JavaScript动态生成 -->
-                <div class="col-12">
-                    <div class="loading-indicator">
-                        <div class="loading-spinner"></div>
-                        <span class="ms-2">加载工具列表中...</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- 关于区域 -->
-    <section class="py-5" id="about">
-        <div class="container">
-            <h2 class="text-center mb-5">关于对话管理系统</h2>
-            <div class="row">
-                <div class="col-md-4 mb-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-chat-square-text"></i>
-                        </div>
-                        <h3 class="feature-title">七种对话类型</h3>
-                        <p>支持人类与人类、人类与AI、AI与AI、AI自省等多种对话类型，满足不同场景需求。</p>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-layers"></i>
-                        </div>
-                        <h3 class="feature-title">四层数据结构</h3>
-                        <p>采用消息、轮次、会话、对话四层数据结构，实现灵活的上下文管理和交互记录。</p>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-tools"></i>
-                        </div>
-                        <h3 class="feature-title">工具调用</h3>
-                        <p>支持多种工具的动态调用，包括天气查询、计算器、图像生成、代码生成等功能。</p>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-images"></i>
-                        </div>
-                        <h3 class="feature-title">多模态支持</h3>
-                        <p>支持文本、图像、音频等多种模态的输入和输出，实现更自然、更丰富的交互体验。</p>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-person-lines-fill"></i>
-                        </div>
-                        <h3 class="feature-title">三元通信结构</h3>
-                        <p>实现了真正的人类×系统×AI三元通信结构，突破了传统的“人问、AI答”单向模式。</p>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-lightbulb"></i>
-                        </div>
-                        <h3 class="feature-title">自反思架构</h3>
-                        <p>支持AI的自我反思和意识组织，通过自省会话和内省轮次提升AI的思考能力和自我意识。</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- 模态对话框 -->
-    <!-- 工具选择模态框 -->
-    <div class="modal fade" id="toolsModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+    <!-- 模态框 -->
+    <!-- 对话类型选择模态框 -->
+    <div class="modal fade" id="dialogueTypeModal" tabindex="-1" aria-labelledby="dialogueTypeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">选择工具</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title" id="dialogueTypeModalLabel">选择对话类型</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="row" id="modalToolsList">
-                        <!-- 工具列表将通过JavaScript动态生成 -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 图片上传模态框 -->
-    <div class="modal fade" id="imageUploadModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">上传图片</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="imageFile" class="form-label">选择图片文件</label>
-                        <input class="form-control" type="file" id="imageFile" accept="image/*">
-                    </div>
-                    <div id="imagePreviewContainer" class="text-center d-none">
-                        <img id="imagePreview" class="img-fluid rounded image-preview">
+                    <div class="dialogue-types">
+                        <div class="dialogue-type-card" data-type="human_ai">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-person-circle"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">人类与AI私聊</h6>
+                                <p class="dialogue-type-description">一对一的人类与AI对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="human_human">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-person-circle"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-person"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">人类与人类私聊</h6>
+                                <p class="dialogue-type-description">一对一的人类之间对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="human_ai_group">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-people"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">人类与AI群聊</h6>
+                                <p class="dialogue-type-description">多个人类与一个AI的群组对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="ai_ai">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-robot"></i>
+                                <i class="bi bi-arrow-left-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">AI与AI对话</h6>
+                                <p class="dialogue-type-description">两个AI之间的对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="ai_reflection">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-robot"></i>
+                                <i class="bi bi-arrow-clockwise"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">AI自我反思</h6>
+                                <p class="dialogue-type-description">AI进行自我思考和反思</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="human_human_group">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-person-circle"></i>
+                                <i class="bi bi-arrow-left-right"></i>
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">人类与人类群聊</h6>
+                                <p class="dialogue-type-description">多个人类之间的群组对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="ai_human_group">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-robot"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">AI与多个人类群聊</h6>
+                                <p class="dialogue-type-description">一个AI与多个人类的群组对话</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" id="uploadImageConfirmBtn">上传</button>
+                    <button type="button" class="btn btn-rainbow" id="confirmDialogueTypeBtn">确认</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 系统状态模态框 -->
-    <div class="modal fade" id="systemStatusModal" tabindex="-1">
-        <div class="modal-dialog">
+    <!-- 工具模态框 -->
+    <div class="modal fade" id="toolsModal" tabindex="-1" aria-labelledby="toolsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">系统状态</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title" id="toolsModalLabel">可用工具</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body" id="systemStatusContent">
-                    <div class="loading-indicator">
-                        <div class="loading-spinner"></div>
-                        <span class="ms-2">加载系统状态中...</span>
+                <div class="modal-body">
+                    <div class="tools-search mb-3">
+                        <div class="search-input-wrapper">
+                            <i class="bi bi-search search-icon"></i>
+                            <input type="text" class="search-input" placeholder="搜索工具..." id="toolsSearch">
+                        </div>
                     </div>
+                    
+                    <div class="tools-container" id="toolsContainer">
+                        <!-- 工具列表将通过JavaScript动态生成 -->
+                        <div class="loading-placeholder">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <span>加载工具列表...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-rainbow" id="registerNewToolBtn">
+                        <i class="bi bi-plus-circle me-1"></i> 注册新工具
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- JavaScript引用 -->
+    <!-- 工具注册模态框 -->
+    <div class="modal fade" id="registerToolModal" tabindex="-1" aria-labelledby="registerToolModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="registerToolModalLabel">注册新工具</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="toolRegistrationForm">
+                        <div class="mb-3">
+                            <label for="toolName" class="form-label">工具名称</label>
+                            <input type="text" class="form-control" id="toolName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="toolDescription" class="form-label">工具描述</label>
+                            <textarea class="form-control" id="toolDescription" rows="2" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="toolCategory" class="form-label">工具类别</label>
+                            <select class="form-select" id="toolCategory" required>
+                                <option value="">选择类别...</option>
+                                <option value="data">数据处理</option>
+                                <option value="language">语言处理</option>
+                                <option value="search">信息检索</option>
+                                <option value="media">多媒体处理</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="toolVersion" class="form-label">工具版本</label>
+                            <input type="text" class="form-control" id="toolVersion" placeholder="例如: 1.0.0" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">参数定义</label>
+                            <div id="parameterContainer">
+                                <!-- 参数将通过JavaScript动态添加 -->
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addParameterBtn">
+                                <i class="bi bi-plus"></i> 添加参数
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-rainbow" id="submitToolBtn">注册</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置模态框 -->
+    <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="settingsModalLabel">系统设置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="settingsForm">
+                        <div class="mb-3">
+                            <label for="apiKey" class="form-label">API 密钥</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="apiKey" placeholder="sk-...">
+                                <button class="btn btn-outline-secondary" type="button" id="toggleApiKey">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">用于访问 OpenAI API 的密钥</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="apiBaseUrl" class="form-label">API 基础 URL</label>
+                            <input type="text" class="form-control" id="apiBaseUrl" value="https://api.chatanywhere.tech/v1">
+                            <div class="form-text">API 服务器地址</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="defaultModel" class="form-label">默认模型</label>
+                            <select class="form-select" id="defaultModel">
+                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                <option value="gpt-4">GPT-4</option>
+                                <option value="claude-3">Claude 3</option>
+                                <option value="gemini-pro">Gemini Pro</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="theme" class="form-label">界面主题</label>
+                            <select class="form-select" id="theme">
+                                <option value="dark">暗色主题</option>
+                                <option value="light">亮色主题</option>
+                                <option value="system">跟随系统</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-rainbow" id="saveSettingsBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 库 -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script>
-        // 全局变量
-        const API_BASE_URL = 'http://localhost:5000/api';
-        let currentSessionId = null;
-        let availableTools = [];
-        
-        // DOM元素
-        const userInput = document.getElementById('userInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const chatMessages = document.getElementById('chatMessages');
-        const sessionsList = document.getElementById('sessionsList');
-        const currentSessionTitle = document.getElementById('currentSessionTitle');
-        const newSessionBtn = document.getElementById('newSessionBtn');
-        const clearChatBtn = document.getElementById('clearChatBtn');
-        const exportChatBtn = document.getElementById('exportChatBtn');
-        const uploadImageBtn = document.getElementById('uploadImageBtn');
-        const uploadAudioBtn = document.getElementById('uploadAudioBtn');
-        const showToolsBtn = document.getElementById('showToolsBtn');
-        const codeBtn = document.getElementById('codeBtn');
-        const drawingBtn = document.getElementById('drawingBtn');
-        const startChatBtn = document.getElementById('startChatBtn');
-        const systemStatusBtn = document.getElementById('systemStatusBtn');
-        const toolsList = document.getElementById('toolsList');
-        const modalToolsList = document.getElementById('modalToolsList');
-        
-        // 模态框实例
-        const toolsModal = new bootstrap.Modal(document.getElementById('toolsModal'));
-        const imageUploadModal = new bootstrap.Modal(document.getElementById('imageUploadModal'));
-        const systemStatusModal = new bootstrap.Modal(document.getElementById('systemStatusModal'));
-        
-        // 初始化函数
-        function init() {
-            // 生成随机用户ID
-            const userId = localStorage.getItem('userId') || `user_${Math.random().toString(36).substring(2, 10)}`;
-            localStorage.setItem('userId', userId);
-            
-            // 加载会话列表
-            loadSessions();
-            
-            // 加载工具列表
-            loadTools();
-            
-            // 创建新会话
-            createNewSession();
-            
-            // 添加事件监听器
-            setupEventListeners();
-        }
-        
-        // 设置事件监听器
-        function setupEventListeners() {
-            // 发送消息
-            sendBtn.addEventListener('click', sendMessage);
-            userInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-            
-            // 会话管理
-            newSessionBtn.addEventListener('click', createNewSession);
-            clearChatBtn.addEventListener('click', clearChat);
-            exportChatBtn.addEventListener('click', exportChat);
-            startChatBtn.addEventListener('click', () => {
-                window.scrollTo({
-                    top: document.querySelector('.chat-container').offsetTop - 70,
-                    behavior: 'smooth'
-                });
-                userInput.focus();
-            });
-            
-            // 多模态交互
-            uploadImageBtn.addEventListener('click', () => imageUploadModal.show());
-            document.getElementById('imageFile').addEventListener('change', previewImage);
-            document.getElementById('uploadImageConfirmBtn').addEventListener('click', uploadImage);
-            
-            // 工具相关
-            showToolsBtn.addEventListener('click', () => toolsModal.show());
-            
-            // 系统状态
-            systemStatusBtn.addEventListener('click', () => {
-                loadSystemStatus();
-                systemStatusModal.show();
-            });
-        }
-        
-        // 页面加载完成后初始化
-        document.addEventListener('DOMContentLoaded', init);
-        
-        // 加载会话列表
-        async function loadSessions() {
-            try {
-                const userId = localStorage.getItem('userId');
-                console.log(`加载用户 ${userId} 的会话列表`);
-                const response = await fetch(`${API_BASE_URL}/dialogue/sessions?userId=${userId}`);
-                const data = await response.json();
-                console.log('会话数据:', data);
-                
-                // 处理不同格式的响应
-                let sessions = [];
-                if (data.sessions) {
-                    // 直接使用sessions字段
-                    sessions = data.sessions;
-                } else if (data.data && data.data.sessions) {
-                    // 使用标准化格式中的data.sessions
-                    sessions = data.data.sessions;
-                } else if (data.items) {
-                    // 兼容增强版前端的items格式
-                    sessions = data.items;
-                }
-                
-                if (sessions && sessions.length > 0) {
-                    console.log(`找到 ${sessions.length} 个会话`);
-                    sessionsList.innerHTML = '';
-                    sessions.forEach(session => {
-                        // 支持不同的字段命名
-                        const sessionId = session.id;
-                        const sessionTitle = session.title || session.name || '未命名会话';
-                        const lastActivity = session.updated_at || session.last_activity_at || session.lastActivity || new Date().toISOString();
-                        
-                        console.log(`添加会话: ${sessionId} - ${sessionTitle}`);
-                        
-                        const sessionItem = document.createElement('div');
-                        sessionItem.className = 'session-item';
-                        sessionItem.dataset.id = sessionId;
-                        sessionItem.innerHTML = `
-                            <div class="session-title">${sessionTitle}</div>
-                            <div class="session-meta">
-                                <span>${new Date(lastActivity).toLocaleString()}</span>
-                            </div>
-                        `;
-                        sessionItem.addEventListener('click', () => loadSession(sessionId));
-                        sessionsList.appendChild(sessionItem);
-                    });
-                } else {
-                    console.log('没有找到会话');
-                    sessionsList.innerHTML = '<div class="system-message">没有可用的会话</div>';
-                }
-            } catch (error) {
-                console.error('加载会话列表失败:', error);
-                sessionsList.innerHTML = '<div class="system-message">加载会话列表失败</div>';
-            }
-        }
-        
-        // 创建新会话
-        async function createNewSession() {
-            try {
-                const userId = localStorage.getItem('userId');
-                console.log(`使用用户ID ${userId} 创建新会话`);
-                const sessionData = {
-                    userId: userId,  // 在请求中使用userId字段
-                    title: `新对话 ${new Date().toLocaleString()}`,
-                    dialogueType: "HUMAN_AI_PRIVATE",  // 更新为大写的对话类型
-                    participants: [
-                        {
-                            id: userId,
-                            name: "用户",
-                            type: "human"
-                        },
-                        {
-                            id: "ai_assistant",
-                            name: "Rainbow助手",
-                            type: "ai"
-                        }
-                    ]
-                };
-                
-                console.log('发送创建会话请求:', sessionData);
-                const response = await fetch(`${API_BASE_URL}/dialogue/sessions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(sessionData)
-                });
-                
-                const data = await response.json();
-                console.log('创建会话响应:', data);
-                
-                // 处理不同格式的响应
-                let sessionInfo = null;
-                if (data.id) {
-                    // 直接使用根层级字段
-                    sessionInfo = data;
-                } else if (data.data && data.data.id) {
-                    // 使用标准化格式中的data字段
-                    sessionInfo = data.data;
-                }
-                
-                if (sessionInfo && sessionInfo.id) {
-                    console.log(`成功创建会话: ${sessionInfo.id}`);
-                    // 更新当前会话 ID
-                    currentSessionId = sessionInfo.id;
-                    // 更新会话标题，兼容不同字段名
-                    currentSessionTitle.textContent = sessionInfo.title || sessionInfo.name || '新会话';
-                    
-                    // 更新聊天界面
-                    chatMessages.innerHTML = `
-                        <div class="system-message">
-                            <i class="bi bi-info-circle"></i> 新会话已创建 (会话ID: ${currentSessionId})。请输入您的问题或指令。
-                        </div>
-                    `;
-                    
-                    // 刷新会话列表
-                    loadSessions();
-                    
-                    // 聚焦到输入框
-                    userInput.focus();
-                } else {
-                    console.error('创建会话成功但响应中无效的会话ID:', data);
-                    alert('创建新会话成功，但响应数据无效');
-                }
-            } catch (error) {
-                console.error('创建新会话失败:', error);
-                alert('创建新会话失败');
-            }
-        }
-        
-        // 加载特定会话
-        async function loadSession(sessionId) {
-            try {
-                console.log(`加载会话: ${sessionId}`);
-                const response = await fetch(`${API_BASE_URL}/dialogue/sessions/${sessionId}`);
-                const data = await response.json();
-                console.log('会话数据:', data);
-                
-                // 处理不同格式的响应
-                let session = null;
-                if (data && data.id) {
-                    // 直接使用根层级字段
-                    session = data;
-                } else if (data && data.data && data.data.id) {
-                    // 使用标准化格式中的data字段
-                    session = data.data;
-                } else if (data && data.session) {
-                    // 使用session字段
-                    session = data.session;
-                }
-                
-                if (session) {
-                    console.log(`成功加载会话: ${session.id}`);
-                    currentSessionId = session.id;
-                    currentSessionTitle.textContent = session.title || session.name || '未命名会话';
-                    
-                    // 加载会话的轮次
-                    console.log(`加载会话轮次: ${sessionId}`);
-                    const turnsResponse = await fetch(`${API_BASE_URL}/dialogue/sessions/${sessionId}/turns`);
-                    const turnsRawData = await turnsResponse.json();
-                    console.log('轮次数据:', turnsRawData);
-                    
-                    // 处理不同格式的响应
-                    let turnsData = turnsRawData;
-                    if (turnsRawData.data) {
-                        turnsData = turnsRawData.data;
-                    }
-                    
-                    chatMessages.innerHTML = '';
-                    
-                    // 处理不同格式的轮次数据
-                    let turns = [];
-                    if (turnsData.turns) {
-                        turns = turnsData.turns;
-                    } else if (Array.isArray(turnsData)) {
-                        turns = turnsData;
-                    }
-                    
-                    if (turns && turns.length > 0) {
-                        console.log(`找到 ${turns.length} 个轮次`);
-                        turns.forEach(turn => {
-                            // 兼容不同的字段命名
-                            const requestMsgs = turn.request_messages || turn.requestMessages || [];
-                            const responseMsgs = turn.response_messages || turn.responseMessages || [];
-                            
-                            // 添加请求消息
-                            requestMsgs.forEach(msg => {
-                                const msgContent = msg.content || msg.text || '';
-                                const msgTime = msg.timestamp || msg.created_at || new Date().toISOString();
-                                addMessage(msgContent, 'user', new Date(msgTime));
-                            });
-                            
-                            // 添加响应消息
-                            responseMsgs.forEach(msg => {
-                                const msgContent = msg.content || msg.text || '';
-                                const msgTime = msg.timestamp || msg.created_at || new Date().toISOString();
-                                addMessage(msgContent, 'ai', new Date(msgTime));
-                            });
-                        });
-                    } else {
-                        console.log('没有找到轮次数据');
-                        chatMessages.innerHTML = `
-                            <div class="system-message">
-                                <i class="bi bi-info-circle"></i> 这是一个新会话 (会话ID: ${sessionId})。请输入您的问题或指令。
-                            </div>
-                        `;
-                    }
-                    
-                    // 更新会话列表选中状态
-                    document.querySelectorAll('.session-item').forEach(item => {
-                        item.classList.remove('active');
-                        if (item.dataset.id === sessionId) {
-                            item.classList.add('active');
-                        }
-                    });
-                    
-                    // 聚焦到输入框
-                    userInput.focus();
-                    
-                    // 滚动到底部
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                } else {
-                    console.error('无效的会话数据:', data);
-                    alert('加载会话失败: 无效的会话数据');
-                }
-            } catch (error) {
-                console.error('加载会话失败:', error);
-                alert('加载会话失败');
-            }
-        }
-        
-        // 清除当前会话
-        function clearChat() {
-            if (confirm('确定要清除当前对话吗？这将删除所有消息。')) {
-                chatMessages.innerHTML = `
-                    <div class="system-message">
-                        <i class="bi bi-info-circle"></i> 对话已清除。请输入新的问题或指令。
-                    </div>
-                `;
-            }
-        }
-        
-        // 导出当前会话
-        function exportChat() {
-            const messages = document.querySelectorAll('.message');
-            let exportText = `# 彩虹城 AI Agent 对话记录\n\n`;
-            exportText += `会话: ${currentSessionTitle.textContent}\n`;
-            exportText += `时间: ${new Date().toLocaleString()}\n\n`;
-            
-            messages.forEach(msg => {
-                const isUser = msg.classList.contains('message-user');
-                const sender = isUser ? '用户' : 'AI';
-                const time = msg.querySelector('.message-time').textContent;
-                const content = msg.querySelector('.message-content').textContent;
-                
-                exportText += `## ${sender} (${time})\n\n${content}\n\n`;
-            });
-            
-            const blob = new Blob([exportText], { type: 'text/markdown' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `chat_export_${new Date().toISOString().slice(0, 10)}.md`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-        
-        // 发送消息
-        async function sendMessage() {
-            const message = userInput.value.trim();
-            if (!message) return;
-            
-            // 检查会话ID
-            if (!currentSessionId) {
-                addSystemMessage('错误: 没有活跃的会话，请创建新会话或选择一个现有会话');
-                return;
-            }
-            
-            console.log(`准备发送消息到会话: ${currentSessionId}`);
-            
-            // 添加用户消息到聊天窗口
-            addMessage(message, 'user');
-            userInput.value = '';
-            
-            // 添加加载指示器
-            const loadingElement = document.createElement('div');
-            loadingElement.className = 'loading-indicator';
-            loadingElement.innerHTML = `
-                <div class="loading-spinner"></div>
-                <span class="ms-2">正在生成回答...</span>
-            `;
-            chatMessages.appendChild(loadingElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            
-            try {
-                const userId = localStorage.getItem('userId');
-                
-                // 准备请求数据
-                const requestData = {
-                    sessionId: currentSessionId,  // 使用驼峰命名法的参数名
-                    userId: userId,
-                    input: message,
-                    type: 'text'
-                };
-                
-                console.log('发送输入请求:', requestData);
-                const response = await fetch(`${API_BASE_URL}/dialogue/input`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestData)
-                });
-                
-                const data = await response.json();
-                console.log('收到输入响应:', data);
-                
-                // 移除加载指示器
-                chatMessages.removeChild(loadingElement);
-                
-                // 处理不同格式的响应
-                if (data.success === false) {
-                    // 处理错误响应
-                    const errorMessage = data.error || data.message || '未知错误';
-                    addSystemMessage(`错误: ${errorMessage}`);
-                    return;
-                }
-                
-                // 提取响应数据
-                let responseData = data;
-                if (data.data) {
-                    // 新格式响应，使用data字段
-                    responseData = data.data;
-                }
-                
-                // 展示AI响应
-                const aiResponse = responseData.final_response || responseData.response || responseData.text || responseData.content;
-                if (aiResponse) {
-                    addMessage(aiResponse, 'ai');
-                } else {
-                    addSystemMessage('服务器响应了，但没有找到可用的回复内容');
-                    console.warn('没有找到可用的回复内容：', data);
-                }
-            } catch (error) {
-                console.error('发送消息失败:', error);
-                
-                // 移除加载指示器
-                chatMessages.removeChild(loadingElement);
-                
-                // 添加错误消息
-                addSystemMessage('发送消息失败，请重试');
-            }
-        }
-        
-        // 添加消息到聊天窗口
-        function addMessage(content, sender, timestamp = new Date()) {
-            const messageElement = document.createElement('div');
-            messageElement.className = `message message-${sender}`;
-            
-            // 处理Markdown格式
-            let formattedContent = content;
-            if (sender === 'ai') {
-                formattedContent = marked.parse(content);
-            }
-            
-            messageElement.innerHTML = `
-                <div class="message-content">${formattedContent}</div>
-                <div class="message-time">${timestamp.toLocaleTimeString()}</div>
-            `;
-            
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            
-            // 如果是AI响应，高亮代码块
-            if (sender === 'ai') {
-                messageElement.querySelectorAll('pre code').forEach(block => {
-                    Prism.highlightElement(block);
-                });
-            }
-        }
-        
-        // 添加系统消息
-        function addSystemMessage(message) {
-            const messageElement = document.createElement('div');
-            messageElement.className = 'system-message';
-            messageElement.innerHTML = `<i class="bi bi-info-circle"></i> ${message}`;
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-        
-        // 加载工具列表
-        async function loadTools() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/dialogue/tools`);
-                const data = await response.json();
-                
-                if (data.tools && data.tools.length > 0) {
-                    availableTools = data.tools;
-                    
-                    // 更新工具列表区域
-                    toolsList.innerHTML = '';
-                    modalToolsList.innerHTML = '';
-                    
-                    data.tools.forEach((tool, index) => {
-                        // 主页面工具卡片
-                        if (index < 6) { // 只显示前6个工具
-                            const toolCard = document.createElement('div');
-                            toolCard.className = 'col-md-4 mb-4';
-                            toolCard.innerHTML = `
-                                <div class="tool-card">
-                                    <h4 class="tool-card-title">${tool.name}</h4>
-                                    <p class="tool-card-description">${tool.description}</p>
-                                    <div class="tool-card-meta">
-                                        <span class="badge badge-version">版本 ${tool.version}</span>
-                                        <span class="badge badge-provider ms-2">${tool.provider}</span>
-                                    </div>
-                                </div>
-                            `;
-                            toolsList.appendChild(toolCard);
-                        }
-                        
-                        // 模态框工具卡片
-                        const modalToolCard = document.createElement('div');
-                        modalToolCard.className = 'col-md-6 mb-3';
-                        modalToolCard.innerHTML = `
-                            <div class="tool-card" data-tool="${tool.name}">
-                                <h5 class="tool-card-title">${tool.name}</h5>
-                                <p class="tool-card-description">${tool.description}</p>
-                                <div class="tool-card-meta">
-                                    <span class="badge badge-version">版本 ${tool.version}</span>
-                                    <span class="badge badge-provider ms-2">${tool.provider}</span>
-                                </div>
-                            </div>
-                        `;
-                        modalToolCard.querySelector('.tool-card').addEventListener('click', () => useTool(tool.name));
-                        modalToolsList.appendChild(modalToolCard);
-                    });
-                } else {
-                    toolsList.innerHTML = '<div class="col-12"><div class="system-message">没有可用的工具</div></div>';
-                    modalToolsList.innerHTML = '<div class="col-12"><div class="system-message">没有可用的工具</div></div>';
-                }
-            } catch (error) {
-                console.error('加载工具列表失败:', error);
-                toolsList.innerHTML = '<div class="col-12"><div class="system-message">加载工具列表失败</div></div>';
-                modalToolsList.innerHTML = '<div class="col-12"><div class="system-message">加载工具列表失败</div></div>';
-            }
-        }
-        
-        // 使用工具
-        async function useTool(toolName) {
-            // 隐藏工具模态框
-            toolsModal.hide();
-            
-            // 获取工具参数
-            const toolArgs = prompt(`请输入工具 ${toolName} 的参数:`);
-            if (toolArgs === null) return; // 用户取消
-            
-            // 添加系统消息
-            addSystemMessage(`正在调用工具: ${toolName}...`);
-            
-            try {
-                const response = await fetch(`${API_BASE_URL}/dialogue/tools/${toolName}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        args: toolArgs
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    // 添加工具结果消息
-                    const resultMessage = `工具 ${toolName} 返回结果:\n\n${data.result}`;
-                    addMessage(resultMessage, 'ai');
-                } else {
-                    addSystemMessage(`工具调用失败: ${data.result || '未知错误'}`);
-                }
-            } catch (error) {
-                console.error('工具调用失败:', error);
-                addSystemMessage('工具调用失败，请重试');
-            }
-        }
-        
-        // 图片预览
-        function previewImage() {
-            const imageFile = document.getElementById('imageFile');
-            const imagePreview = document.getElementById('imagePreview');
-            const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-            
-            if (imageFile.files && imageFile.files[0]) {
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    imagePreview.src = e.target.result;
-                    imagePreviewContainer.classList.remove('d-none');
-                };
-                
-                reader.readAsDataURL(imageFile.files[0]);
-            }
-        }
-        
-        // 上传图片
-        async function uploadImage() {
-            const imageFile = document.getElementById('imageFile');
-            
-            if (!imageFile.files || !imageFile.files[0]) {
-                alert('请选择图片文件');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('file', imageFile.files[0]);
-            
-            try {
-                // 隐藏模态框
-                imageUploadModal.hide();
-                
-                // 添加加载消息
-                addSystemMessage('正在上传图片...');
-                
-                // 上传图片
-                const response = await fetch(`${API_BASE_URL}/dialogue/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    // 添加图片消息
-                    const imageMessage = `![Uploaded Image](${data.url})`;
-                    addMessage(imageMessage, 'user');
-                    
-                    // 发送图片分析请求
-                    const userId = localStorage.getItem('userId');
-                    const analysisResponse = await fetch(`${API_BASE_URL}/dialogue/input`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            content: data.url,
-                            type: 'image',
-                            session_id: currentSessionId,
-                            user_id: userId,
-                            metadata: data.metadata
-                        })
-                    });
-                    
-                    const analysisData = await analysisResponse.json();
-                    
-                    // 添加AI响应
-                    if (analysisData.final_response) {
-                        addMessage(analysisData.final_response, 'ai');
-                    }
-                } else {
-                    addSystemMessage(`图片上传失败: ${data.error || '未知错误'}`);
-                }
-                
-                // 重置文件输入
-                imageFile.value = '';
-                document.getElementById('imagePreviewContainer').classList.add('d-none');
-            } catch (error) {
-                console.error('图片上传失败:', error);
-                addSystemMessage('图片上传失败，请重试');
-            }
-        }
-        
-        // 加载系统状态
-        async function loadSystemStatus() {
-            const statusContent = document.getElementById('systemStatusContent');
-            
-            try {
-                const response = await fetch(`${API_BASE_URL}/system/status_enhanced`);
-                const data = await response.json();
-                
-                if (data.status) {
-                    let statusHtml = `
-                        <div class="mb-3">
-                            <h6>系统状态: <span class="badge bg-success">${data.status}</span></h6>
-                            <p>版本: ${data.version}</p>
-                            <p>时间戳: ${new Date(data.timestamp).toLocaleString()}</p>
-                        </div>
-                        <div class="mb-3">
-                            <h6>组件状态:</h6>
-                            <ul class="list-group">
-                    `;
-                    
-                    for (const [component, status] of Object.entries(data.components)) {
-                        const statusClass = status ? 'bg-success' : 'bg-danger';
-                        const statusText = status ? '正常' : '异常';
-                        statusHtml += `
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                ${component}
-                                <span class="badge ${statusClass}">${statusText}</span>
-                            </li>
-                        `;
-                    }
-                    
-                    statusHtml += `
-                            </ul>
-                        </div>
-                        <div>
-                            <h6>工具数量: ${data.tools_count}</h6>
-                        </div>
-                    `;
-                    
-                    statusContent.innerHTML = statusHtml;
-                } else {
-                    statusContent.innerHTML = '<div class="system-message">无法获取系统状态</div>';
-                }
-            } catch (error) {
-                console.error('加载系统状态失败:', error);
-                statusContent.innerHTML = '<div class="system-message">加载系统状态失败</div>';
-            }
-        }
-    </script>
+    
+    <!-- 自定义 JavaScript -->
+    <script src="js/enhanced_app.js"></script>
 </body>
 </html>

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>彩虹城 AI Agent - 聊天 API 测试</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+        
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: white;
+            padding: 15px;
+            font-weight: bold;
+        }
+        
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+        
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: auto;
+            border-bottom-right-radius: 0;
+        }
+        
+        .ai-message {
+            background-color: #f1f1f1;
+            margin-right: auto;
+            border-bottom-left-radius: 0;
+        }
+        
+        .system-message {
+            background-color: #fff3cd;
+            margin: 10px auto;
+            text-align: center;
+            font-style: italic;
+        }
+        
+        .chat-input {
+            padding: 15px;
+            background-color: white;
+            border-top: 1px solid #ddd;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: #6e8efb;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .api-options {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            background-color: white;
+        }
+        
+        .api-response {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            background-color: white;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center my-4">
+            <i class="bi bi-rainbow"></i> 彩虹城 AI Agent - 聊天 API 测试
+        </h1>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="chat-container">
+                    <div class="chat-header">
+                        <i class="bi bi-chat-dots"></i> 聊天测试
+                    </div>
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="message system-message">
+                            欢迎使用彩虹城 AI Agent 聊天 API 测试页面
+                        </div>
+                    </div>
+                    <div class="chat-input">
+                        <div class="input-group">
+                            <input type="text" id="messageInput" class="form-control" placeholder="输入消息..." aria-label="输入消息">
+                            <button class="btn btn-primary" type="button" id="sendButton">
+                                <i class="bi bi-send"></i> 发送
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="api-options">
+                    <h5>API 选项</h5>
+                    <div class="mb-3">
+                        <label for="apiEndpoint" class="form-label">API 端点</label>
+                        <input type="text" class="form-control" id="apiEndpoint" value="/api/chat">
+                    </div>
+                    <div class="mb-3">
+                        <label for="modelSelect" class="form-label">模型</label>
+                        <select class="form-select" id="modelSelect">
+                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            <option value="gpt-4">GPT-4</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="temperatureRange" class="form-label">温度: <span id="temperatureValue">0.7</span></label>
+                        <input type="range" class="form-range" min="0" max="1" step="0.1" value="0.7" id="temperatureRange">
+                    </div>
+                    <div class="mb-3">
+                        <label for="maxTokensInput" class="form-label">最大 Token 数</label>
+                        <input type="number" class="form-control" id="maxTokensInput" value="1000">
+                    </div>
+                    <div class="mb-3">
+                        <label for="requestFormat" class="form-label">请求格式</label>
+                        <select class="form-select" id="requestFormat">
+                            <option value="messages">消息列表 (messages)</option>
+                            <option value="content">单一内容 (content)</option>
+                            <option value="prompt">提示词 (prompt)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="api-response">
+                    <h5>API 响应</h5>
+                    <pre id="apiResponse">等待响应...</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 全局变量
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const apiEndpoint = document.getElementById('apiEndpoint');
+        const modelSelect = document.getElementById('modelSelect');
+        const temperatureRange = document.getElementById('temperatureRange');
+        const temperatureValue = document.getElementById('temperatureValue');
+        const maxTokensInput = document.getElementById('maxTokensInput');
+        const requestFormat = document.getElementById('requestFormat');
+        const apiResponse = document.getElementById('apiResponse');
+        
+        // 消息历史
+        let messageHistory = [
+            { role: "system", content: "你是一个有用的AI助手，名为Rainbow助手。" }
+        ];
+        
+        // 更新温度值显示
+        temperatureRange.addEventListener('input', function() {
+            temperatureValue.textContent = this.value;
+        });
+        
+        // 添加消息到聊天界面
+        function addMessage(content, role) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            
+            if (role === 'user') {
+                messageDiv.classList.add('user-message');
+                messageHistory.push({ role: "user", content: content });
+            } else if (role === 'ai') {
+                messageDiv.classList.add('ai-message');
+                messageHistory.push({ role: "assistant", content: content });
+            } else {
+                messageDiv.classList.add('system-message');
+            }
+            
+            messageDiv.textContent = content;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // 添加加载指示器
+        function addLoadingIndicator() {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.classList.add('message', 'ai-message');
+            loadingDiv.id = 'loadingMessage';
+            
+            const loadingSpinner = document.createElement('span');
+            loadingSpinner.classList.add('loading');
+            loadingDiv.appendChild(loadingSpinner);
+            
+            const loadingText = document.createTextNode('AI 正在思考...');
+            loadingDiv.appendChild(loadingText);
+            
+            chatMessages.appendChild(loadingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // 移除加载指示器
+        function removeLoadingIndicator() {
+            const loadingMessage = document.getElementById('loadingMessage');
+            if (loadingMessage) {
+                loadingMessage.remove();
+            }
+        }
+        
+        // 发送消息
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            // 添加用户消息
+            addMessage(message, 'user');
+            messageInput.value = '';
+            
+            // 添加加载指示器
+            addLoadingIndicator();
+            
+            try {
+                // 准备请求数据
+                let requestData = {};
+                const format = requestFormat.value;
+                
+                if (format === 'messages') {
+                    requestData = {
+                        messages: messageHistory,
+                        model: modelSelect.value,
+                        temperature: parseFloat(temperatureRange.value),
+                        max_tokens: parseInt(maxTokensInput.value)
+                    };
+                } else if (format === 'content') {
+                    requestData = {
+                        content: message,
+                        model: modelSelect.value,
+                        temperature: parseFloat(temperatureRange.value),
+                        max_tokens: parseInt(maxTokensInput.value)
+                    };
+                } else if (format === 'prompt') {
+                    requestData = {
+                        prompt: message,
+                        model: modelSelect.value,
+                        temperature: parseFloat(temperatureRange.value),
+                        max_tokens: parseInt(maxTokensInput.value)
+                    };
+                }
+                
+                // 发送请求
+                const response = await fetch(apiEndpoint.value, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                
+                // 显示API响应
+                apiResponse.textContent = JSON.stringify(data, null, 2);
+                
+                // 移除加载指示器
+                removeLoadingIndicator();
+                
+                // 添加AI响应
+                if (data.success) {
+                    // 尝试从不同的响应格式中获取内容
+                    let aiContent = '';
+                    if (data.content) {
+                        aiContent = data.content;
+                    } else if (data.text) {
+                        aiContent = data.text;
+                    } else if (data.response && data.response.content) {
+                        aiContent = data.response.content;
+                    } else if (data.message && data.message.content) {
+                        aiContent = data.message.content;
+                    } else {
+                        aiContent = '无法解析AI响应';
+                    }
+                    
+                    addMessage(aiContent, 'ai');
+                } else {
+                    addMessage(`错误: ${data.error || '未知错误'}`, 'system');
+                }
+            } catch (error) {
+                console.error('发送消息失败:', error);
+                removeLoadingIndicator();
+                addMessage(`发送失败: ${error.message}`, 'system');
+            }
+        }
+        
+        // 绑定发送按钮点击事件
+        sendButton.addEventListener('click', sendMessage);
+        
+        // 绑定输入框回车事件
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        // 初始消息
+        addMessage('你好！我是 Rainbow 助手，有什么可以帮助你的吗？', 'ai');
+    </script>
+</body>
+</html>
