@@ -73,7 +73,7 @@ class SessionManager(BaseManager):
     
 
     
-    async def create_session(self, user_id: str, title: Optional[str] = None,
+    def create_session(self, user_id: str, title: Optional[str] = None,
                     dialogue_type: str = "human_to_ai_private",
                     summary: Optional[str] = None,
                     topics: Optional[List[str]] = None,
@@ -108,24 +108,77 @@ class SessionManager(BaseManager):
             # 转换为字典
             session_data = session_model.to_dict()
             
-            # 使用SQL直接创建完整记录
-            logger.info(f"使用SQL直接创建会话: {session_model.id}")
+            # 使用HTTP JSON API直接创建记录
+            logger.info(f"使用HTTP JSON API创建会话: {session_model.id}")
             
-            # 构建SQL语句
-            sql = self._build_insert_sql("sessions", session_data)
+            # 创建记录 - 使用新的create_record签名（不需要单独传id参数）
+            result = self.client.create_record("sessions", session_data)
             
-            # 执行SQL
-            logger.info(f"创建会话SQL: {sql}")
-            self.client.execute_sql(sql)
-            
-            # 将新创建的会话添加到内存缓存
-            SessionManager._session_cache[session_model.id] = session_model
-            
-            # 返回创建的会话
-            logger.info(f"会话创建成功: {session_model.id}")
-            return session_data
+            if result:
+                # 将新创建的会话添加到内存缓存
+                SessionManager._session_cache[session_model.id] = session_model
+                
+                # 返回创建的会话
+                logger.info(f"会话创建成功: {session_model.id}")
+                return session_data
+            else:
+                raise Exception("创建会话失败: 无返回结果")
         except Exception as e:
             logger.error(f"创建会话失败: {e}")
+            raise
+            
+    async def create_session_async(self, user_id: str, title: Optional[str] = None,
+                    dialogue_type: str = "human_to_ai_private",
+                    summary: Optional[str] = None,
+                    topics: Optional[List[str]] = None,
+                    sentiment: Optional[str] = None,
+                    metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """异步创建新会话
+        
+        Args:
+            user_id: 用户ID
+            title: 会话标题，如果不提供则使用默认标题
+            dialogue_type: 对话类型
+            summary: 对话摘要
+            topics: 对话主题标签列表
+            sentiment: 整体情感基调
+            metadata: 元数据
+            
+        Returns:
+            创建的会话
+        """
+        try:
+            # 创建会话模型
+            session_model = SessionModel(
+                user_id=user_id,
+                title=title,
+                dialogue_type=dialogue_type,
+                summary=summary,
+                topics=topics,
+                sentiment=sentiment,
+                metadata=metadata
+            )
+            
+            # 转换为字典
+            session_data = session_model.to_dict()
+            
+            # 使用HTTP JSON API直接创建记录
+            logger.info(f"异步使用HTTP JSON API创建会话: {session_model.id}")
+            
+            # 异步创建记录 - 使用新的create_record_async签名（不需要单独传id参数）
+            result = await self.client.create_record_async("sessions", session_data)
+            
+            if result:
+                # 将新创建的会话添加到内存缓存
+                SessionManager._session_cache[session_model.id] = session_model
+                
+                # 返回创建的会话
+                logger.info(f"异步会话创建成功: {session_model.id}")
+                return session_data
+            else:
+                raise Exception("异步创建会话失败: 无返回结果")
+        except Exception as e:
+            logger.error(f"异步创建会话失败: {e}")
             raise
     
     async def get_sessions(self, user_id: Optional[str] = None, limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:

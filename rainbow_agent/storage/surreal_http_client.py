@@ -111,76 +111,184 @@ class SurrealDBHttpClient:
         import asyncio
         return await asyncio.to_thread(self.execute_sql, sql)
     
-    def create_record(self, table: str, id: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """创建记录
+    def create_record(self, table: str, record_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """使用HTTP JSON API创建记录
         
         Args:
             table: 表名
-            id: 记录ID
-            data: 记录数据（可选）
+            record_data: 记录数据（必须包含id字段）
             
         Returns:
             创建的记录
         """
-        record_id = f"{table}:{id}"
-        
         try:
-            if data is None:
-                # 如果没有提供数据，只创建包含ID的记录
-                sql = f"INSERT INTO {table} (id) VALUES ('{id}');"
-                logger.info(f"创建空记录: {record_id}")
+            if not record_data:
+                raise ValueError("创建记录需要提供数据")
+            
+            # 确保数据包含ID字段
+            if 'id' not in record_data:
+                raise ValueError("记录数据必须包含'id'字段")
+            
+            record_id = record_data['id']
+            full_id = f"{table}:{record_id}"
+            
+            # 构建完整URL - 使用base_url
+            url = f"{self.base_url}/key/{full_id}"
+            logger.info(f"使用HTTP API PUT写入记录: {full_id}, url={url}")
+            logger.info(f"写入数据: {record_data}")
+            
+            # 使用PUT请求创建记录
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            }
+            
+            if self.username and self.password:
+                # 添加基本认证
+                import base64
+                auth_str = f"{self.username}:{self.password}"
+                encoded_auth = base64.b64encode(auth_str.encode()).decode()
+                headers["Authorization"] = f"Basic {encoded_auth}"
+            
+            # 当使用HTTP API时，处理特殊字段如time::now()
+            for key, value in record_data.items():
+                if isinstance(value, str) and value == "time::now()":
+                    record_data[key] = self._get_current_time_iso()
+            
+            import json
+            import requests
+            # 增强头部参数，确保命名空间和数据库参数都被正确传递
+            complete_headers = headers.copy()
+            complete_headers.update({
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                # SurrealDB v1.x格式
+                "ns": self.namespace,
+                "db": self.database,
+                # SurrealDB v2.x格式
+                "Surreal-NS": self.namespace,
+                "Surreal-DB": self.database
+            })
+            
+            response = requests.put(
+                url,
+                headers=complete_headers,
+                data=json.dumps(record_data),
+                params={
+                    "ns": self.namespace,
+                    "db": self.database
+                }
+            )
+            
+            logger.info(f"HTTP响应码: {response.status_code}, 响应体: {response.text}")
+            
+            if response.status_code == 200:
+                logger.info(f"记录创建成功: {response.json()}")
+                return record_data
             else:
-                # 如果提供了数据，创建包含所有字段的记录
-                # 确保数据包含ID字段
-                data_with_id = {"id": id, **data}
-                
-                # 构建SQL语句
-                columns = ", ".join(data_with_id.keys())
-                values_list = []
-                
-                for key, value in data_with_id.items():
-                    if isinstance(value, str):
-                        if value == "time::now()":
-                            values_list.append("time::now()")
-                        else:
-                            escaped_value = value.replace("'", "''")
-                            values_list.append(f"'{escaped_value}'")
-                    elif isinstance(value, (int, float, bool)):
-                        values_list.append(str(value))
-                    elif value is None:
-                        values_list.append("NULL")
-                    elif isinstance(value, (dict, list)):
-                        import json
-                        json_value = json.dumps(value)
-                        values_list.append(json_value)
-                    else:
-                        values_list.append(f"'{str(value)}'")
-                
-                values = ", ".join(values_list)
-                sql = f"INSERT INTO {table} ({columns}) VALUES ({values});"
-                logger.info(f"创建完整记录: {record_id}")
-            
-            # 执行SQL
-            result = self.execute_sql(sql)
-            logger.info(f"记录创建成功: {record_id}")
-            
-            # 创建后立即获取记录，确保它存在
-            created_record = self.get_record(table, id)
-            if not created_record:
-                # 如果获取失败，创建一个基本的记录对象
-                if data:
-                    created_record = data_with_id
-                else:
-                    created_record = {"id": id}
-                logger.warning(f"无法获取创建的记录，使用基本对象: {record_id}")
-            
-            return created_record
+                logger.error(f"记录创建失败: {response.status_code} {response.reason}")
+                logger.error(f"响应内容: {response.text}")
+                response.raise_for_status()
+                return record_data
         except Exception as e:
             logger.error(f"记录创建失败: {e}")
-            # 如果创建失败，返回基本记录对象而不是抛出异常
-            if data:
-                return {"id": id, **data}
-            return {"id": id}
+            if record_data:
+                return record_data
+            return {"id": "error"}
+            
+    def _get_current_time_iso(self):
+        """获取当前时间的ISO格式字符串"""
+        from datetime import datetime
+        return datetime.utcnow().isoformat() + "Z"
+        
+    async def create_record_async(self, table: str, record_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """异步使用HTTP JSON API创建记录
+        
+        Args:
+            table: 表名
+            record_data: 记录数据（必须包含id字段）
+            
+        Returns:
+            创建的记录
+        """
+        try:
+            if not record_data:
+                raise ValueError("创建记录需要提供数据")
+            
+            # 确保数据包含ID字段
+            if 'id' not in record_data:
+                raise ValueError("记录数据必须包含'id'字段")
+            
+            record_id = record_data['id']
+            full_id = f"{table}:{record_id}"
+            
+            # 构建完整URL
+            url = f"{self.base_url}/key/{full_id}"
+            logger.info(f"异步使用HTTP API PUT写入记录: {full_id}, url={url}")
+            logger.info(f"异步写入数据: {record_data}")
+            
+            # 使用PUT请求创建记录
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            }
+            
+            if self.username and self.password:
+                # 添加基本认证
+                import base64
+                auth_str = f"{self.username}:{self.password}"
+                encoded_auth = base64.b64encode(auth_str.encode()).decode()
+                headers["Authorization"] = f"Basic {encoded_auth}"
+            
+            # 当使用HTTP API时，处理特殊字段如time::now()
+            for key, value in record_data.items():
+                if isinstance(value, str) and value == "time::now()":
+                    record_data[key] = self._get_current_time_iso()
+            
+            import json
+            import aiohttp
+            
+            # 增强头部参数，确保命名空间和数据库参数都被正确传递
+            complete_headers = headers.copy()
+            complete_headers.update({
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                # SurrealDB v1.x格式
+                "ns": self.namespace,
+                "db": self.database,
+                # SurrealDB v2.x格式
+                "Surreal-NS": self.namespace,
+                "Surreal-DB": self.database
+            })
+            
+            # 使用aiohttp进行异步HTTP请求
+            async with aiohttp.ClientSession() as session:
+                async with session.put(
+                    url,
+                    headers=complete_headers,
+                    json=record_data,
+                    params={
+                        "ns": self.namespace,
+                        "db": self.database
+                    }
+                ) as response:
+                    status = response.status
+                    response_text = await response.text()
+                    logger.info(f"异步HTTP响应码: {status}, 响应体: {response_text}")
+                    
+                    if status == 200:
+                        logger.info(f"异步记录创建成功: {response_text}")
+                        return record_data
+                    else:
+                        logger.error(f"异步记录创建失败: {status} {response.reason}")
+                        logger.error(f"异步响应内容: {response_text}")
+                        response.raise_for_status()
+                        return record_data
+        except Exception as e:
+            logger.error(f"异步记录创建失败: {e}")
+            if record_data:
+                return record_data
+            return {"id": "error"}
     
     def update_record(self, table: str, id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """更新记录

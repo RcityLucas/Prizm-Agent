@@ -98,24 +98,74 @@ class TurnManager(BaseManager):
             # 转换为字典
             turn_data = turn_model.to_dict()
             
-            # 使用SQL直接创建完整记录
-            logger.info(f"使用SQL直接创建轮次: {turn_model.id}")
+            # 使用HTTP JSON API创建记录
+            logger.info(f"使用HTTP JSON API创建轮次: {turn_model.id}")
             
-            # 构建SQL语句
-            sql = self._build_insert_sql("turns", turn_data)
+            # 调用client.create_record方法创建记录
+            result = self.client.create_record("turns", turn_data)
             
-            # 执行SQL
-            logger.info(f"创建轮次SQL: {sql}")
-            self.client.execute_sql(sql)
-            
-            # 将新创建的轮次添加到内存缓存
-            TurnManager._turn_cache[turn_model.id] = turn_model
-            
-            # 返回创建的轮次
-            logger.info(f"轮次创建成功: {turn_model.id}")
-            return turn_data
+            # 检查结果
+            if result:
+                # 将新创建的轮次添加到内存缓存
+                TurnManager._turn_cache[turn_model.id] = turn_model
+                
+                # 返回创建的轮次
+                logger.info(f"轮次创建成功: {turn_model.id}")
+                return turn_data
+            else:
+                logger.error(f"创建轮次失败: 无返回结果")
+                raise Exception("创建轮次失败: 无返回结果")
         except Exception as e:
             logger.error(f"创建轮次失败: {e}")
+            raise
+            
+    async def create_turn_async(self, session_id: str, role: str, content: str, 
+                        embedding: Optional[List[float]] = None,
+                        metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """异步创建新轮次
+        
+        Args:
+            session_id: 会话ID
+            role: 角色 (user/assistant)
+            content: 内容
+            embedding: 消息内容的向量表示
+            metadata: 元数据
+            
+        Returns:
+            创建的轮次
+        """
+        try:
+            # 创建轮次模型
+            turn_model = TurnModel(
+                session_id=session_id,
+                role=role,
+                content=content,
+                embedding=embedding,
+                metadata=metadata
+            )
+            
+            # 转换为字典
+            turn_data = turn_model.to_dict()
+            
+            # 使用HTTP JSON API创建记录
+            logger.info(f"异步使用HTTP JSON API创建轮次: {turn_model.id}")
+            
+            # 调用client.create_record_async方法创建记录
+            result = await self.client.create_record_async("turns", turn_data)
+            
+            # 检查结果
+            if result:
+                # 将新创建的轮次添加到内存缓存
+                TurnManager._turn_cache[turn_model.id] = turn_model
+                
+                # 返回创建的轮次
+                logger.info(f"轮次异步创建成功: {turn_model.id}")
+                return turn_data
+            else:
+                logger.error(f"轮次异步创建失败: 无返回结果")
+                raise Exception("轮次异步创建失败: 无返回结果")
+        except Exception as e:
+            logger.error(f"轮次异步创建失败: {e}")
             raise
     
     async def get_turns(self, session_id: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
@@ -215,11 +265,12 @@ class TurnManager(BaseManager):
             轮次列表
         """
         try:
-            # 构建查询条件
-            condition = f"session_id = '{session_id}'"
+            # 使用HTTP JSON API查询数据
+            logger.info(f"使用HTTP JSON API获取会话 {session_id} 的轮次列表")
+            query = {"session_id": session_id}
             
             # 执行查询
-            turns_data = self.get_records("turns", condition, limit, offset)
+            turns_data = self.client.query_records("turns", query, limit=limit, offset=offset)
             
             # 转换为模型并添加到内存缓存
             turn_models = []
@@ -234,6 +285,40 @@ class TurnManager(BaseManager):
             return turn_models
         except Exception as e:
             logger.error(f"获取会话 {session_id} 的轮次列表失败: {e}")
+            return []
+            
+    async def get_turns_by_session_async(self, session_id: str, limit: int = 100, offset: int = 0) -> List[Union[Dict[str, Any], TurnModel]]:
+        """异步根据会话ID获取轮次列表
+        
+        Args:
+            session_id: 会话ID
+            limit: 最大返回数量
+            offset: 偏移量
+            
+        Returns:
+            轮次列表
+        """
+        try:
+            # 使用HTTP JSON API异步查询数据
+            logger.info(f"使用HTTP JSON API异步获取会话 {session_id} 的轮次列表")
+            query = {"session_id": session_id}
+            
+            # 异步执行查询
+            turns_data = await self.client.query_records_async("turns", query, limit=limit, offset=offset)
+            
+            # 转换为模型并添加到内存缓存
+            turn_models = []
+            for turn_data in turns_data:
+                turn_model = TurnModel.from_dict(turn_data)
+                turn_id = turn_model.id
+                if turn_id:
+                    TurnManager._turn_cache[turn_id] = turn_model
+                turn_models.append(turn_model)
+            
+            logger.info(f"异步获取会话 {session_id} 的轮次列表成功，共 {len(turn_models)} 条")
+            return turn_models
+        except Exception as e:
+            logger.error(f"异步获取会话 {session_id} 的轮次列表失败: {e}")
             return []
     
     def get_turn(self, turn_id: str) -> Optional[Union[Dict[str, Any], TurnModel]]:
@@ -256,9 +341,9 @@ class TurnManager(BaseManager):
                     return TurnModel.from_dict(cached_turn)
                 return cached_turn
             
-            # 如果内存缓存中没有，从数据库获取
-            logger.info(f"从数据库获取轮次: {turn_id}")
-            turn_data = self.get_record("turns", turn_id)
+            # 如果内存缓存中没有，使用HTTP JSON API从数据库获取
+            logger.info(f"使用HTTP JSON API从数据库获取轮次: {turn_id}")
+            turn_data = self.client.get_record("turns", turn_id)
             
             if turn_data:
                 # 创建轮次模型
@@ -273,6 +358,45 @@ class TurnManager(BaseManager):
                 return None
         except Exception as e:
             logger.error(f"获取轮次失败: {e}")
+            return None
+            
+    async def get_turn_async(self, turn_id: str) -> Optional[Union[Dict[str, Any], TurnModel]]:
+        """异步获取特定轮次
+        
+        Args:
+            turn_id: 轮次ID
+            
+        Returns:
+            轮次数据，如果不存在则返回None
+        """
+        try:
+            # 先检查内存缓存
+            if turn_id in TurnManager._turn_cache:
+                logger.info(f"从内存缓存中异步获取轮次: {turn_id}")
+                cached_turn = TurnManager._turn_cache[turn_id]
+                
+                # 如果缓存中的是字典，转换为模型
+                if isinstance(cached_turn, dict):
+                    return TurnModel.from_dict(cached_turn)
+                return cached_turn
+            
+            # 如果内存缓存中没有，使用HTTP JSON API从数据库获取
+            logger.info(f"使用HTTP JSON API异步从数据库获取轮次: {turn_id}")
+            turn_data = await self.client.get_record_async("turns", turn_id)
+            
+            if turn_data:
+                # 创建轮次模型
+                turn_model = TurnModel.from_dict(turn_data)
+                
+                # 将轮次添加到内存缓存
+                TurnManager._turn_cache[turn_id] = turn_model
+                logger.info(f"轮次异步获取成功并添加到内存缓存: {turn_id}")
+                return turn_model
+            else:
+                logger.info(f"轮次 {turn_id} 不存在")
+                return None
+        except Exception as e:
+            logger.error(f"异步获取轮次失败: {e}")
             return None
     
     def update_turn(self, turn_id: str, updates: Dict[str, Any]) -> Optional[Union[Dict[str, Any], TurnModel]]:
@@ -292,8 +416,9 @@ class TurnManager(BaseManager):
                 logger.info(f"轮次 {turn_id} 不存在，无法更新")
                 return None
             
-            # 更新轮次
-            updated_turn_data = self.update_record("turns", turn_id, updates)
+            # 使用HTTP JSON API更新轮次
+            logger.info(f"使用HTTP JSON API更新轮次: {turn_id}")
+            updated_turn_data = self.client.update_record("turns", turn_id, updates)
             
             if updated_turn_data:
                 # 创建轮次模型
@@ -309,6 +434,42 @@ class TurnManager(BaseManager):
         except Exception as e:
             logger.error(f"更新轮次失败: {e}")
             return None
+            
+    async def update_turn_async(self, turn_id: str, updates: Dict[str, Any]) -> Optional[Union[Dict[str, Any], TurnModel]]:
+        """异步更新轮次
+        
+        Args:
+            turn_id: 轮次ID
+            updates: 要更新的字段
+            
+        Returns:
+            更新后的轮次，如果轮次不存在则返回None
+        """
+        try:
+            # 首先异步检查轮次是否存在
+            existing_turn = await self.get_turn_async(turn_id)
+            if not existing_turn:
+                logger.info(f"轮次 {turn_id} 不存在，无法异步更新")
+                return None
+            
+            # 使用HTTP JSON API异步更新轮次
+            logger.info(f"使用HTTP JSON API异步更新轮次: {turn_id}")
+            updated_turn_data = await self.client.update_record_async("turns", turn_id, updates)
+            
+            if updated_turn_data:
+                # 创建轮次模型
+                updated_turn = TurnModel.from_dict(updated_turn_data)
+                
+                # 更新内存缓存
+                TurnManager._turn_cache[turn_id] = updated_turn
+                logger.info(f"异步更新轮次 {turn_id} 成功并更新内存缓存")
+                return updated_turn
+            else:
+                logger.info(f"轮次 {turn_id} 异步更新失败")
+                return None
+        except Exception as e:
+            logger.error(f"异步更新轮次失败: {e}")
+            return None
     
     def delete_turn(self, turn_id: str) -> bool:
         """删除轮次
@@ -320,8 +481,9 @@ class TurnManager(BaseManager):
             是否删除成功
         """
         try:
-            # 删除轮次
-            result = self.delete_record("turns", turn_id)
+            # 使用HTTP JSON API删除轮次
+            logger.info(f"使用HTTP JSON API删除轮次: {turn_id}")
+            result = self.client.delete_record("turns", turn_id)
             
             # 如果删除成功，从内存缓存中移除
             if result and turn_id in TurnManager._turn_cache:
@@ -335,6 +497,34 @@ class TurnManager(BaseManager):
             return result
         except Exception as e:
             logger.error(f"删除轮次失败: {e}")
+            return False
+            
+    async def delete_turn_async(self, turn_id: str) -> bool:
+        """异步删除轮次
+        
+        Args:
+            turn_id: 轮次ID
+            
+        Returns:
+            是否删除成功
+        """
+        try:
+            # 使用HTTP JSON API异步删除轮次
+            logger.info(f"使用HTTP JSON API异步删除轮次: {turn_id}")
+            result = await self.client.delete_record_async("turns", turn_id)
+            
+            # 如果删除成功，从内存缓存中移除
+            if result and turn_id in TurnManager._turn_cache:
+                del TurnManager._turn_cache[turn_id]
+            
+            if result:
+                logger.info(f"异步删除轮次 {turn_id} 成功")
+            else:
+                logger.info(f"轮次 {turn_id} 不存在，无法异步删除")
+            
+            return result
+        except Exception as e:
+            logger.error(f"异步删除轮次失败: {e}")
             return False
     
     def delete_session_turns(self, session_id: str) -> int:
@@ -351,7 +541,7 @@ class TurnManager(BaseManager):
             turns = self.get_turns_by_session(session_id)
             turn_ids = [turn.id if hasattr(turn, 'id') else turn.get('id') for turn in turns]
             
-            # 删除每个轮次
+            # 使用HTTP JSON API删除每个轮次
             deleted_count = 0
             for turn_id in turn_ids:
                 if turn_id:
@@ -362,4 +552,33 @@ class TurnManager(BaseManager):
             return deleted_count
         except Exception as e:
             logger.error(f"删除会话轮次失败: {e}")
+            return 0
+            
+    async def delete_session_turns_async(self, session_id: str) -> int:
+        """异步删除会话的所有轮次
+        
+        Args:
+            session_id: 会话ID
+            
+        Returns:
+            删除的轮次数量
+        """
+        try:
+            # 先异步获取会话的所有轮次
+            # 注意：这里假设我们已经实现了get_turns_by_session_async
+            # 如果没有，可以先使用同步的get_turns_by_session或实现异步版本
+            turns = await self.get_turns_by_session_async(session_id) if hasattr(self, 'get_turns_by_session_async') else self.get_turns_by_session(session_id)
+            turn_ids = [turn.id if hasattr(turn, 'id') else turn.get('id') for turn in turns]
+            
+            # 使用HTTP JSON API异步删除每个轮次
+            deleted_count = 0
+            for turn_id in turn_ids:
+                if turn_id:
+                    if await self.delete_turn_async(turn_id):
+                        deleted_count += 1
+            
+            logger.info(f"异步删除会话 {session_id} 的所有轮次成功，共 {deleted_count} 个")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"异步删除会话轮次失败: {e}")
             return 0
