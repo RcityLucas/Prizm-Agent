@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>彩虹城 AI Agent | 高级对话系统</title>
+    
+    <!-- 引入字体和基础样式 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
+    
+    <!-- 自定义样式 -->
+    <link rel="stylesheet" href="css/enhanced_styles.css">
+</head>
+<body data-theme="dark">
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg fixed-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-rainbow me-2"></i>彩虹城 AI Agent
+            </a>
+            <div class="d-flex align-items-center">
+                <div class="theme-switch me-3" id="themeSwitch">
+                    <i class="bi bi-sun-fill theme-icon" id="themeIcon"></i>
+                </div>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+                        aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <i class="bi bi-list text-white"></i>
+                </button>
+            </div>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#chat">
+                            <i class="bi bi-chat-dots me-1"></i>对话
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#tools">
+                            <i class="bi bi-tools me-1"></i>工具
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#settings">
+                            <i class="bi bi-gear me-1"></i>设置
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#about">
+                            <i class="bi bi-info-circle me-1"></i>关于
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容区域 -->
+    <div class="main-content">
+        <div class="container-fluid p-0">
+            <div class="row g-0">
+                <!-- 侧边栏 -->
+                <div class="col-md-3 col-lg-2 sidebar">
+                    <div class="sidebar-header">
+                        <h5>会话列表</h5>
+                        <button class="btn btn-sm btn-rainbow" id="newSessionBtn">
+                            <i class="bi bi-plus"></i> 新会话
+                        </button>
+                    </div>
+                    
+                    <div class="sidebar-search">
+                        <div class="search-input-wrapper">
+                            <i class="bi bi-search search-icon"></i>
+                            <input type="text" class="search-input" placeholder="搜索会话..." id="sessionSearch">
+                        </div>
+                    </div>
+                    
+                    <div class="session-list" id="sessionList">
+                        <div class="loading-placeholder">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <span>加载会话列表...</span>
+                        </div>
+                        <!-- 会话列表将通过JavaScript动态生成 -->
+                    </div>
+                    
+                    <div class="sidebar-footer">
+                        <div class="sidebar-actions">
+                            <button class="sidebar-action-btn" id="importSessionBtn" title="导入会话">
+                                <i class="bi bi-upload"></i>
+                            </button>
+                            <button class="sidebar-action-btn" id="exportAllSessionsBtn" title="导出所有会话">
+                                <i class="bi bi-download"></i>
+                            </button>
+                            <button class="sidebar-action-btn" id="clearAllSessionsBtn" title="清除所有会话">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 主聊天区域 -->
+                <div class="col-md-9 col-lg-10 main-chat-area">
+                    <div class="chat-container" id="chatContainer">
+                        <!-- 聊天头部 -->
+                        <div class="chat-header">
+                            <div class="chat-info">
+                                <h5 class="chat-title" id="currentChatTitle">新会话</h5>
+                                <span class="chat-subtitle" id="currentChatSubtitle">开始一个新的对话</span>
+                            </div>
+                            <div class="chat-actions">
+                                <div class="dropdown">
+                                    <button class="chat-action-btn" id="chatSettingsBtn" data-bs-toggle="dropdown" aria-expanded="false" title="会话设置">
+                                        <i class="bi bi-gear"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#" id="renameChatBtn"><i class="bi bi-pencil me-2"></i>重命名会话</a></li>
+                                        <li><a class="dropdown-item" href="#" id="changeChatTypeBtn"><i class="bi bi-people me-2"></i>更改对话类型</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="#" id="exportChatBtn"><i class="bi bi-download me-2"></i>导出会话</a></li>
+                                        <li><a class="dropdown-item text-danger" href="#" id="clearChatBtn"><i class="bi bi-trash me-2"></i>清除会话</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 聊天消息区域 -->
+                        <div class="chat-messages" style="max-height: 70vh;" id="chatMessages">
+                            <div class="welcome-message">
+                                <div class="welcome-icon">
+                                    <i class="bi bi-robot"></i>
+                                </div>
+                                <h3>欢迎使用彩虹城 AI Agent</h3>
+                                <p>这是一个强大的多模态对话系统，支持七种对话类型、工具调用和多模态输入。</p>
+                                <div class="welcome-suggestions">
+                                    <div class="suggestion-title">你可以尝试以下问题：</div>
+                                    <div class="suggestion-items">
+                                        <div class="suggestion-item" data-text="介绍一下彩虹城 AI Agent 的主要功能">
+                                            <i class="bi bi-stars"></i>
+                                            <span>介绍一下彩虹城 AI Agent 的主要功能</span>
+                                        </div>
+                                        <div class="suggestion-item" data-text="什么是多模态输入？如何使用？">
+                                            <i class="bi bi-image"></i>
+                                            <span>什么是多模态输入？如何使用？</span>
+                                        </div>
+                                        <div class="suggestion-item" data-text="展示一下工具调用功能">
+                                            <i class="bi bi-tools"></i>
+                                            <span>展示一下工具调用功能</span>
+                                        </div>
+                                        <div class="suggestion-item" data-text="如何创建一个 AI 对 AI 的对话？">
+                                            <i class="bi bi-robot"></i>
+                                            <span>如何创建一个 AI 对 AI 的对话？</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 消息内容将通过JavaScript动态生成 -->
+                        </div>
+                        
+                        <!-- 工具栏 -->
+                        <div class="chat-toolbar">
+                            <button class="tool-btn" id="imageUploadBtn" title="上传图片">
+                                <i class="bi bi-image"></i>
+                            </button>
+                            <button class="tool-btn" id="audioInputBtn" title="语音输入">
+                                <i class="bi bi-mic"></i>
+                            </button>
+                            <button class="tool-btn" id="toolsBtn" title="工具">
+                                <i class="bi bi-tools"></i>
+                            </button>
+                            <button class="tool-btn" id="codeBtn" title="代码块">
+                                <i class="bi bi-code-slash"></i>
+                            </button>
+                            <button class="tool-btn" id="drawingBtn" title="绘图">
+                                <i class="bi bi-brush"></i>
+                            </button>
+                            <div class="toolbar-divider"></div>
+                            <div class="model-selector">
+                                <select class="model-select" id="modelSelect">
+                                    <option value="gpt-4">GPT-4</option>
+                                    <option value="gpt-3.5-turbo" selected>GPT-3.5 Turbo</option>
+                                    <option value="claude-3">Claude 3</option>
+                                    <option value="gemini-pro">Gemini Pro</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- 输入区域 -->
+                        <div class="chat-input-container">
+                            <div class="chat-input-wrapper">
+                                <textarea id="userInput" class="chat-input" placeholder="输入消息或 / 使用命令..." rows="1"></textarea>
+                                <button id="sendBtn" class="send-btn" disabled>
+                                    <i class="bi bi-send"></i>
+                                </button>
+                            </div>
+                            <div class="input-footer">
+                                <div class="input-info">
+                                    <span class="token-counter" id="tokenCounter">0/4000</span>
+                                </div>
+                                <div class="input-actions">
+                                    <button class="input-action-btn" id="clearInputBtn" title="清除输入">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框 -->
+    <!-- 对话类型选择模态框 -->
+    <div class="modal fade" id="dialogueTypeModal" tabindex="-1" aria-labelledby="dialogueTypeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dialogueTypeModalLabel">选择对话类型</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="dialogue-types">
+                        <div class="dialogue-type-card" data-type="human_ai">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-person-circle"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">人类与AI私聊</h6>
+                                <p class="dialogue-type-description">一对一的人类与AI对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="human_human">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-person-circle"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-person"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">人类与人类私聊</h6>
+                                <p class="dialogue-type-description">一对一的人类之间对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="human_ai_group">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-people"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">人类与AI群聊</h6>
+                                <p class="dialogue-type-description">多个人类与一个AI的群组对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="ai_ai">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-robot"></i>
+                                <i class="bi bi-arrow-left-right"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">AI与AI对话</h6>
+                                <p class="dialogue-type-description">两个AI之间的对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="ai_reflection">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-robot"></i>
+                                <i class="bi bi-arrow-clockwise"></i>
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">AI自我反思</h6>
+                                <p class="dialogue-type-description">AI进行自我思考和反思</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="human_human_group">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-person-circle"></i>
+                                <i class="bi bi-arrow-left-right"></i>
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">人类与人类群聊</h6>
+                                <p class="dialogue-type-description">多个人类之间的群组对话</p>
+                            </div>
+                        </div>
+                        
+                        <div class="dialogue-type-card" data-type="ai_human_group">
+                            <div class="dialogue-type-icon">
+                                <i class="bi bi-robot"></i>
+                                <i class="bi bi-arrow-right"></i>
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <div class="dialogue-type-info">
+                                <h6 class="dialogue-type-name">AI与多个人类群聊</h6>
+                                <p class="dialogue-type-description">一个AI与多个人类的群组对话</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-rainbow" id="confirmDialogueTypeBtn">确认</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 工具模态框 -->
+    <div class="modal fade" id="toolsModal" tabindex="-1" aria-labelledby="toolsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="toolsModalLabel">可用工具</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="tools-search mb-3">
+                        <div class="search-input-wrapper">
+                            <i class="bi bi-search search-icon"></i>
+                            <input type="text" class="search-input" placeholder="搜索工具..." id="toolsSearch">
+                        </div>
+                    </div>
+                    
+                    <div class="tools-container" id="toolsContainer">
+                        <!-- 工具列表将通过JavaScript动态生成 -->
+                        <div class="loading-placeholder">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <span>加载工具列表...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-rainbow" id="registerNewToolBtn">
+                        <i class="bi bi-plus-circle me-1"></i> 注册新工具
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 工具注册模态框 -->
+    <div class="modal fade" id="registerToolModal" tabindex="-1" aria-labelledby="registerToolModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="registerToolModalLabel">注册新工具</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="toolRegistrationForm">
+                        <div class="mb-3">
+                            <label for="toolName" class="form-label">工具名称</label>
+                            <input type="text" class="form-control" id="toolName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="toolDescription" class="form-label">工具描述</label>
+                            <textarea class="form-control" id="toolDescription" rows="2" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="toolCategory" class="form-label">工具类别</label>
+                            <select class="form-select" id="toolCategory" required>
+                                <option value="">选择类别...</option>
+                                <option value="data">数据处理</option>
+                                <option value="language">语言处理</option>
+                                <option value="search">信息检索</option>
+                                <option value="media">多媒体处理</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="toolVersion" class="form-label">工具版本</label>
+                            <input type="text" class="form-control" id="toolVersion" placeholder="例如: 1.0.0" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">参数定义</label>
+                            <div id="parameterContainer">
+                                <!-- 参数将通过JavaScript动态添加 -->
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addParameterBtn">
+                                <i class="bi bi-plus"></i> 添加参数
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-rainbow" id="submitToolBtn">注册</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置模态框 -->
+    <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="settingsModalLabel">系统设置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="settingsForm">
+                        <div class="mb-3">
+                            <label for="apiKey" class="form-label">API 密钥</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="apiKey" placeholder="sk-...">
+                                <button class="btn btn-outline-secondary" type="button" id="toggleApiKey">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">用于访问 OpenAI API 的密钥</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="apiBaseUrl" class="form-label">API 基础 URL</label>
+                            <input type="text" class="form-control" id="apiBaseUrl" value="https://api.chatanywhere.tech/v1">
+                            <div class="form-text">API 服务器地址</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="defaultModel" class="form-label">默认模型</label>
+                            <select class="form-select" id="defaultModel">
+                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                <option value="gpt-4">GPT-4</option>
+                                <option value="claude-3">Claude 3</option>
+                                <option value="gemini-pro">Gemini Pro</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="theme" class="form-label">界面主题</label>
+                            <select class="form-select" id="theme">
+                                <option value="dark">暗色主题</option>
+                                <option value="light">亮色主题</option>
+                                <option value="system">跟随系统</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-rainbow" id="saveSettingsBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    
+    <!-- 自定义 JavaScript -->
+    <script src="js/enhanced_app.js"></script>
+</body>
+</html>

@@ -409,13 +409,28 @@ def standard_interface():
 @app.route('/enhanced')
 def enhanced_interface():
     """增强版界面，提供增强版界面"""
-    return send_from_directory('static', 'enhanced_index.html')
+    return send_from_directory('static/templates', 'enhanced_index.html')
 
 @app.route('/chat')
 def chat():
     """对话界面，提供简单的对话界面和文档"""
     return send_from_directory('static', 'index.html')
 
+@app.route('/demo.html')
+def demo_page():
+    return send_from_directory('static', 'demo.html')
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
+@app.route('/css/enhanced_styles.css')
+def enhanced_css():
+    return send_from_directory('static/css', 'enhanced_styles.css')
+
+@app.route('/js/enhanced_app.js')
+def enhanced_js():
+    return send_from_directory('static/js', 'enhanced_app.js')
 
 # 工具管理API
 @app.route('/api/dialogue/tools', methods=['GET'])

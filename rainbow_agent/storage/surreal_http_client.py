@@ -8,6 +8,8 @@ import json
 import logging
 import base64
 import requests
+import asyncio
+import aiohttp
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 
@@ -525,9 +527,9 @@ class SurrealDBHttpClient:
         except Exception as e:
             logger.error(f"备用方法获取记录失败: {e}")
             return None
-    
+            
     async def _try_alternative_get_async(self, table: str, id: str) -> Optional[Dict[str, Any]]:
-        """异步尝试备用方法获取记录
+        """尝试备用方法异步获取记录
         
         Args:
             table: 表名
@@ -539,8 +541,8 @@ class SurrealDBHttpClient:
         try:
             # 尝试方法 1: 使用条件查询
             condition = f"id = '{id}'"
-            logger.info(f"异步尝试使用条件查询获取记录: {table}, {id}")
-            records = await self.get_records_async(table, condition, 1, 0)
+            logger.info(f"尝试使用异步条件查询获取记录: {table}, {id}")
+            records = await self.query_records_async(table, condition, 1, 0)
             
             if records and len(records) > 0:
                 logger.info(f"异步条件查询获取记录成功: {table}:{id}")
@@ -597,6 +599,238 @@ class SurrealDBHttpClient:
             logger.error(f"查询失败: {e}")
             return []
     
+    async def query_records_async(self, table: str, condition: Optional[str] = None, limit: Optional[int] = None, offset: Optional[int] = None) -> List[Dict[str, Any]]:
+        """异步查询记录
+        
+        Args:
+            table: 表名
+            condition: 查询条件，例如 "name = 'John'"
+            limit: 返回结果数量限制
+            offset: 结果偏移量
+            
+        Returns:
+            记录列表
+        """
+        try:
+            # 构建SQL查询
+            sql = f"SELECT * FROM {table}"
+            if condition:
+                sql += f" WHERE {condition}"
+            if limit is not None:
+                sql += f" LIMIT {limit}"
+            if offset is not None:
+                sql += f" START AT {offset}"
+            
+            logger.info(f"异步查询记录: {sql}")
+            result = await self.execute_sql_async(sql)
+            
+            # 检查结果
+            if result and isinstance(result, list) and len(result) > 0:
+                if isinstance(result[0], dict) and "result" in result[0] and result[0]["result"]:
+                    return result[0]["result"]
+                elif isinstance(result[0], list):
+                    return result[0]
+                elif isinstance(result[0], str) or isinstance(result[0], dict):
+                    return [result[0]]
+            
+            # 如果上面的方法失败，尝试使用RETURN语句
+            try:
+                backup_sql = f"RETURN SELECT * FROM {table}"
+                if condition:
+                    backup_sql += f" WHERE {condition}"
+                if limit is not None:
+                    backup_sql += f" LIMIT {limit}"
+                if offset is not None:
+                    backup_sql += f" START AT {offset}"
+                backup_sql += ";"
+                
+                logger.info(f"异步尝试使用RETURN查询记录: {backup_sql}")
+                backup_result = await self.execute_sql_async(backup_sql)
+                
+                if backup_result and isinstance(backup_result, list) and len(backup_result) > 0:
+                    if isinstance(backup_result[0], dict) and "result" in backup_result[0] and backup_result[0]["result"]:
+                        return backup_result[0]["result"]
+            except Exception as e:
+                logger.warning(f"异步RETURN查询记录失败: {e}")
+            
+            return []
+        except Exception as e:
+            logger.error(f"异步查询记录失败: {e}")
+            return []
+            
+    async def update_record_async(self, table: str, id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """异步更新记录
+        
+        Args:
+            table: 表名
+            id: 记录ID
+            data: 要更新的数据
+            
+        Returns:
+            更新后的记录数据，如果失败则返回None
+        """
+        try:
+            # 首先检查记录是否存在
+            logger.info(f"异步更新记录前检查记录是否存在: {table}:{id}")
+            existing_record = await self.query_records_async(table, f"id = '{id}'")
+            
+            if not existing_record:
+                # 如果记录不存在，创建一个基本记录
+                logger.info(f"记录不存在，尝试异步创建: {table}:{id}")
+                
+                # 使用HTTP API创建记录
+                basic_data = {"id": id}
+                basic_data.update(data)
+                
+                url = f"{self.base_url}/key/{self.namespace}/{self.database}/{table}/{id}"
+                auth = aiohttp.BasicAuth(self.username, self.password)
+                headers = {"Content-Type": "application/json"}
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.put(url, auth=auth, headers=headers, json=basic_data) as response:
+                        if response.status == 200:
+                            result = await response.json()
+                            logger.info(f"异步创建记录成功: {table}:{id}")
+                            
+                            # 检查返回格式
+                            if result:
+                                if isinstance(result, list) and len(result) > 0:
+                                    if isinstance(result[0], dict) and "result" in result[0]:
+                                        return result[0]["result"]
+                                    else:
+                                        return result[0]
+                                elif isinstance(result, dict):
+                                    return result
+                        else:
+                            error_text = await response.text()
+                            logger.error(f"异步创建记录失败，状态码: {response.status}, 错误: {error_text}")
+                            return None
+            
+            # 构建更新数据
+            update_data = existing_record[0].copy()
+            update_data.update(data)
+            
+            # 使用HTTP API更新记录
+            url = f"{self.base_url}/key/{self.namespace}/{self.database}/{table}/{id}"
+            auth = aiohttp.BasicAuth(self.username, self.password)
+            headers = {"Content-Type": "application/json"}
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.patch(url, auth=auth, headers=headers, json=update_data) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        logger.info(f"异步更新记录成功: {table}:{id}")
+                        
+                        # 检查返回格式
+                        if result:
+                            if isinstance(result, list) and len(result) > 0:
+                                if isinstance(result[0], dict) and "result" in result[0]:
+                                    return result[0]["result"]
+                                else:
+                                    return result[0]
+                            elif isinstance(result, dict):
+                                return result
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"异步更新记录失败，状态码: {response.status}, 错误: {error_text}")
+                        return None
+            
+            return None
+        except Exception as e:
+            logger.error(f"异步更新记录异常: {e}")
+            return None
+    
+    async def get_record_async(self, table: str, id: str) -> Optional[Dict[str, Any]]:
+        """异步获取单条记录
+        
+        Args:
+            table: 表名
+            id: 记录ID
+            
+        Returns:
+            记录数据，如果不存在则返回None
+        """
+        try:
+            # 使用HTTP API获取记录，避免SQL语法错误
+            record_id = f"{table}:{id}"
+            logger.info(f"异步获取记录: {record_id}")
+            
+            url = f"{self.base_url}/key/{self.namespace}/{self.database}/{record_id}"
+            auth = aiohttp.BasicAuth(self.username, self.password)
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, auth=auth) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        
+                        # 检查返回格式
+                        if result:
+                            # 如果是直接的记录对象
+                            if isinstance(result, dict):
+                                logger.info(f"记录获取成功(格式1): {record_id}")
+                                return result
+                            # 如果是列表包裹的记录对象
+                            elif isinstance(result, list) and len(result) > 0:
+                                item = result[0]
+                                # 如果是包含result字段的字典
+                                if isinstance(item, dict) and "result" in item and item.get("status") == "OK":
+                                    if isinstance(item["result"], list) and item["result"]:
+                                        logger.info(f"记录获取成功(格式2): {record_id}")
+                                        return item["result"][0]
+                                    elif item["result"] and isinstance(item["result"], dict):
+                                        logger.info(f"记录获取成功(格式2.1): {record_id}")
+                                        return item["result"]
+                                # 如果是直接的记录对象（包含id字段）
+                                elif isinstance(item, dict) and "id" in item:
+                                    logger.info(f"记录获取成功(格式3): {record_id}")
+                                    return item
+                                # 如果是直接的字符串ID且匹配记录ID
+                                elif isinstance(item, str) and item == record_id:
+                                    # 尝试使用备用方法获取该记录
+                                    return await self._try_alternative_get_async(table, id)
+                    else:
+                        logger.warning(f"记录获取失败，状态码: {response.status}")
+            
+            # 如果以上方法都失败，尝试备用方法
+            return await self._try_alternative_get_async(table, id)
+        except Exception as e:
+            logger.error(f"异步记录获取失败: {e}")
+            return None
+    
+    async def execute_sql_async(self, sql: str) -> List[Dict[str, Any]]:
+        """异步执行SQL语句
+        
+        Args:
+            sql: SQL语句
+            
+        Returns:
+            执行结果
+        """
+        try:
+            url = f"{self.base_url}/sql"
+            auth = aiohttp.BasicAuth(self.username, self.password)
+            headers = {"Content-Type": "application/json"}
+            data = {
+                "ns": self.namespace,
+                "db": self.database,
+                "sql": sql
+            }
+            
+            logger.info(f"异步执行SQL: {sql}")
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, auth=auth, headers=headers, json=data) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return result
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"SQL执行失败，状态码: {response.status}, 错误: {error_text}")
+                        return []
+        except Exception as e:
+            logger.error(f"异步SQL执行异常: {e}")
+            return []
+    
     async def query_async(self, sql: str) -> List[Dict[str, Any]]:
         """异步执行查询
         
@@ -622,6 +856,206 @@ class SurrealDBHttpClient:
         except Exception as e:
             logger.error(f"异步查询失败: {e}")
             return []
+    
+    async def query_records_async(self, table: str, condition: str = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """异步获取满足条件的记录
+        
+        Args:
+            table: 表名
+            condition: 条件表达式
+            limit: 限制返回的记录数
+            offset: 跳过的记录数
+            
+        Returns:
+            记录列表
+        """
+        # 构建SQL
+        sql = f"SELECT * FROM {table}"
+        if condition:
+            sql += f" WHERE {condition}"
+        sql += f" LIMIT {limit} START {offset};"
+        
+        try:
+            result = await self.execute_sql_async(sql)
+            
+            # 打印原始响应以进行调试
+            logger.info(f"异步查询原始响应: {result}")
+            
+            # 检查结果 - 处理多种可能的响应格式
+            records = []
+            
+            # 如果结果为空，直接返回空列表
+            if not result:
+                logger.info(f"异步查询结果为空: {table}")
+                return []
+            
+            if isinstance(result, list):
+                # 处理情况 1: [{"result": [...], "status": "OK"}]
+                if len(result) > 0 and isinstance(result[0], dict) and "result" in result[0]:
+                    if result[0].get("status") == "OK" or "status" not in result[0]:
+                        # 如果result字段是列表，直接使用
+                        if isinstance(result[0]["result"], list):
+                            records = result[0]["result"]
+                            # 过滤掉空记录
+                            records = [r for r in records if r]
+                            logger.info(f"异步获取记录成功(格式1): {table}, 数量: {len(records)}")
+                            return records
+                        # 如果result字段是单个对象，包装为列表
+                        elif result[0]["result"] and isinstance(result[0]["result"], dict):
+                            records = [result[0]["result"]]
+                            logger.info(f"异步获取记录成功(格式1.1): {table}, 数量: 1")
+                            return records
+                        # 如果result字段是None，返回空列表
+                        elif result[0]["result"] is None:
+                            logger.info(f"异步查询结果为空: {table}")
+                            return []
+                
+                # 处理情况 2: [[{...}, {...}]]
+                if len(result) > 0 and isinstance(result[0], list):
+                    records = result[0]
+                    # 过滤掉空记录
+                    records = [r for r in records if r]
+                    logger.info(f"异步获取记录成功(格式2): {table}, 数量: {len(records)}")
+                    return records
+                
+                # 尝试直接使用结果列表
+                try:
+                    # 处理情况 3: [{...}, {...}]
+                    if len(result) > 0 and all(isinstance(item, dict) for item in result):
+                        # 过滤掉空记录
+                        records = [r for r in result if r]
+                        logger.info(f"异步获取记录成功(格式3): {table}, 数量: {len(records)}")
+                        return records
+                except Exception as e:
+                    logger.warning(f"异步处理格式3失败: {e}")
+            
+            # 如果以上方法都失败，尝试使用备用方法
+            try:
+                # 尝试使用RETURN语句
+                backup_sql = f"RETURN SELECT * FROM {table}"
+                if condition:
+                    backup_sql += f" WHERE {condition};"
+                else:
+                    backup_sql += ";"  # 确保SQL语句以分号结束
+                
+                logger.info(f"异步尝试备用SQL查询: {backup_sql}")
+                backup_result = await self.execute_sql_async(backup_sql)
+                
+                if backup_result and isinstance(backup_result, list) and len(backup_result) > 0:
+                    if isinstance(backup_result[0], dict) and "result" in backup_result[0]:
+                        if isinstance(backup_result[0]["result"], list):
+                            records = [r for r in backup_result[0]["result"] if r]
+                            logger.info(f"异步备用查询获取记录成功: {table}, 数量: {len(records)}")
+                            return records
+                        elif backup_result[0]["result"] and isinstance(backup_result[0]["result"], dict):
+                            logger.info(f"异步备用查询获取单条记录成功: {table}")
+                            return [backup_result[0]["result"]]
+                        elif backup_result[0]["result"] is None:
+                            logger.info(f"异步备用查询结果为空: {table}")
+                            return []
+            except Exception as e:
+                logger.warning(f"异步备用查询失败: {e}")
+            
+            logger.info(f"异步查询未返回有效结果: {table}")
+            return []
+        except Exception as e:
+            logger.error(f"异步获取记录失败: {e}")
+            return []
+    
+    async def update_record_async(self, table: str, id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """异步更新记录
+        
+        Args:
+            table: 表名
+            id: 记录ID
+            data: 要更新的数据
+            
+        Returns:
+            更新后的记录
+        """
+        # 构建记录ID
+        record_id = f"{table}:{id}"
+        
+        try:
+            # 首先检查记录是否存在
+            existing_record = None
+            try:
+                # 尝试使用条件查询异步获取记录
+                condition = f"id = '{id}'"
+                records = await self.query_records_async(table, condition, 1, 0)
+                if records and len(records) > 0:
+                    existing_record = records[0]
+                    logger.info(f"异步检查到记录存在: {record_id}")
+            except Exception as e:
+                logger.warning(f"异步检查记录存在性失败: {e}")
+            
+            # 如果记录不存在，先创建一个基本记录
+            if not existing_record:
+                logger.warning(f"记录 {record_id} 不存在，尝试异步创建")
+                basic_record = {"id": id}
+                await self.create_record_async(table, basic_record)
+            
+            # 构建SET子句
+            set_parts = []
+            for key, value in data.items():
+                if isinstance(value, str):
+                    # 处理特殊字段如time::now()
+                    if value == "time::now()":
+                        set_parts.append(f"{key} = time::now()")
+                    else:
+                        # 转义单引号并用单引号包围字符串
+                        escaped_value = value.replace("'", "\\'") 
+                        set_parts.append(f"{key} = '{escaped_value}'")
+                elif value is None:
+                    set_parts.append(f"{key} = NULL")
+                elif isinstance(value, (int, float, bool)):
+                    set_parts.append(f"{key} = {value}")
+                elif isinstance(value, dict) or isinstance(value, list):
+                    # 将字典或列表转换为JSON字符串
+                    import json
+                    json_value = json.dumps(value)
+                    set_parts.append(f"{key} = {json_value}")
+                else:
+                    # 其他类型转为字符串处理
+                    set_parts.append(f"{key} = '{str(value)}'")
+            
+            # 如果没有有效的更新字段，返回现有记录或基本记录
+            if not set_parts:
+                logger.warning(f"没有有效的更新字段: {record_id}")
+                return existing_record or {"id": id}
+            
+            # 构建完整的SQL更新语句
+            set_clause = ", ".join(set_parts)
+            sql = f"UPDATE {record_id} SET {set_clause};"
+            
+            # 执行更新
+            logger.info(f"执行异步SQL更新: {sql}")
+            result = await self.execute_sql_async(sql)
+            
+            # 获取更新后的记录
+            updated_record = None
+            try:
+                # 尝试使用条件查询异步获取更新后的记录
+                condition = f"id = '{id}'"
+                records = await self.query_records_async(table, condition, 1, 0)
+                if records and len(records) > 0:
+                    updated_record = records[0]
+                    logger.info(f"异步获取更新后的记录成功: {record_id}")
+                    return updated_record
+            except Exception as e:
+                logger.warning(f"异步获取更新后的记录失败: {e}")
+            
+            # 如果无法获取更新后的记录，返回包含更新数据的基本对象
+            merged_record = {"id": id}
+            merged_record.update(data)
+            logger.warning(f"无法异步获取更新后的记录，使用合并对象: {record_id}")
+            return merged_record
+        except Exception as e:
+            logger.error(f"异步更新记录失败: {e}")
+            # 返回包含ID和更新数据的基本对象
+            merged_record = {"id": id}
+            merged_record.update(data)
+            return merged_record
     
     def delete_record(self, table: str, id: str) -> bool:
         """删除记录
