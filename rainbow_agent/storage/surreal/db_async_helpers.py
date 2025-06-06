@@ -32,47 +32,47 @@ async def execute_sql_async(
     try:
         url = f"{base_url}/sql"
         
-        # 准备请求负载
+        # Prepare request payload
         payload = {'query': sql}
         if params:
             payload['vars'] = params
             
-        logger.info(f"异步执行SQL: {sql}")
+        logger.info(f"Executing SQL async: {sql}")
         if params:
-            logger.info(f"参数: {params}")
+            logger.info(f"Parameters: {params}")
             
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=payload) as response:
                 status = response.status
                 response_text = await response.text()
                 
-                logger.info(f"SQL查询响应码: {status}")
+                logger.info(f"SQL query response code: {status}")
                 
                 if status == 200:
                     result = json.loads(response_text)
-                    logger.info(f"SQL查询成功: {sql}")
+                    logger.info(f"SQL query successful: {sql}")
                     
-                    # 解析响应
+                    # Parse response
                     parsed_result = parse_surreal_response(result)
-                    if parsed_result is not None:
-                        return parsed_result
-                    return []
+                    return parsed_result  # Already returns empty list if parsing fails
                 else:
-                    logger.error(f"SQL查询失败: {status} {response.reason}")
-                    logger.error(f"响应内容: {response_text}")
-                    return []
+                    logger.error(f"SQL query failed: {status} {response.reason}")
+                    logger.error(f"Response content: {response_text}")
+                    # Raise exception for better error handling
+                    raise Exception(f"SQL query failed with status {status}: {response_text}")
     except Exception as e:
-        logger.error(f"执行异步SQL查询时出错: {e}")
-        return []
+        logger.error(f"Error executing async SQL query: {e}")
+        # Re-raise to allow proper error handling in calling code
+        raise
 
 async def create_record_async(
     base_url: str, 
     headers: Dict[str, str], 
     table: str, 
     record_data: Dict[str, Any]
-) -> Optional[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
-    Create a record asynchronously.
+    Create a record asynchronously using parameterized SQL.
     
     Args:
         base_url: SurrealDB base URL
@@ -81,36 +81,38 @@ async def create_record_async(
         record_data: Record data to create
         
     Returns:
-        Created record data or None on failure
+        Created record data
+        
+    Raises:
+        ValueError: If required data is missing
+        Exception: If the database operation fails
     """
     try:
-        if 'id' not in record_data:
-            raise ValueError("记录数据必须包含'id'字段")
+        from .sql_builder import build_insert_query
         
-        record_id = record_data['id']
-        full_id = f"{table}:{record_id}"
-        url = f"{base_url}/key/{full_id}"
+        # Replace any time::now() with ISO timestamp
+        for key, value in record_data.items():
+            if isinstance(value, str) and value == "time::now()":
+                from .db_helpers import get_current_time_iso
+                record_data[key] = get_current_time_iso()
         
-        logger.info(f"异步创建记录: {full_id}")
-        logger.info(f"记录数据: {record_data}")
+        # Build parameterized SQL query
+        sql, params = build_insert_query(table, record_data)
         
-        async with aiohttp.ClientSession() as session:
-            async with session.put(url, headers=headers, json=record_data) as response:
-                status = response.status
-                response_text = await response.text()
-                
-                logger.info(f"创建记录响应码: {status}")
-                
-                if status == 200:
-                    logger.info(f"记录创建成功: {full_id}")
-                    return record_data
-                else:
-                    logger.error(f"记录创建失败: {status} {response.reason}")
-                    logger.error(f"响应内容: {response_text}")
-                    return None
+        logger.info(f"Creating record in {table} with ID: {record_data.get('id', 'auto-generated')}")
+        
+        # Execute the SQL query
+        result = await execute_sql_async(base_url, headers, sql, params)
+        
+        if result and len(result) > 0:
+            logger.info(f"Record created successfully in {table}")
+            return result[0]
+        else:
+            raise Exception(f"Failed to create record in {table}: No result returned")
+            
     except Exception as e:
-        logger.error(f"异步创建记录时出错: {e}")
-        return None
+        logger.error(f"Error creating record async: {e}")
+        raise
 
 async def update_record_async(
     base_url: str, 
@@ -118,9 +120,9 @@ async def update_record_async(
     table: str, 
     record_id: str, 
     record_data: Dict[str, Any]
-) -> Optional[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
-    Update a record asynchronously.
+    Update a record asynchronously using parameterized SQL.
     
     Args:
         base_url: SurrealDB base URL
@@ -130,32 +132,42 @@ async def update_record_async(
         record_data: Record data to update
         
     Returns:
-        Updated record data or None on failure
+        Updated record data
+        
+    Raises:
+        ValueError: If required data is missing
+        Exception: If the database operation fails
     """
     try:
-        full_id = f"{table}:{record_id}"
-        url = f"{base_url}/key/{full_id}"
+        from .sql_builder import build_update_query
         
-        logger.info(f"异步更新记录: {full_id}")
-        logger.info(f"更新数据: {record_data}")
+        # Replace any time::now() with ISO timestamp
+        for key, value in record_data.items():
+            if isinstance(value, str) and value == "time::now()":
+                from .db_helpers import get_current_time_iso
+                record_data[key] = get_current_time_iso()
         
-        async with aiohttp.ClientSession() as session:
-            async with session.patch(url, headers=headers, json=record_data) as response:
-                status = response.status
-                response_text = await response.text()
-                
-                logger.info(f"更新记录响应码: {status}")
-                
-                if status == 200:
-                    logger.info(f"记录更新成功: {full_id}")
-                    return record_data
-                else:
-                    logger.error(f"记录更新失败: {status} {response.reason}")
-                    logger.error(f"响应内容: {response_text}")
-                    return None
+        # Build parameterized SQL query
+        sql, params = build_update_query(table, record_id, record_data)
+        
+        logger.info(f"Updating record {table}:{record_id}")
+        
+        # Execute the SQL query
+        result = await execute_sql_async(base_url, headers, sql, params)
+        
+        # Also fetch the updated record to return the complete state
+        fetch_sql = f"SELECT * FROM {table}:{record_id};"
+        updated_record = await execute_sql_async(base_url, headers, fetch_sql)
+        
+        if updated_record and len(updated_record) > 0:
+            logger.info(f"Record {table}:{record_id} updated successfully")
+            return updated_record[0]
+        else:
+            raise Exception(f"Failed to update record {table}:{record_id}: Record not found after update")
+            
     except Exception as e:
-        logger.error(f"异步更新记录时出错: {e}")
-        return None
+        logger.error(f"Error updating record async: {e}")
+        raise
 
 async def delete_record_async(
     base_url: str, 
@@ -164,7 +176,7 @@ async def delete_record_async(
     record_id: str
 ) -> bool:
     """
-    Delete a record asynchronously.
+    Delete a record asynchronously using parameterized SQL.
     
     Args:
         base_url: SurrealDB base URL
@@ -173,31 +185,28 @@ async def delete_record_async(
         record_id: Record ID to delete
         
     Returns:
-        True if deletion was successful, False otherwise
+        True if deletion was successful
+        
+    Raises:
+        Exception: If the database operation fails
     """
     try:
-        full_id = f"{table}:{record_id}"
-        url = f"{base_url}/key/{full_id}"
+        from .sql_builder import build_delete_query
         
-        logger.info(f"异步删除记录: {full_id}")
+        # Build SQL query
+        sql = build_delete_query(table, record_id)
         
-        async with aiohttp.ClientSession() as session:
-            async with session.delete(url, headers=headers) as response:
-                status = response.status
-                response_text = await response.text()
-                
-                logger.info(f"删除记录响应码: {status}")
-                
-                if status == 200:
-                    logger.info(f"记录删除成功: {full_id}")
-                    return True
-                else:
-                    logger.error(f"记录删除失败: {status} {response.reason}")
-                    logger.error(f"响应内容: {response_text}")
-                    return False
+        logger.info(f"Deleting record {table}:{record_id}")
+        
+        # Execute the SQL query
+        await execute_sql_async(base_url, headers, sql)
+        
+        logger.info(f"Record {table}:{record_id} deleted successfully")
+        return True
+            
     except Exception as e:
-        logger.error(f"异步删除记录时出错: {e}")
-        return False
+        logger.error(f"Error deleting record async: {e}")
+        raise
 
 async def get_record_async(
     base_url: str, 
@@ -206,7 +215,7 @@ async def get_record_async(
     record_id: str
 ) -> Optional[Dict[str, Any]]:
     """
-    Get a record asynchronously.
+    Get a record asynchronously using parameterized SQL.
     
     Args:
         base_url: SurrealDB base URL
@@ -215,34 +224,27 @@ async def get_record_async(
         record_id: Record ID to get
         
     Returns:
-        Record data or None if not found or on error
+        Record data or None if not found
+        
+    Raises:
+        Exception: If the database operation fails
     """
     try:
-        full_id = f"{table}:{record_id}"
-        url = f"{base_url}/key/{full_id}"
+        # Build SQL query
+        sql = f"SELECT * FROM {table}:{record_id};"
         
-        logger.info(f"异步获取记录: {full_id}")
+        logger.info(f"Getting record {table}:{record_id}")
         
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                status = response.status
-                response_text = await response.text()
-                
-                logger.info(f"获取记录响应码: {status}")
-                
-                if status == 200:
-                    result = json.loads(response_text)
-                    logger.info(f"记录获取成功: {full_id}")
-                    
-                    # 解析响应
-                    parsed_result = parse_surreal_response(result)
-                    if parsed_result and len(parsed_result) > 0:
-                        return parsed_result[0]
-                    return None
-                else:
-                    logger.error(f"记录获取失败: {status} {response.reason}")
-                    logger.error(f"响应内容: {response_text}")
-                    return None
+        # Execute the SQL query
+        result = await execute_sql_async(base_url, headers, sql)
+        
+        if result and len(result) > 0:
+            logger.info(f"Record {table}:{record_id} retrieved successfully")
+            return result[0]
+        else:
+            logger.info(f"Record {table}:{record_id} not found")
+            return None
+            
     except Exception as e:
-        logger.error(f"异步获取记录时出错: {e}")
-        return None
+        logger.error(f"Error getting record async: {e}")
+        raise

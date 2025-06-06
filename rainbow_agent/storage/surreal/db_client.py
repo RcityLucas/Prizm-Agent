@@ -10,7 +10,7 @@ import asyncio
 from datetime import datetime
 
 from .db_helpers import get_auth_headers, get_current_time_iso, parse_surreal_response
-from .db_queries import (
+from .sql_builder import (
     build_select_query, 
     build_parameterized_select_query,
     build_insert_query,
@@ -53,12 +53,12 @@ class SurrealDBHttpClient:
         self.username = username
         self.password = password
         
-        # 生成认证头
+        # Generate authentication headers
         self.headers = get_auth_headers(username, password, namespace, database)
         
-        logger.info(f"SurrealDB HTTP客户端初始化完成: {url}, {namespace}, {database}")
+        logger.info(f"SurrealDB HTTP client initialized: {url}, {namespace}, {database}")
     
-    # ===== 同步方法 =====
+    # ===== Synchronous Methods =====
     
     def execute_sql(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
@@ -74,40 +74,38 @@ class SurrealDBHttpClient:
         try:
             url = f"{self.base_url}/sql"
             
-            # 准备请求负载
+            # Prepare request payload
             payload = {'query': sql}
             if params:
                 payload['vars'] = params
                 
-            logger.info(f"执行SQL: {sql}")
+            logger.info(f"Executing SQL: {sql}")
             if params:
-                logger.info(f"参数: {params}")
+                logger.info(f"Parameters: {params}")
                 
             response = requests.post(url, headers=self.headers, json=payload)
             status = response.status_code
             
-            logger.info(f"SQL查询响应码: {status}")
+            logger.info(f"SQL query response code: {status}")
             
             if status == 200:
                 result = response.json()
-                logger.info(f"SQL查询执行成功: {sql}")
+                logger.info(f"SQL query executed successfully: {sql}")
                 
-                # 解析响应
+                # Parse response
                 parsed_result = parse_surreal_response(result)
-                if parsed_result is not None:
-                    return parsed_result
-                return []
+                return parsed_result  # Already returns empty list if parsing fails
             else:
-                logger.error(f"SQL查询失败: {status} {response.reason}")
-                logger.error(f"响应内容: {response.text}")
+                logger.error(f"SQL query failed: {status} {response.reason}")
+                logger.error(f"Response content: {response.text}")
                 return []
         except Exception as e:
-            logger.error(f"执行SQL查询时出错: {e}")
+            logger.error(f"Error executing SQL query: {e}")
             return []
     
     def create_record(self, table: str, record_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Create a record synchronously.
+        Create a record synchronously using parameterized SQL.
         
         Args:
             table: Table name
@@ -117,41 +115,34 @@ class SurrealDBHttpClient:
             Created record data or None on failure
         """
         try:
-            if 'id' not in record_data:
-                raise ValueError("记录数据必须包含'id'字段")
-            
-            record_id = record_data['id']
-            full_id = f"{table}:{record_id}"
-            url = f"{self.base_url}/key/{full_id}"
-            
-            # 处理特殊字段如time::now()
+            # Process special fields like time::now()
             processed_data = record_data.copy()
             for key, value in processed_data.items():
                 if isinstance(value, str) and value == "time::now()":
                     processed_data[key] = get_current_time_iso()
             
-            logger.info(f"创建记录: {full_id}")
-            logger.info(f"记录数据: {processed_data}")
+            # Build parameterized SQL query
+            sql, params = build_insert_query(table, processed_data)
             
-            response = requests.put(url, headers=self.headers, json=processed_data)
-            status = response.status_code
+            logger.info(f"Creating record in {table} with ID: {processed_data.get('id', 'auto-generated')}")
             
-            logger.info(f"创建记录响应码: {status}")
+            # Execute the SQL query
+            result = self.execute_sql(sql, params)
             
-            if status == 200:
-                logger.info(f"记录创建成功: {full_id}")
-                return processed_data
+            if result and len(result) > 0:
+                logger.info(f"Record created successfully in {table}")
+                return result[0]
             else:
-                logger.error(f"记录创建失败: {status} {response.reason}")
-                logger.error(f"响应内容: {response.text}")
-                return None
+                logger.warning(f"No result returned after record creation in {table}")
+                # Fallback to returning the processed data
+                return processed_data
         except Exception as e:
-            logger.error(f"创建记录时出错: {e}")
+            logger.error(f"Error creating record: {e}")
             return None
     
     def update_record(self, table: str, record_id: str, record_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Update a record synchronously.
+        Update a record synchronously using parameterized SQL.
         
         Args:
             table: Table name
@@ -162,37 +153,38 @@ class SurrealDBHttpClient:
             Updated record data or None on failure
         """
         try:
-            full_id = f"{table}:{record_id}"
-            url = f"{self.base_url}/key/{full_id}"
-            
-            # 处理特殊字段如time::now()
+            # Process special fields like time::now()
             processed_data = record_data.copy()
             for key, value in processed_data.items():
                 if isinstance(value, str) and value == "time::now()":
                     processed_data[key] = get_current_time_iso()
             
-            logger.info(f"更新记录: {full_id}")
-            logger.info(f"更新数据: {processed_data}")
+            # Build parameterized SQL query
+            sql, params = build_update_query(table, record_id, processed_data)
             
-            response = requests.patch(url, headers=self.headers, json=processed_data)
-            status = response.status_code
+            logger.info(f"Updating record {table}:{record_id}")
             
-            logger.info(f"更新记录响应码: {status}")
+            # Execute the SQL query
+            result = self.execute_sql(sql, params)
             
-            if status == 200:
-                logger.info(f"记录更新成功: {full_id}")
-                return processed_data
+            # Also fetch the updated record to return the complete state
+            fetch_sql = f"SELECT * FROM {table}:{record_id};"
+            updated_record = self.execute_sql(fetch_sql)
+            
+            if updated_record and len(updated_record) > 0:
+                logger.info(f"Record {table}:{record_id} updated successfully")
+                return updated_record[0]
             else:
-                logger.error(f"记录更新失败: {status} {response.reason}")
-                logger.error(f"响应内容: {response.text}")
-                return None
+                logger.warning(f"Record {table}:{record_id} not found after update")
+                # Fallback to returning the processed data
+                return processed_data
         except Exception as e:
-            logger.error(f"更新记录时出错: {e}")
+            logger.error(f"Error updating record: {e}")
             return None
     
     def delete_record(self, table: str, record_id: str) -> bool:
         """
-        Delete a record synchronously.
+        Delete a record synchronously using parameterized SQL.
         
         Args:
             table: Table name
@@ -202,30 +194,31 @@ class SurrealDBHttpClient:
             True if deletion was successful, False otherwise
         """
         try:
-            full_id = f"{table}:{record_id}"
-            url = f"{self.base_url}/key/{full_id}"
+            # Build SQL query
+            sql = build_delete_query(table, record_id)
             
-            logger.info(f"删除记录: {full_id}")
+            logger.info(f"Deleting record {table}:{record_id}")
             
-            response = requests.delete(url, headers=self.headers)
-            status = response.status_code
+            # Execute the SQL query
+            self.execute_sql(sql)
             
-            logger.info(f"删除记录响应码: {status}")
+            # Verify deletion by trying to fetch the record
+            fetch_sql = f"SELECT * FROM {table}:{record_id};"
+            result = self.execute_sql(fetch_sql)
             
-            if status == 200:
-                logger.info(f"记录删除成功: {full_id}")
+            if not result:
+                logger.info(f"Record {table}:{record_id} deleted successfully")
                 return True
             else:
-                logger.error(f"记录删除失败: {status} {response.reason}")
-                logger.error(f"响应内容: {response.text}")
+                logger.warning(f"Record {table}:{record_id} may not have been deleted")
                 return False
         except Exception as e:
-            logger.error(f"删除记录时出错: {e}")
+            logger.error(f"Error deleting record: {e}")
             return False
     
     def get_record(self, table: str, record_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get a record synchronously.
+        Get a record synchronously using parameterized SQL.
         
         Args:
             table: Table name
@@ -235,62 +228,29 @@ class SurrealDBHttpClient:
             Record data or None if not found or on error
         """
         try:
-            full_id = f"{table}:{record_id}"
-            url = f"{self.base_url}/key/{full_id}"
+            # Build SQL query to fetch a specific record by ID
+            sql = f"SELECT * FROM {table}:{record_id};"
             
-            logger.info(f"获取记录: {full_id}")
+            logger.info(f"Getting record {table}:{record_id}")
             
-            response = requests.get(url, headers=self.headers)
-            status = response.status_code
+            # Execute the SQL query
+            result = self.execute_sql(sql)
             
-            logger.info(f"获取记录响应码: {status}")
-            
-            if status == 200:
-                # Check if the response is empty or null
-                if not response.text or response.text.strip() in ['null', '{}', '[]']:
-                    logger.info(f"记录不存在: {full_id} (空响应)")
-                    return None
-                    
-                result = response.json()
-                logger.info(f"记录获取成功: {full_id}")
-                logger.debug(f"原始响应内容: {result}")
-                
-                # Check if result is empty or None
-                if result is None or (isinstance(result, dict) and not result):
-                    logger.info(f"记录不存在: {full_id} (空结果)")
-                    return None
-                
-                # 直接返回结果，跳过解析
-                # SurrealDB HTTP API 通常直接返回记录，不需要额外解析
-                if isinstance(result, dict):
-                    logger.info(f"记录直接返回: {full_id}")
-                    return result
-                
-                # 如果是列表，返回第一个元素
-                if isinstance(result, list) and len(result) > 0:
-                    logger.info(f"记录列表返回第一个: {full_id}")
-                    return result[0]
-                
-                # 尝试解析响应（兼容旧代码）
-                parsed_result = parse_surreal_response(result)
-                if parsed_result and len(parsed_result) > 0:
-                    logger.info(f"记录解析后返回: {full_id}")
-                    return parsed_result[0]
-                    
-                logger.info(f"记录解析后为空: {full_id}")
-                return None
+            # Check if we got any results
+            if result and len(result) > 0:
+                logger.info(f"Record {table}:{record_id} retrieved successfully")
+                return result[0]  # Return the first (and should be only) result
             else:
-                logger.error(f"记录获取失败: {status} {response.reason}")
-                logger.error(f"响应内容: {response.text}")
+                logger.info(f"Record {table}:{record_id} not found")
                 return None
         except Exception as e:
-            logger.error(f"获取记录时出错: {e}")
-            logger.exception(e)  # 打印完整的异常堆栈
+            logger.error(f"Error getting record: {e}")
+            logger.exception(e)  # Print full exception stack
             return None
-    
+            
     def get_records(self, table: str, condition: str = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
-        Get multiple records synchronously.
+        Get multiple records synchronously using parameterized SQL.
         
         Args:
             table: Table name
@@ -302,55 +262,40 @@ class SurrealDBHttpClient:
             List of records or empty list on failure
         """
         try:
-            # 构建SQL查询
-            sql = build_select_query(table, condition, limit, offset)
-            
-            # 执行查询
-            result = self.execute_sql(sql)
-            
-            # 如果直接查询失败，尝试使用参数化查询
-            if not result and condition:
-                logger.info(f"直接查询未返回数据，尝试参数化查询")
-                
-                # 解析条件为参数化查询
+            # If we have a condition, try to parse it into a parameterized query
+            if condition:
+                # Parse condition into parameters
                 conditions = {}
-                if condition:
-                    parts = condition.split(" AND ")
-                    for part in parts:
-                        if "=" in part:
-                            key, value = part.split("=", 1)
-                            key = key.strip()
-                            value = value.strip()
-                            
-                            # 移除值两侧的引号
-                            if value.startswith("'") and value.endswith("'"):
-                                value = value[1:-1]
-                            
-                            conditions[key] = value
+                parts = condition.split(" AND ")
+                for part in parts:
+                    if "=" in part:
+                        key, value = part.split("=", 1)
+                        key = key.strip()
+                        value = value.strip()
+                        
+                        # Remove quotes from the value if present
+                        if value.startswith("'") and value.endswith("'"):
+                            value = value[1:-1]
+                        
+                        conditions[key] = value
                 
-                # 构建参数化查询
-                param_sql, params = build_parameterized_select_query(table, conditions, limit, offset)
-                
-                # 执行参数化查询
-                result = self.execute_sql(param_sql, params)
+                # Build and execute parameterized query
+                sql, params = build_parameterized_select_query(table, conditions, limit, offset)
+                logger.info(f"Getting records from {table} with conditions: {conditions}")
+                result = self.execute_sql(sql, params)
+            else:
+                # No condition, use simple select query
+                sql = build_select_query(table, None, limit, offset)
+                logger.info(f"Getting all records from {table} (limit: {limit}, offset: {offset})")
+                result = self.execute_sql(sql)
             
-            # 如果参数化查询也失败，尝试使用备用查询
-            if not result:
-                logger.warning(f"参数化查询未返回数据，尝试使用备用查询方法")
-                
-                # 构建备用查询
-                backup_sql = f"SELECT * FROM {table} LIMIT {limit} START {offset};"
-                
-                # 执行备用查询
-                result = self.execute_sql(backup_sql)
-            
-            logger.info(f"获取记录成功: {table}, 条件: {condition}, 数量: {len(result)}")
+            logger.info(f"Retrieved {len(result)} records from {table}")
             return result
         except Exception as e:
-            logger.error(f"获取记录失败: {e}")
+            logger.error(f"Error getting records: {e}")
             return []
     
-    # ===== 异步方法 =====
+    # ===== Asynchronous Methods =====
     
     async def execute_sql_async_v_new(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
@@ -432,7 +377,7 @@ class SurrealDBHttpClient:
     
     async def get_records_async(self, table: str, condition: str = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
-        Get multiple records asynchronously.
+        Get multiple records asynchronously using parameterized SQL.
         
         Args:
             table: Table name
@@ -444,50 +389,35 @@ class SurrealDBHttpClient:
             List of records or empty list on failure
         """
         try:
-            # 构建SQL查询
-            sql = build_select_query(table, condition, limit, offset)
-            
-            # 执行查询
-            result = await self.execute_sql_async_v_new(sql)
-            
-            # 如果直接查询失败，尝试使用参数化查询
-            if not result and condition:
-                logger.info(f"直接查询未返回数据，尝试参数化查询")
-                
-                # 解析条件为参数化查询
+            # If we have a condition, try to parse it into a parameterized query
+            if condition:
+                # Parse condition into parameters
                 conditions = {}
-                if condition:
-                    parts = condition.split(" AND ")
-                    for part in parts:
-                        if "=" in part:
-                            key, value = part.split("=", 1)
-                            key = key.strip()
-                            value = value.strip()
-                            
-                            # 移除值两侧的引号
-                            if value.startswith("'") and value.endswith("'"):
-                                value = value[1:-1]
-                            
-                            conditions[key] = value
+                parts = condition.split(" AND ")
+                for part in parts:
+                    if "=" in part:
+                        key, value = part.split("=", 1)
+                        key = key.strip()
+                        value = value.strip()
+                        
+                        # Remove quotes from the value if present
+                        if value.startswith("'") and value.endswith("'"):
+                            value = value[1:-1]
+                        
+                        conditions[key] = value
                 
-                # 构建参数化查询
-                param_sql, params = build_parameterized_select_query(table, conditions, limit, offset)
-                
-                # 执行参数化查询
-                result = await self.execute_sql_async_v_new(param_sql, params)
+                # Build and execute parameterized query
+                sql, params = build_parameterized_select_query(table, conditions, limit, offset)
+                logger.info(f"Getting records asynchronously from {table} with conditions: {conditions}")
+                result = await self.execute_sql_async_v_new(sql, params)
+            else:
+                # No condition, use simple select query
+                sql = build_select_query(table, None, limit, offset)
+                logger.info(f"Getting all records asynchronously from {table} (limit: {limit}, offset: {offset})")
+                result = await self.execute_sql_async_v_new(sql)
             
-            # 如果参数化查询也失败，尝试使用备用查询
-            if not result:
-                logger.warning(f"参数化查询未返回数据，尝试使用备用查询方法")
-                
-                # 构建备用查询
-                backup_sql = f"SELECT * FROM {table} LIMIT {limit} START {offset};"
-                
-                # 执行备用查询
-                result = await self.execute_sql_async_v_new(backup_sql)
-            
-            logger.info(f"异步获取记录成功: {table}, 条件: {condition}, 数量: {len(result)}")
+            logger.info(f"Retrieved {len(result)} records asynchronously from {table}")
             return result
         except Exception as e:
-            logger.error(f"异步获取记录失败: {e}")
+            logger.error(f"Error getting records asynchronously: {e}")
             return []

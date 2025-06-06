@@ -96,57 +96,69 @@ def parse_surreal_response(response: Any) -> Optional[list]:
     try:
         if not response:
             logger.debug("Response is empty or None")
-            return None
+            return []
             
         # Log the response type and structure for debugging
         logger.debug(f"Response type: {type(response)}")
-        logger.debug(f"Response content: {response}")
-            
-        if isinstance(response, list):
-            if len(response) == 0:
-                return []
-                
-            # SurrealDB 1.0.4 format - direct list of results
-            # Check if the first item is a list (new format)
-            if len(response) > 0 and isinstance(response[0], list):
-                return response[0]
-                
-            # Handle old response format: [{"result": [...]}]
-            if isinstance(response[0], dict):
-                # Check for result key (old format)
-                if "result" in response[0]:
-                    result = response[0]["result"]
-                    
-                    # Handle different result formats
-                    if isinstance(result, list):
-                        return result
-                    elif isinstance(result, dict):
-                        return [result]
-                # New format might just be a list of dicts
-                else:
-                    return response
-            
-            # Direct list of records
-            return response
+        if isinstance(response, (list, dict)):
+            logger.debug(f"Response structure: {response}")
         
-        # Handle direct dict response
+        # Case 1: Response is a list
+        if isinstance(response, list):
+            if not response:  # Empty list
+                return []
+            
+            # Case 1.1: Response is a list of results (most common)
+            # Example: [{"result": [...]}, {"status": "OK"}]
+            if isinstance(response[0], dict) and "result" in response[0]:
+                result = response[0]["result"]
+                if isinstance(result, list):
+                    return [r for r in result if r]  # Filter out None/empty values
+                elif result:  # Single result
+                    return [result]
+                else:
+                    return []
+            
+            # Case 1.2: Response is a direct list of records
+            # Example: [{...}, {...}, ...]
+            if all(isinstance(item, dict) for item in response):
+                return [r for r in response if r]  # Filter out None/empty values
+            
+            # Case 1.3: First item is itself a list (nested result)
+            # Example: [[{...}, {...}], ...]
+            if response and isinstance(response[0], list):
+                return [r for r in response[0] if r]  # Filter out None/empty values
+            
+            # Case 1.4: Mixed content - try to extract dicts
+            records = []
+            for item in response:
+                if isinstance(item, dict):
+                    records.append(item)
+                elif isinstance(item, list) and item:
+                    records.extend([r for r in item if isinstance(r, dict)])
+            
+            return records
+        
+        # Case 2: Response is a dictionary
         if isinstance(response, dict):
-            # Check for status field which might indicate an error
-            if "status" in response and response["status"] != "OK":
-                logger.warning(f"SurrealDB response indicates error: {response}")
-                return None
-                
+            # Case 2.1: Response contains a result key with records
             if "result" in response:
                 result = response["result"]
                 if isinstance(result, list):
-                    return result
-                elif isinstance(result, dict):
+                    return [r for r in result if r]  # Filter out None/empty values
+                elif result:  # Single result
                     return [result]
-            return [response]
+                else:
+                    return []
             
-        logger.warning(f"无法解析的响应类型: {type(response)}")
-        return None
+            # Case 2.2: Response is a single record (contains id or other expected fields)
+            # Just return it as a single-item list
+            return [response]
+        
+        # Case 3: Unexpected response type
+        logger.warning(f"Unexpected response type: {type(response)}")
+        return []
     except Exception as e:
-        logger.error(f"解析SurrealDB响应时出错: {e}")
-        logger.exception(e)  # 打印完整的异常堆栈
-        return None
+        logger.error(f"Error parsing SurrealDB response: {e}")
+        logger.exception(e)
+        return []
