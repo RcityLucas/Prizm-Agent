@@ -2223,15 +2223,13 @@
                 offset: 100
             });
             
-            // 从本地存储获取会话ID
-            sessionId = localStorage.getItem('rainbow_session_id');
-            if (!sessionId) {
-                sessionId = generateUUID();
-                localStorage.setItem('rainbow_session_id', sessionId);
-            }
-            
-            // 添加事件监听器
+            // --- TEMPORARY HARDCODING FOR TESTING ---
+            sessionId = 'manualtestsession007'; // Use the simple ID created in SurrealDB
+            localStorage.setItem('rainbow_session_id', sessionId); // Keep localStorage updated for consistency
+            console.warn('USING HARDCODED sessionId FOR TESTING:', sessionId);
             setupEventListeners();
+            // --- END TEMPORARY HARDCODING ---
+            
             
             // 导航栏滚动效果
             handleNavbarScroll();
@@ -2335,14 +2333,14 @@
             showLoading();
             
             // 发送请求到API
-            fetch('/api/chat', {
+            fetch('/api/dialogue/input', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    message: message,
-                    session_id: sessionId
+                    input: message,
+                    sessionId: sessionId
                 })
             })
             .then(response => response.json())

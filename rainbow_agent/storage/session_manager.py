@@ -348,3 +348,18 @@ class SessionManager(BaseManager):
         except Exception as e:
             logger.error(f"记录会话活动失败: {e}")
             return False
+            
+    async def update_session_activity(self, session_id: str) -> bool:
+        """更新会话活动时间（record_activity 的别名）
+        
+        Args:
+            session_id: 会话ID
+            
+        Returns:
+            是否更新成功
+        """
+        try:
+            return await self.record_activity(session_id)
+        except Exception as e:
+            logger.error(f"更新会话活动时间失败: {e}")
+            return False

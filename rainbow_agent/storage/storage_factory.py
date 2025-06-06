@@ -7,6 +7,8 @@ import os
 import logging
 from typing import Dict, Any, Optional
 
+# Import from the new modular structure
+from .surreal import SurrealDBHttpClient
 from .surreal_storage import SurrealStorage
 from .session_manager import SessionManager
 from .turn_manager import TurnManager
@@ -33,7 +35,8 @@ class StorageFactory:
             "namespace": "rainbow",
             "database": "agent",
             "username": "root",
-            "password": "root"
+            "password": "root",
+            "use_http": False  # 默认使用WebSocket客户端
         }
         
         # 存储实例缓存
@@ -58,10 +61,11 @@ class StorageFactory:
                 namespace=self.config.get("namespace", "rainbow"),
                 database=self.config.get("database", "agent"),
                 username=self.config.get("username", "root"),
-                password=self.config.get("password", "root")
+                password=self.config.get("password", "root"),
+                use_http=self.config.get("use_http", False)  # 传递HTTP客户端配置
             )
             self._storage_cache[name] = storage
-            logger.info(f"创建存储实例: {name}")
+            logger.info(f"创建存储实例: {name}, 使用{'HTTP' if self.config.get('use_http', False) else 'WebSocket'}客户端")
         
         return self._storage_cache[name]
     

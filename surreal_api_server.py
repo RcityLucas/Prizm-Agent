@@ -49,7 +49,7 @@ def init_storage():
     
     try:
         if session_manager is None or turn_manager is None:
-            logger.info("开始初始化存储系统...")
+            logger.info("hu..")
             
             # 先尝试使用SurrealDB
             try:
@@ -80,11 +80,8 @@ def init_storage():
                     password=surreal_config["password"]
                 )
                 
-                # 连接到 SurrealDB
-                from rainbow_agent.storage.async_utils import run_async
-                logger.info("显式连接到 SurrealDB...")
-                run_async(session_manager.connect)
-                run_async(turn_manager.connect)
+                # 连接到 SurrealDB is handled by the client library during initialization or first use.
+                # The SessionManager/TurnManager themselves don't have a separate .connect() method.
                 
                 # 测试连接有效性
                 try:
@@ -858,7 +855,7 @@ def process_dialogue_input():
                 if hasattr(turn_manager, 'db') and hasattr(turn_manager.db, 'connect'):
                     # SurrealDB实现
                     try:
-                        run_async(turn_manager.create_turn,
+                        run_async(turn_manager.create_turn_async,
                             session_id=session_id,
                             role="human",
                             content=user_input,
@@ -913,11 +910,25 @@ def process_dialogue_input():
                 try:
                     logger.info(f"从 SurrealDB 获取会话 {session_id} 的信息")
                     session_info = run_async(session_manager.get_session, session_id)
-                    session_turns = run_async(turn_manager.get_turns, session_id)
+                    
+                    # 确保获取轮次时正确处理异步结果
+                    try:
+                        session_turns = run_async(turn_manager.get_turns, session_id)
+                        # 确保session_turns是一个列表
+                        if session_turns is None:
+                            session_turns = []
+                        elif not isinstance(session_turns, list):
+                            logger.warning(f"轮次结果不是列表类型: {type(session_turns)}")
+                            session_turns = []
+                        logger.info(f"成功获取轮次信息: {len(session_turns)} 个轮次")
+                    except Exception as turns_error:
+                        logger.error(f"获取轮次失败: {turns_error}")
+                        session_turns = []
+                    
                     logger.info(f"成功获取会话信息: {session_info is not None}")
-                    logger.info(f"成功获取轮次信息: {len(session_turns)} 个轮次")
                 except Exception as session_error:
                     logger.warning(f"从 SurrealDB 获取会话信息失败: {session_error}")
+                    session_turns = []
             
                 # 生成对话历史上下文
                 messages = [
@@ -928,9 +939,26 @@ def process_dialogue_input():
                 if session_turns:
                     history_turns = session_turns[-12:] if len(session_turns) > 12 else session_turns
                     for turn in history_turns:
-                        role = "user" if turn.get("role") == "human" else "assistant"
-                        content = turn.get("content", "")
-                        messages.append({"role": role, "content": content})
+                        # 确保 turn 是字典类型
+                        if isinstance(turn, dict):
+                            # 安全地获取角色和内容
+                            role = "user" if turn.get("role") == "human" else "assistant"
+                            content = turn.get("content", "")
+                            messages.append({"role": role, "content": content})
+                        elif isinstance(turn, str):
+                            # 如果 turn 是字符串，尝试解析为 JSON
+                            try:
+                                import json
+                                turn_dict = json.loads(turn)
+                                if isinstance(turn_dict, dict):
+                                    role = "user" if turn_dict.get("role") == "human" else "assistant"
+                                    content = turn_dict.get("content", "")
+                                    messages.append({"role": role, "content": content})
+                            except Exception as json_error:
+                                logger.warning(f"无法解析轮次字符串为 JSON: {json_error}")
+                        else:
+                            logger.warning(f"跳过非字典类型的轮次: {type(turn)}")
+                            continue
                 
                 # 添加当前用户输入
                 messages.append({"role": "user", "content": user_input})
@@ -950,7 +978,7 @@ def process_dialogue_input():
                         "input_type": input_type
                     }
                     
-                    user_turn = run_async(turn_manager.create_turn, 
+                    user_turn = run_async(turn_manager.create_turn_async, 
                                           session_id=session_id, 
                                           role="human", 
                                           content=user_input, 
@@ -964,7 +992,7 @@ def process_dialogue_input():
                         "model": "gpt-3.5-turbo"
                     }
                     
-                    ai_turn = run_async(turn_manager.create_turn, 
+                    ai_turn = run_async(turn_manager.create_turn_async, 
                                         session_id=session_id, 
                                         role="ai", 
                                         content=response_text, 
@@ -1029,7 +1057,20 @@ def process_dialogue_input():
                 logger.info(f"更新会话 {session_id} 的活动时间")
                 # 直接使用 SurrealDB 更新会话活动时间
                 try:
-                    # 使用 update_session 方法更新时间
+                    # 首先尝试使用 update_session_activity 方法
+                    try:
+                        logger.info(f"尝试使用 update_session_activity 方法更新会话 {session_id} 的活动时间")
+                        activity_updated = run_async(session_manager.update_session_activity, session_id)
+                        if activity_updated:
+                            logger.info(f"成功使用 update_session_activity 更新会话 {session_id} 的活动时间")
+                            # 成功更新，但不要在这里返回，继续构建响应
+                    except AttributeError as attr_error:
+                        # 如果 SessionManager 没有 update_session_activity 方法，则尝试其他方法
+                        logger.warning(f"SessionManager 没有 update_session_activity 方法: {attr_error}")
+                    except Exception as activity_error:
+                        logger.warning(f"update_session_activity 方法失败: {activity_error}")
+                    
+                    # 如果 update_session_activity 失败或不存在，尝试使用 update_session 方法
                     updates = {
                         "updated_at": timestamp,
                         "last_activity_at": timestamp
@@ -1105,6 +1146,16 @@ def process_dialogue_input():
             }
                 
             logger.info(f"成功处理输入: 会话 {session_id}, 响应ID: {result.get('id')}")
+            
+            # 返回兼容多种客户端的响应格式
+            response = {
+                "success": True,
+                "data": result,
+                # 下面的字段直接展开，兼容simple_test.html
+                **result
+            }
+            
+            return jsonify(response)
         except Exception as process_error:
             logger.error(f"处理输入失败: {process_error}")
             import traceback
@@ -1121,23 +1172,7 @@ def process_dialogue_input():
                 "timestamp": datetime.now().isoformat()
             }), 500
         
-        # 更新会话最后活动时间
-        try:
-            logger.info(f"更新会话 {session_id} 的最后活动时间")
-            run_async(session_manager.update_session_activity, session_id)
-            logger.info(f"成功更新会话 {session_id} 的最后活动时间")
-        except Exception as update_error:
-            logger.warning(f"更新会话活动时间失败: {update_error}")
-        
-        # 返回兼容多种客户端的响应格式
-        response = {
-            "success": True,
-            "data": result,
-            # 下面的字段直接展开，兼容simple_test.html
-            **result
-        }
-        
-        return jsonify(response)
+
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()

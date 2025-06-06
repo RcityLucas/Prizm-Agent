@@ -252,3 +252,11 @@ class BaseManager:
         except Exception as e:
             self.logger.error(f"执行SQL失败: {e}")
             raise
+            # 执行SQL
+            result = self.client.execute_sql(sql)
+            
+            self.logger.info(f"执行SQL成功: {sql[:100]}...")
+            return result
+        except Exception as e:
+            self.logger.error(f"执行SQL失败: {e}")
+            raise
