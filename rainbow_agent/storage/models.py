@@ -97,7 +97,10 @@ class SessionModel:
 
 
 class TurnModel:
-    """轮次模型"""
+    """对话轮次模型
+    
+    用于存储单次对话轮次的内容和元数据
+    """
     
     def __init__(
         self,
@@ -110,31 +113,20 @@ class TurnModel:
         """初始化轮次模型
         
         Args:
-            session_id: 会话ID
-            role: 角色 (user/assistant)
-            content: 消息内容
-            embedding: 消息内容的向量表示
-            metadata: 元数据，包含情感分析、实体等信息
+            session_id: 所属会话ID
+            role: 发言者角色 (human/ai)
+            content: 对话内容
+            embedding: 内容向量
+            metadata: 其他元数据
         """
         self.id = str(uuid.uuid4()).replace('-', '')
         self.session_id = session_id
         self.role = role
         self.content = content
         self.created_at = "time::now()"
-        self.embedding = embedding
-        
-        # 确保metadata存在并包含基本字段
+        self.updated_at = "time::now()"
+        self.embedding = embedding or []
         self.metadata = metadata or {}
-        if "sentiment" not in self.metadata:
-            self.metadata["sentiment"] = None
-        if "entities" not in self.metadata:
-            self.metadata["entities"] = []
-        if "intent" not in self.metadata:
-            self.metadata["intent"] = None
-        if "importance_score" not in self.metadata:
-            self.metadata["importance_score"] = 0.5
-        if "topics" not in self.metadata:
-            self.metadata["topics"] = []
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典
@@ -143,39 +135,33 @@ class TurnModel:
             轮次数据字典
         """
         return {
-            "id": self.id,
-            "session_id": self.session_id,
-            "role": self.role,
-            "content": self.content,
-            "created_at": self.created_at,
-            "embedding": self.embedding,
-            "metadata": self.metadata
+            'id': self.id,
+            'session_id': self.session_id,
+            'role': self.role,
+            'content': self.content,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'embedding': self.embedding,
+            'metadata': self.metadata
         }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TurnModel':
-        """从字典创建轮次模型
+        """从字典创建实例
         
         Args:
             data: 轮次数据字典
             
         Returns:
-            轮次模型实例
+            TurnModel实例
         """
-        turn = cls(
-            session_id=data.get("session_id", ""),
-            role=data.get("role", ""),
-            content=data.get("content", ""),
-            embedding=data.get("embedding"),
-            metadata=data.get("metadata", {})
+        return cls(
+            session_id=data['session_id'],
+            role=data['role'],
+            content=data['content'],
+            embedding=data.get('embedding'),
+            metadata=data.get('metadata')
         )
-        turn.id = data.get("id", turn.id)
-        
-        # 处理时间字段
-        if "created_at" in data and not isinstance(data["created_at"], str):
-            turn.created_at = data["created_at"]
-            
-        return turn
 
 
 class UserProfileModel:
