@@ -2349,11 +2349,14 @@
                 hideLoading();
                 
                 // 添加代理回复到界面
-                addMessage(data.message || data.response || data.content || '抱歉，我无法理解您的请求', 'ai', data.tool_results);
+                const responseText = data.message || data.response || data.content || 
+                                   (data.result && data.result.response) || '抱歉，我无法理解您的请求';
+                addMessage(responseText, 'ai', data.tool_results);
                 
                 // 更新会话ID
-                if (data.session_id) {
-                    sessionId = data.session_id;
+                const newSessionId = data.session_id || data.sessionId || (data.result && data.result.sessionId);
+                if (newSessionId) {
+                    sessionId = newSessionId;
                     localStorage.setItem('rainbow_session_id', sessionId);
                 }
             })

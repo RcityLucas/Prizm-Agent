@@ -7,10 +7,8 @@ import os
 import logging
 from typing import Dict, Any, Optional, Tuple
 
-from rainbow_agent.storage.session_manager import SessionManager
-from rainbow_agent.storage.turn_manager import TurnManager
+from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
 from rainbow_agent.storage.config import get_surreal_config
-from rainbow_agent.storage.async_utils import run_async
 from rainbow_agent.ai.openai_service import OpenAIService
 from rainbow_agent.core.dialogue_manager import DialogueManager
 from rainbow_agent.core.multi_modal_manager import MultiModalToolManager
@@ -23,100 +21,48 @@ class SystemInitializer:
     """系统初始化器"""
     
     @staticmethod
-    def init_storage() -> Tuple[Optional[SessionManager], Optional[TurnManager]]:
+    def init_storage() -> Optional[UnifiedDialogueStorage]:
         """
-        初始化存储系统，先尝试SurrealDB，如果失败则使用SQLite作为后备
+        初始化统一存储系统
         
         Returns:
-            (session_manager, turn_manager): 会话管理器和轮次管理器实例
+            storage: 统一对话存储实例
         """
         try:
-            logger.info("开始初始化存储系统...")
+            logger.info("开始初始化统一存储系统...")
             
-            # 先尝试使用SurrealDB
-            try:
-                logger.info("尝试连接到 SurrealDB 存储系统...")
-                
-                # 获取 SurrealDB 配置
-                surreal_config = get_surreal_config()
-                logger.info(f"SurrealDB 配置: {surreal_config}")
-                
-                # 初始化会话和轮次管理器
-                session_manager = SessionManager(
-                    url=surreal_config["url"],
-                    namespace=surreal_config["namespace"],
-                    database=surreal_config["database"],
-                    username=surreal_config["username"],
-                    password=surreal_config["password"]
-                )
-                
-                turn_manager = TurnManager(
-                    url=surreal_config["url"],
-                    namespace=surreal_config["namespace"],
-                    database=surreal_config["database"],
-                    username=surreal_config["username"],
-                    password=surreal_config["password"]
-                )
-                
-                # 连接到 SurrealDB
-                logger.info("显式连接到 SurrealDB...")
-                run_async(session_manager.connect)
-                run_async(turn_manager.connect)
-                
-                # 测试连接有效性
-                try:
-                    logger.info("测试 SurrealDB 连接...")
-                    # 创建一个简单的测试查询
-                    from rainbow_agent.storage.surreal_storage import SurrealStorage
-                    test_storage = SurrealStorage(
-                        url=surreal_config["url"],
-                        namespace=surreal_config["namespace"],
-                        database=surreal_config["database"],
-                        username=surreal_config["username"],
-                        password=surreal_config["password"]
-                    )
-                    run_async(test_storage.connect)
-                    test_query = "SELECT * FROM sessions LIMIT 1;"
-                    test_result = run_async(test_storage.query, test_query)
-                    logger.info(f"SurrealDB 测试查询成功: {test_result}")
-                    
-                    # 返回初始化的管理器
-                    return session_manager, turn_manager
-                except Exception as test_error:
-                    logger.warning(f"SurrealDB 测试查询失败: {test_error}")
-                    logger.warning("将尝试使用 SQLite 作为后备存储系统")
-            except Exception as surreal_error:
-                logger.warning(f"SurrealDB 初始化失败: {surreal_error}")
-                logger.warning("将尝试使用 SQLite 作为后备存储系统")
+            # 获取 SurrealDB 配置
+            surreal_config = get_surreal_config()
+            logger.info(f"SurrealDB 配置: {surreal_config}")
             
-            # 如果SurrealDB失败，使用SQLite作为后备
-            try:
-                logger.info("初始化 SQLite 存储系统...")
-                
-                # 导入SQLite会话管理器和轮次管理器
-                from rainbow_agent.core.system_initializer import SQLiteSessionManager, SQLiteTurnManager
-                
-                # 初始化SQLite会话管理器和轮次管理器
-                session_manager = SQLiteSessionManager()
-                turn_manager = SQLiteTurnManager()
-                
-                logger.info("SQLite 存储系统初始化成功")
-                return session_manager, turn_manager
-            except Exception as sqlite_error:
-                logger.error(f"SQLite 初始化失败: {sqlite_error}")
-                return None, None
+            # 初始化统一存储
+            storage = UnifiedDialogueStorage(
+                url=surreal_config["url"],
+                namespace=surreal_config["namespace"],
+                database=surreal_config["database"],
+                username=surreal_config["username"],
+                password=surreal_config["password"]
+            )
+            
+            # 测试连接
+            health = storage.health_check()
+            if health["status"] == "healthy":
+                logger.info("统一存储系统初始化成功")
+                return storage
+            else:
+                logger.error(f"存储系统健康检查失败: {health}")
+                return None
         except Exception as e:
-            logger.error(f"存储系统初始化失败: {e}")
-            return None, None
+            logger.error(f"统一存储系统初始化失败: {e}")
+            return None
     
     @staticmethod
-    def init_dialogue_system(session_manager: SessionManager, turn_manager: TurnManager) -> Optional[DialogueManager]:
+    def init_dialogue_system(storage: UnifiedDialogueStorage) -> Optional[DialogueManager]:
         """
         初始化对话系统
         
         Args:
-            session_manager: 会话管理器实例
-            turn_manager: 轮次管理器实例
+            storage: 统一存储实例
             
         Returns:
             dialogue_manager: 对话管理器实例
@@ -129,8 +75,7 @@ class SystemInitializer:
             
             # 初始化对话管理器
             dialogue_manager = DialogueManager(
-                session_manager=session_manager,
-                turn_manager=turn_manager,
+                storage=storage,
                 ai_service=openai_service
             )
             

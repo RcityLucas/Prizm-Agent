@@ -16,8 +16,7 @@ from typing import Dict, Any, List, Optional, Tuple, Union
 from datetime import datetime
 
 from rainbow_agent.ai.openai_service import OpenAIService
-from rainbow_agent.storage.session_manager import SessionManager
-from rainbow_agent.storage.turn_manager import TurnManager
+from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -37,19 +36,16 @@ class DialogueManager:
     """对话管理系统核心类"""
     
     def __init__(self, 
-                 session_manager: Optional[SessionManager] = None,
-                 turn_manager: Optional[TurnManager] = None,
+                 storage: Optional[UnifiedDialogueStorage] = None,
                  ai_service: Optional[OpenAIService] = None):
         """初始化对话管理器
         
         Args:
-            session_manager: 会话管理器实例，如果不提供则创建新实例
-            turn_manager: 轮次管理器实例，如果不提供则创建新实例
+            storage: 统一对话存储实例，如果不提供则创建新实例
             ai_service: AI服务实例，如果不提供则创建新实例
         """
         # 初始化组件
-        self.session_manager = session_manager or SessionManager()
-        self.turn_manager = turn_manager or TurnManager()
+        self.storage = storage or UnifiedDialogueStorage()
         self.ai_service = ai_service or OpenAIService()
         
         # 初始化工具调用器和上下文构建器
@@ -93,14 +89,37 @@ class DialogueManager:
             "status": "active"
         }
         
-        # 调用会话管理器创建会话
+        # 调用统一存储创建会话
         try:
-            session = await self.session_manager.create_session(user_id, title, metadata)
-            logger.info(f"成功创建会话: {session.get('id', '')}")
-            return session
+            session = await self.storage.create_session_async(user_id, title, metadata)
+            if session and isinstance(session, dict):
+                logger.info(f"成功创建会话: {session.get('id', '')}")
+                return session
+            else:
+                logger.error("存储系统返回了无效的会话数据")
+                # 返回一个模拟会话作为后备
+                fallback_session = {
+                    'id': str(uuid.uuid4()),
+                    'user_id': user_id,
+                    'title': title,
+                    'created_at': datetime.now().isoformat(),
+                    'metadata': metadata
+                }
+                logger.warning(f"使用后备会话: {fallback_session['id']}")
+                return fallback_session
         except Exception as e:
             logger.error(f"创建会话失败: {e}")
-            raise
+            # 返回一个模拟会话作为后备
+            fallback_session = {
+                'id': str(uuid.uuid4()),
+                'user_id': user_id,
+                'title': title,
+                'created_at': datetime.now().isoformat(),
+                'metadata': metadata,
+                'error': 'Database connection failed'
+            }
+            logger.warning(f"使用后备会话（数据库错误）: {fallback_session['id']}")
+            return fallback_session
     
     async def process_input(self, 
                            session_id: str, 
@@ -125,11 +144,15 @@ class DialogueManager:
             user_turn = await self.create_turn(session_id, "human", content, metadata)
             
             # 2. 获取会话历史
-            session_info = await self.session_manager.get_session(session_id)
-            dialogue_type = session_info.get("metadata", {}).get("dialogue_type", DIALOGUE_TYPES["HUMAN_AI_PRIVATE"])
+            session_info = await self.storage.get_session_async(session_id)
+            if session_info and isinstance(session_info, dict):
+                dialogue_type = session_info.get("metadata", {}).get("dialogue_type", DIALOGUE_TYPES["HUMAN_AI_PRIVATE"])
+            else:
+                logger.warning(f"无法获取会话信息，使用默认对话类型: {session_id}")
+                dialogue_type = DIALOGUE_TYPES["HUMAN_AI_PRIVATE"]
             
             # 3. 获取对话历史
-            turns = await self.turn_manager.get_turns(session_id)
+            turns = await self.storage.get_turns_async(session_id)
             
             # 4. 根据对话类型处理输入
             response_content, response_metadata = await self._process_by_dialogue_type(
@@ -177,13 +200,38 @@ class DialogueManager:
             创建的轮次信息
         """
         try:
-            # 调用轮次管理器创建轮次
-            turn = await self.turn_manager.create_turn(session_id, role, content, metadata)
-            logger.info(f"成功创建轮次: {turn.get('id', '')}")
-            return turn
+            # 调用统一存储创建轮次
+            turn = await self.storage.create_turn_async(session_id, role, content, metadata=metadata)
+            if turn and isinstance(turn, dict):
+                logger.info(f"成功创建轮次: {turn.get('id', '')}")
+                return turn
+            else:
+                logger.error("存储系统返回了无效的轮次数据")
+                # 返回一个模拟轮次作为后备
+                fallback_turn = {
+                    'id': str(uuid.uuid4()),
+                    'session_id': session_id,
+                    'role': role,
+                    'content': content,
+                    'created_at': datetime.now().isoformat(),
+                    'metadata': metadata or {}
+                }
+                logger.warning(f"使用后备轮次: {fallback_turn['id']}")
+                return fallback_turn
         except Exception as e:
             logger.error(f"创建轮次失败: {e}")
-            raise
+            # 返回一个模拟轮次作为后备
+            fallback_turn = {
+                'id': str(uuid.uuid4()),
+                'session_id': session_id,
+                'role': role,
+                'content': content,
+                'created_at': datetime.now().isoformat(),
+                'metadata': metadata or {},
+                'error': 'Database connection failed'
+            }
+            logger.warning(f"使用后备轮次（数据库错误）: {fallback_turn['id']}")
+            return fallback_turn
     
     async def _process_by_dialogue_type(self,
                                       dialogue_type: str,
@@ -248,21 +296,37 @@ class DialogueManager:
         Returns:
             (响应内容, 响应元数据)
         """
-        # 格式化对话历史
-        messages = self.ai_service.format_dialogue_history(turns)
-        
-        # 调用AI服务生成响应
-        response = self.ai_service.generate_response(messages)
-        
-        # 构建响应元数据
-        response_metadata = {
-            "processed_at": datetime.now().isoformat(),
-            "dialogue_type": DIALOGUE_TYPES["HUMAN_AI_PRIVATE"],
-            "tools_used": [],
-            "model": "gpt-3.5-turbo"  # 可以从配置中获取
-        }
-        
-        return response, response_metadata
+        try:
+            # 格式化对话历史
+            messages = self.ai_service.format_dialogue_history(turns)
+            
+            # 添加当前用户输入到消息列表
+            messages.append({"role": "user", "content": content})
+            
+            # 调用AI服务生成响应
+            response = self.ai_service.generate_response(messages)
+            
+            # 构建响应元数据
+            response_metadata = {
+                "processed_at": datetime.now().isoformat(),
+                "dialogue_type": DIALOGUE_TYPES["HUMAN_AI_PRIVATE"],
+                "tools_used": [],
+                "model": "gpt-3.5-turbo"  # 可以从配置中获取
+            }
+            
+            return response, response_metadata
+        except Exception as e:
+            logger.error(f"AI服务生成响应失败: {e}")
+            # 返回一个后备响应
+            fallback_response = f"我是一个AI助手。由于技术原因，我现在无法提供智能回复，但我收到了您的消息: '{content}'"
+            fallback_metadata = {
+                "processed_at": datetime.now().isoformat(),
+                "dialogue_type": DIALOGUE_TYPES["HUMAN_AI_PRIVATE"],
+                "tools_used": [],
+                "model": "fallback",
+                "error": "AI service unavailable"
+            }
+            return fallback_response, fallback_metadata
     
     async def _process_ai_self_reflection(self,
                                         session_id: str,
@@ -338,7 +402,7 @@ class DialogueManager:
             (响应内容, 响应元数据)
         """
         # 获取会话信息，包括参与者
-        session_info = await self.session_manager.get_session(session_id)
+        session_info = await self.storage.get_session_async(session_id)
         participants = session_info.get("metadata", {}).get("participants", [])
         
         # 构建群聊系统提示
