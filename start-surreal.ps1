@@ -1,6 +1,6 @@
 # 设置路径变量
 $SurrealDBPath = "D:/SurrealDB/SurrealDBsurreal.exe"
-$DatabasePath = "E:/github/Prizm-Agent/rainbow-agent/db-new"
+$DatabasePath = "E:/github/Prizm-Agent/rainbow_agent/db-new"
 $Port = 8000
 
 # 显示标题

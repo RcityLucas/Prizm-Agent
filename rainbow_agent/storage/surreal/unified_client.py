@@ -67,19 +67,27 @@ class UnifiedSurrealClient:
         """
         db = None
         try:
+            logger.info(f"Connecting to SurrealDB at {self.ws_url}")
             db = Surreal(self.ws_url)
+            logger.info(f"Signing in with username: {self.username}")
             db.signin({"username": self.username, "password": self.password})
+            logger.info(f"Using namespace: {self.namespace}, database: {self.database}")
             db.use(self.namespace, self.database)
+            logger.info("SurrealDB connection established successfully")
             yield db
         except Exception as e:
-            logger.error(f"Database connection error: {e}")
+            logger.error(f"Database connection error: {e}, type: {type(e)}")
+            # Print more details about the error
+            import traceback
+            logger.error(f"Connection error details: {traceback.format_exc()}")
             raise
         finally:
             if db:
                 try:
                     db.close()
-                except:
-                    pass
+                    logger.info("SurrealDB connection closed")
+                except Exception as close_error:
+                    logger.warning(f"Error closing SurrealDB connection: {close_error}")
     
     def execute_sql(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
@@ -96,22 +104,27 @@ class UnifiedSurrealClient:
             # Try WebSocket connection first
             with self.get_connection() as db:
                 logger.info(f"Executing SQL: {sql}")
-                result = db.query(sql)
-                
-                # Parse the result - SurrealDB returns a list of result objects
-                if not result:
-                    return []
-                
-                # Extract actual data from result
-                records = []
-                for result_item in result:
-                    if hasattr(result_item, 'result') and result_item.result:
-                        if isinstance(result_item.result, list):
-                            records.extend(result_item.result)
-                        else:
-                            records.append(result_item.result)
-                
-                logger.info(f"SQL query returned {len(records)} records")
+                try:
+                    result = db.query(sql)
+                    
+                    # Parse the result - SurrealDB returns a list of result objects
+                    if not result:
+                        logger.warning(f"SQL query returned empty result: {sql}")
+                        return []
+                    
+                    # Extract actual data from result
+                    records = []
+                    for result_item in result:
+                        if hasattr(result_item, 'result') and result_item.result:
+                            if isinstance(result_item.result, list):
+                                records.extend(result_item.result)
+                            else:
+                                records.append(result_item.result)
+                    
+                    logger.info(f"SQL query returned {len(records)} records")
+                except Exception as query_error:
+                    logger.error(f"SQL query execution error: {query_error}, SQL: {sql}")
+                    raise query_error
                 return records
                 
         except Exception as e:
@@ -121,7 +134,7 @@ class UnifiedSurrealClient:
     
     def create_record(self, table: str, record_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Create a record using SQL INSERT.
+        Create a record using direct db.create() method.
         
         Args:
             table: Table name
@@ -134,45 +147,48 @@ class UnifiedSurrealClient:
             # Generate ID if not provided
             if 'id' not in record_data:
                 record_data['id'] = str(uuid.uuid4())
-            
-            # Build SQL INSERT statement
-            fields = []
-            values = []
-            
-            for key, value in record_data.items():
-                fields.append(key)
-                if isinstance(value, str):
-                    # Escape single quotes and wrap in quotes
-                    escaped_value = value.replace("'", "''")
-                    values.append(f"'{escaped_value}'")
-                elif isinstance(value, (int, float)):
-                    values.append(str(value))
-                elif isinstance(value, bool):
-                    values.append('true' if value else 'false')
-                elif value is None:
-                    values.append('NULL')
-                else:
-                    # For complex types, convert to JSON string
-                    import json
-                    json_str = json.dumps(value).replace("'", "''")
-                    values.append(f"'{json_str}'")
-            
-            fields_str = ', '.join(fields)
-            values_str = ', '.join(values)
-            
-            sql = f"INSERT INTO {table} ({fields_str}) VALUES ({values_str}); SELECT * FROM {table} WHERE id = '{record_data['id']}';"
-            
-            result = self.execute_sql(sql)
-            
-            if result:
-                logger.info(f"Record created successfully in {table}: {record_data['id']}")
-                return result[0] if result else record_data
-            else:
-                logger.error(f"Failed to create record in {table}")
-                return None
                 
+            # Handle special time::now() values and ensure proper datetime handling
+            processed_data = {}
+            for key, value in record_data.items():
+                if isinstance(value, str) and value == 'time::now()':
+                    # Use Python's datetime for time::now()
+                    from datetime import datetime
+                    # For SurrealDB, use datetime object directly instead of string
+                    processed_data[key] = datetime.now()
+                else:
+                    processed_data[key] = value
+            
+            logger.info(f"Creating record in {table} with data: {processed_data}")
+            
+            # Use direct create method like in test_surreal_http.py
+            with self.get_connection() as db:
+                try:
+                    # Use the create method directly
+                    result = db.create(table, processed_data)
+                    
+                    if result and len(result) > 0:
+                        logger.info(f"Record created successfully in {table}: {processed_data.get('id')}")
+                        return self._make_serializable(result[0] if isinstance(result, list) else result)
+                    else:
+                        logger.warning(f"Create returned empty result for {table}")
+                        # Try to verify if record was created
+                        verify_result = db.select(f"{table}:{processed_data.get('id')}")
+                        if verify_result and len(verify_result) > 0:
+                            logger.info(f"Record verified in {table}: {processed_data.get('id')}")
+                            return self._make_serializable(verify_result[0] if isinstance(verify_result, list) else verify_result)
+                        else:
+                            logger.error(f"Failed to create record in {table}")
+                            return None
+                except Exception as create_error:
+                    logger.error(f"Error during db.create: {create_error}")
+                    import traceback
+                    logger.error(f"Create error details: {traceback.format_exc()}")
+                    return None
         except Exception as e:
-            logger.error(f"Create record failed: {e}")
+            logger.error(f"Create record failed: {e}, table: {table}, record_id: {record_data.get('id')}")
+            import traceback
+            logger.error(f"Create record error details: {traceback.format_exc()}")
             return None
     
     def get_records(self, table: str, condition: str = "", limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
@@ -277,6 +293,69 @@ class UnifiedSurrealClient:
             logger.error(f"Delete record failed: {e}")
             return False
     
+    def ensure_table_exists(self, table: str) -> bool:
+        """
+        Ensure a table exists without specifying fields.
+        This is a simpler version that just makes sure the table can be used.
+        
+        Args:
+            table: Table name
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # First check if table exists by querying it
+            check_sql = f"SELECT count() FROM {table} LIMIT 1;"
+            try:
+                self.execute_sql(check_sql)
+                # If we get here, table exists
+                logger.info(f"Table {table} already exists")
+                return True
+            except Exception as check_error:
+                # Table might not exist, try to create it
+                logger.info(f"Table {table} might not exist, creating it: {check_error}")
+                pass
+            
+            # Create table with minimal definition if it doesn't exist
+            create_sql = f"DEFINE TABLE {table} SCHEMAFULL;"
+            self.execute_sql(create_sql)
+            logger.info(f"Table {table} created successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Ensure table exists failed for {table}: {e}")
+            return False
+
+    def _make_serializable(self, data: Any) -> Any:
+        """
+        Convert SurrealDB objects to serializable Python types.
+        
+        Args:
+            data: The data to convert
+            
+        Returns:
+            JSON serializable data
+        """
+        if data is None:
+            return None
+            
+        if isinstance(data, dict):
+            result = {}
+            for key, value in data.items():
+                result[key] = self._make_serializable(value)
+            return result
+        elif isinstance(data, list):
+            return [self._make_serializable(item) for item in data]
+        elif hasattr(data, 'table_name') and hasattr(data, 'record_id'):
+            # Handle SurrealDB RecordID objects
+            return f"{data.table_name}:{data.record_id}"
+        elif hasattr(data, '__dict__'):
+            # Handle other objects with __dict__
+            return self._make_serializable(data.__dict__)
+        else:
+            # Return primitive types as is
+            return data
+    
     def ensure_table(self, table: str, fields: Dict[str, str]) -> bool:
         """
         Ensure a table exists with the specified fields.
@@ -289,14 +368,19 @@ class UnifiedSurrealClient:
             True if successful, False otherwise
         """
         try:
-            sql_statements = [f"DEFINE TABLE {table} SCHEMAFULL;"]
+            # First ensure table exists
+            self.ensure_table_exists(table)
+            
+            # Then define fields
+            sql_statements = []
             
             for field_name, field_type in fields.items():
                 sql_statements.append(f"DEFINE FIELD {field_name} ON {table} TYPE {field_type};")
             
-            sql = " ".join(sql_statements)
-            
-            self.execute_sql(sql)
+            if sql_statements:
+                sql = " ".join(sql_statements)
+                self.execute_sql(sql)
+                
             logger.info(f"Table {table} ensured with fields: {fields}")
             return True
             

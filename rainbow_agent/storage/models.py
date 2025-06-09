@@ -39,6 +39,7 @@ class SessionModel:
         self.created_at = "time::now()"
         self.updated_at = "time::now()"
         self.last_activity_at = "time::now()"
+        self.status = "active"  # 添加status字段，默认为active
         self.summary = summary
         self.topics = topics or []
         self.sentiment = sentiment
@@ -58,6 +59,7 @@ class SessionModel:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "last_activity_at": self.last_activity_at,
+            "status": self.status,
             "summary": self.summary,
             "topics": self.topics,
             "sentiment": self.sentiment,
@@ -84,6 +86,7 @@ class SessionModel:
             metadata=data.get("metadata", {})
         )
         session.id = data.get("id", session.id)
+        session.status = data.get("status", "active")  # 处理status字段
         
         # 处理时间字段
         if "created_at" in data and not isinstance(data["created_at"], str):
@@ -120,7 +123,13 @@ class TurnModel:
             metadata: 其他元数据
         """
         self.id = str(uuid.uuid4()).replace('-', '')
-        self.session_id = session_id
+        # 处理session_id为对象的情况
+        if isinstance(session_id, dict) and 'id' in session_id:
+            self.session_id = session_id['id']
+        elif hasattr(session_id, 'id') and hasattr(session_id, 'table_name'):
+            self.session_id = session_id.id
+        else:
+            self.session_id = str(session_id)
         self.role = role
         self.content = content
         self.created_at = "time::now()"

@@ -13,6 +13,7 @@ import uuid
 import asyncio
 from datetime import datetime
 from dotenv import load_dotenv
+from json import JSONEncoder
 
 # Load environment variables from .env file
 load_dotenv()
@@ -39,8 +40,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 自定义JSON编码器，处理SurrealDB的RecordID类型
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        try:
+            # 检查对象是否有table_name和record_id属性（SurrealDB的RecordID类型特征）
+            if hasattr(obj, 'table_name') and hasattr(obj, 'record_id'):
+                return f"{obj.table_name}:{obj.record_id}"
+            # 处理其他自定义类型
+            return JSONEncoder.default(self, obj)
+        except TypeError:
+            # 如果无法序列化，则转换为字符串
+            return str(obj)
+
 # Create Flask app
 app = Flask(__name__, static_folder='static')
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
+app.json_encoder = CustomJSONEncoder  # 使用自定义JSON编码器
 CORS(app)  # Enable CORS for frontend cross-origin requests
 
 # Global variables
