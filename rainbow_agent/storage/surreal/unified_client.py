@@ -31,7 +31,7 @@ class UnifiedSurrealClient:
         Initialize the unified client.
         
         Args:
-            url: SurrealDB WebSocket URL (e.g., ws://localhost:8001/rpc)
+            url: SurrealDB WebSocket URL (e.g., ws://localhost:8000/rpc)
             namespace: SurrealDB namespace
             database: SurrealDB database name
             username: SurrealDB username

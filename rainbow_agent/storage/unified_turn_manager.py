@@ -28,7 +28,7 @@ class UnifiedTurnManager:
     """
     
     def __init__(self, 
-                 url: str = "ws://localhost:8001/rpc",
+                 url: str = "ws://localhost:8000/rpc",
                  namespace: str = "rainbow",
                  database: str = "test",
                  username: str = "root",

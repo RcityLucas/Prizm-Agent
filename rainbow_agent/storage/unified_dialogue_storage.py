@@ -12,6 +12,7 @@ from datetime import datetime
 from .unified_session_manager import UnifiedSessionManager
 from .unified_turn_manager import UnifiedTurnManager
 from .memory_storage import get_memory_storage
+from .config import get_surreal_config
 
 logger = logging.getLogger(__name__)
 
@@ -26,23 +27,39 @@ class UnifiedDialogueStorage:
     """
     
     def __init__(self, 
-                 url: str = "ws://localhost:8001/rpc",
-                 namespace: str = "rainbow",
-                 database: str = "test",
-                 username: str = "root",
-                 password: str = "root"):
+                 url: Optional[str] = None,
+                 namespace: Optional[str] = None,
+                 database: Optional[str] = None,
+                 username: Optional[str] = None,
+                 password: Optional[str] = None):
         """
         Initialize the unified dialogue storage system.
         
         Args:
-            url: SurrealDB WebSocket URL
-            namespace: SurrealDB namespace
-            database: SurrealDB database name
-            username: SurrealDB username
-            password: SurrealDB password
+            url: SurrealDB WebSocket URL (optional, uses config if not provided)
+            namespace: SurrealDB namespace (optional, uses config if not provided)
+            database: SurrealDB database name (optional, uses config if not provided)
+            username: SurrealDB username (optional, uses config if not provided)
+            password: SurrealDB password (optional, uses config if not provided)
         """
-        self.session_manager = UnifiedSessionManager(url, namespace, database, username, password)
-        self.turn_manager = UnifiedTurnManager(url, namespace, database, username, password)
+        # Get configuration
+        config = get_surreal_config()
+        
+        # Use provided values or fall back to config
+        self.url = url or config["url"]
+        self.namespace = namespace or config["namespace"]
+        self.database = database or config["database"]
+        self.username = username or config["username"]
+        self.password = password or config["password"]
+        self.health_url = config["health_url"]
+        
+        # Initialize managers with configuration
+        self.session_manager = UnifiedSessionManager(
+            self.url, self.namespace, self.database, self.username, self.password
+        )
+        self.turn_manager = UnifiedTurnManager(
+            self.url, self.namespace, self.database, self.username, self.password
+        )
         
         # Initialize memory storage as fallback
         self.memory_storage = get_memory_storage()
@@ -51,7 +68,7 @@ class UnifiedDialogueStorage:
         try:
             # First check if the HTTP endpoint is accessible
             import requests
-            response = requests.get("http://localhost:8001/health", timeout=2)
+            response = requests.get(self.health_url, timeout=2)
             if response.status_code == 200:
                 # Try a simple operation to check if database is working
                 test_sessions = self.session_manager.get_user_sessions("__connectivity_test__", limit=1)

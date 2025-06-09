@@ -56,18 +56,12 @@ def init_storage():
         if storage is None:
             logger.info("Initializing unified storage system...")
             
-            # Get SurrealDB configuration
+            # Get SurrealDB configuration for logging
             surreal_config = get_surreal_config()
             logger.info(f"SurrealDB configuration: {surreal_config}")
             
-            # Initialize unified storage
-            storage = UnifiedDialogueStorage(
-                url=surreal_config["url"],
-                namespace=surreal_config["namespace"],
-                database=surreal_config["database"],
-                username=surreal_config["username"],
-                password=surreal_config["password"]
-            )
+            # Initialize unified storage (uses configuration automatically)
+            storage = UnifiedDialogueStorage()
             
             # Initialize dialogue processor
             dialogue_processor = UnifiedDialogueProcessor(storage=storage)
