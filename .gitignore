@@ -19,13 +19,14 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-
+human_chat
 # Virtual Environment
 venv/
 ENV/
 .env
 .venv
 env/
+surreal-test/
 
 # IDE files
 .idea/
@@ -42,6 +43,8 @@ instance/
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
 
 # SurrealDB
 *.surql
@@ -84,3 +87,15 @@ MANIFEST
 # Project specific
 rainbow_agent.db
 *.db-journal
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Cache directories
+.cache/
+.pytest_cache/
+.mypy_cache/
