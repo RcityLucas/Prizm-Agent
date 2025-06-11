@@ -8,8 +8,9 @@ import uuid
 import logging
 import threading
 import sqlite3
+import asyncio
 from datetime import datetime
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple, Optional, Union
 
 from rainbow_agent.utils.logger import get_logger
 from rainbow_agent.core.dialogue_manager import DIALOGUE_TYPES
@@ -386,14 +387,18 @@ class DialogueProcessor:
         
         Args:
             session_manager: 会话管理器实例
-            dialogue_manager: 对话管理器实例
+            dialogue_manager: 对话管理器实例，应包含频率感知系统和上下文构建器
             multi_modal_manager: 多模态管理器实例
         """
         self.session_manager = session_manager
         self.dialogue_manager = dialogue_manager
         self.multi_modal_manager = multi_modal_manager
+        
+        # 检查对话管理器是否包含频率感知系统
+        self.has_frequency_system = hasattr(dialogue_manager, 'frequency_integrator') and dialogue_manager.frequency_integrator is not None
+        logger.info(f"对话处理器初始化完成，频率感知系统：{'已启用' if self.has_frequency_system else '未启用'}")
     
-    def process_input(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+    async def process_input(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
         """
         处理用户输入，生成AI响应
         
@@ -466,13 +471,56 @@ class DialogueProcessor:
             turn_id = str(uuid.uuid4())
             
             # 调用对话管理器处理输入
-            ai_response = self.dialogue_manager.process_input(
-                session_id=session_id,
-                user_id=user_id,
-                content=content,
-                input_type="text",
-                metadata=metadata
-            )
+            try:
+                # 检查是否是异步方法
+                if asyncio.iscoroutinefunction(self.dialogue_manager.process_input):
+                    # 创建事件循环并运行异步方法
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    ai_response = loop.run_until_complete(self.dialogue_manager.process_input(
+                        session_id=session_id,
+                        user_id=user_id,
+                        content=content,
+                        input_type="text",
+                        metadata=metadata
+                    ))
+                    loop.close()
+                else:
+                    # 同步调用
+                    ai_response = self.dialogue_manager.process_input(
+                        session_id=session_id,
+                        user_id=user_id,
+                        content=content,
+                        input_type="text",
+                        metadata=metadata
+                    )
+                
+                # 如果启用了频率感知系统，在响应中添加频率相关元数据
+                if self.has_frequency_system and hasattr(self.dialogue_manager, 'frequency_integrator'):
+                    if 'metadata' not in ai_response:
+                        ai_response['metadata'] = {}
+                    
+                    # 添加频率感知系统相关信息
+                    ai_response['metadata']['frequency_aware'] = True
+                    
+                    # 尝试获取用户的关系阶段
+                    try:
+                        if asyncio.iscoroutinefunction(self.dialogue_manager.frequency_integrator.get_relationship_stage):
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            relationship_stage = loop.run_until_complete(
+                                self.dialogue_manager.frequency_integrator.get_relationship_stage(user_id)
+                            )
+                            loop.close()
+                        else:
+                            relationship_stage = self.dialogue_manager.frequency_integrator.get_relationship_stage(user_id)
+                        
+                        ai_response['metadata']['relationship_stage'] = relationship_stage
+                    except Exception as e:
+                        logger.warning(f"获取用户关系阶段失败: {e}")
+            except Exception as e:
+                logger.error(f"调用对话管理器处理输入失败: {e}")
+                raise
             
             # 确保响应包含所有必要字段
             response = self._ensure_response_fields(ai_response, session_id, content)
@@ -558,6 +606,39 @@ class DialogueProcessor:
         
         if "success" not in response:
             response["success"] = True
+        
+        # 确保元数据字段存在
+        if "metadata" not in response:
+            response["metadata"] = {}
+        
+        # 添加频率感知系统标记
+        if self.has_frequency_system:
+            response["metadata"]["frequency_aware"] = True
+            
+            # 如果对话管理器有频率集成器，添加更多元数据
+            if hasattr(self.dialogue_manager, 'frequency_integrator'):
+                # 获取用户ID
+                user_id = response.get("userId", "default_user")
+                
+                # 添加频率感知系统版本信息
+                response["metadata"]["frequency_system_version"] = "1.0"
+                
+                # 如果响应中没有关系阶段信息，尝试获取
+                if "relationship_stage" not in response["metadata"] and user_id:
+                    try:
+                        if asyncio.iscoroutinefunction(self.dialogue_manager.frequency_integrator.get_relationship_stage):
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            relationship_stage = loop.run_until_complete(
+                                self.dialogue_manager.frequency_integrator.get_relationship_stage(user_id)
+                            )
+                            loop.close()
+                        else:
+                            relationship_stage = self.dialogue_manager.frequency_integrator.get_relationship_stage(user_id)
+                        
+                        response["metadata"]["relationship_stage"] = relationship_stage
+                    except Exception as e:
+                        logger.warning(f"获取用户关系阶段失败: {e}")
         
         return response
     

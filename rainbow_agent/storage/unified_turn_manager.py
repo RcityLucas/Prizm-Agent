@@ -32,9 +32,10 @@ class UnifiedTurnManager:
                  namespace: str = "rainbow",
                  database: str = "test",
                  username: str = "root",
-                 password: str = "root"):
+                 password: str = "root",
+                 client: Optional[Any] = None):
         """
-        Initialize the unified turn manager.
+        Initialize the turn manager.
         
         Args:
             url: SurrealDB WebSocket URL
@@ -42,9 +43,25 @@ class UnifiedTurnManager:
             database: SurrealDB database name
             username: SurrealDB username
             password: SurrealDB password
+            client: Optional external UnifiedSurrealClient instance
         """
-        self.client = UnifiedSurrealClient(url, namespace, database, username, password)
+        # 保存连接参数，以便需要时重新创建客户端
+        self.url = url
+        self.namespace = namespace
+        self.database = database
+        self.username = username
+        self.password = password
         
+        # 使用外部提供的客户端或创建新客户端
+        if client:
+            self.client = client
+            logger.info("UnifiedTurnManager using provided client instance")
+        else:
+            # 创建持久UnifiedSurrealClient实例
+            from .surreal.unified_client import UnifiedSurrealClient
+            self.client = UnifiedSurrealClient(url, namespace, database, username, password)
+            logger.info("UnifiedTurnManager created new client instance")
+            
         # Ensure table structure exists
         self._ensure_table_structure()
         

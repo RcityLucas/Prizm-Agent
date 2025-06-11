@@ -12,11 +12,20 @@
 """
 import logging
 import uuid
-from typing import Dict, Any, List, Optional, Tuple, Union
+import asyncio
 from datetime import datetime
+from typing import Dict, Any, List, Optional, Tuple
 
 from rainbow_agent.ai.openai_service import OpenAIService
 from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
+from rainbow_agent.core.context_builder import ContextBuilder
+from rainbow_agent.memory.memory import Memory
+from rainbow_agent.frequency.frequency_integrator import FrequencyIntegrator
+from rainbow_agent.frequency.frequency_sense_core import FrequencySenseCore
+from rainbow_agent.frequency.expression_planner import ExpressionPlanner
+from rainbow_agent.frequency.expression_generator import ExpressionGenerator
+from rainbow_agent.frequency.expression_dispatcher import ExpressionDispatcher
+from rainbow_agent.utils.logger import get_logger
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -37,22 +46,48 @@ class DialogueManager:
     
     def __init__(self, 
                  storage: Optional[UnifiedDialogueStorage] = None,
-                 ai_service: Optional[OpenAIService] = None):
+                 ai_service: Optional[OpenAIService] = None,
+                 memory: Optional[Memory] = None,
+                 frequency_integrator: Optional[FrequencyIntegrator] = None):
         """初始化对话管理器
         
         Args:
             storage: 统一对话存储实例，如果不提供则创建新实例
             ai_service: AI服务实例，如果不提供则创建新实例
+            memory: 记忆系统实例，如果不提供则为None
+            frequency_integrator: 频率集成器实例，如果不提供则创建新实例
         """
         # 初始化组件
         self.storage = storage or UnifiedDialogueStorage()
         self.ai_service = ai_service or OpenAIService()
+        self.memory = memory
         
-        # 初始化工具调用器和上下文构建器
+        # 初始化上下文构建器
+        self.context_builder = ContextBuilder(memory=self.memory) if self.memory else None
+        
+        # 初始化频率感知系统
+        if frequency_integrator:
+            self.frequency_integrator = frequency_integrator
+        elif self.memory:
+            # 如果有记忆系统但没有提供频率集成器，则创建一个新的
+            frequency_sense_core = FrequencySenseCore(memory=self.memory)
+            expression_planner = ExpressionPlanner(memory=self.memory)
+            expression_generator = ExpressionGenerator(ai_service=self.ai_service)
+            expression_dispatcher = ExpressionDispatcher()
+            self.frequency_integrator = FrequencyIntegrator(
+                frequency_sense_core=frequency_sense_core,
+                expression_planner=expression_planner,
+                expression_generator=expression_generator,
+                expression_dispatcher=expression_dispatcher
+            )
+        else:
+            self.frequency_integrator = None
+        
+        # 初始化工具调用器
         self.tool_invoker = None  # 将在后续实现
-        self.context_builder = None  # 将在后续实现
         
-        logger.info("对话管理器初始化成功")
+        logger.info("对话管理器初始化成功，频率感知系统：{}".
+                   format("已启用" if self.frequency_integrator else "未启用"))
     
     async def create_session(self, 
                             user_id: str, 
@@ -162,7 +197,15 @@ class DialogueManager:
             # 5. 创建AI轮次
             ai_turn = await self.create_turn(session_id, "ai", response_content, response_metadata)
             
-            # 6. 返回结果
+            # 6. 更新用户信息（如果频率集成器可用）
+            if self.frequency_integrator and self.memory:
+                try:
+                    # 更新用户交互计数
+                    await self._update_user_interaction_count(user_id)
+                except Exception as e:
+                    logger.error(f"更新用户交互计数失败: {e}")
+            
+            # 7. 返回结果
             return {
                 "id": str(uuid.uuid4()),
                 "input": content,
@@ -297,11 +340,29 @@ class DialogueManager:
             (响应内容, 响应元数据)
         """
         try:
-            # 格式化对话历史
-            messages = self.ai_service.format_dialogue_history(turns)
-            
-            # 添加当前用户输入到消息列表
-            messages.append({"role": "user", "content": content})
+            # 使用上下文构建器构建上下文（如果可用）
+            if self.context_builder:
+                context = await self.context_builder.build_async(
+                    user_input=content,
+                    session_id=session_id,
+                    user_id=user_id,
+                    input_type=metadata.get("input_type", "text") if metadata else "text"
+                )
+                messages = context["messages"]
+                
+                # 记录频率信息（如果频率集成器可用）
+                if self.frequency_integrator:
+                    await self.frequency_integrator.record_interaction(
+                        user_id=user_id,
+                        session_id=session_id,
+                        interaction_type="user_message",
+                        content=content,
+                        context=context
+                    )
+            else:
+                # 如果上下文构建器不可用，则使用传统方法
+                messages = self.ai_service.format_dialogue_history(turns)
+                messages.append({"role": "user", "content": content})
             
             # 调用AI服务生成响应
             response = self.ai_service.generate_response(messages)
@@ -311,8 +372,16 @@ class DialogueManager:
                 "processed_at": datetime.now().isoformat(),
                 "dialogue_type": DIALOGUE_TYPES["HUMAN_AI_PRIVATE"],
                 "tools_used": [],
-                "model": "gpt-3.5-turbo"  # 可以从配置中获取
+                "model": self.ai_service.model_name if hasattr(self.ai_service, "model_name") else "gpt-3.5-turbo"
             }
+            
+            # 如果频率集成器可用，添加频率相关元数据
+            if self.frequency_integrator:
+                frequency_data = await self.frequency_integrator.analyze_interaction(
+                    user_id=user_id,
+                    session_id=session_id
+                )
+                response_metadata["frequency_data"] = frequency_data
             
             return response, response_metadata
         except Exception as e:
@@ -452,6 +521,9 @@ class DialogueManager:
             "model": "gpt-3.5-turbo",  # 可以从配置中获取
             "user_id": user_id  # 记录发言者ID
         }
+        
+        # 更新用户交互计数
+        await self._update_user_interaction_count(user_id)
         
         return response, response_metadata
     

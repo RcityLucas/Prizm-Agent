@@ -27,38 +27,47 @@ class UnifiedDialogueStorage:
     """
     
     def __init__(self, 
-                 url: Optional[str] = None,
-                 namespace: Optional[str] = None,
-                 database: Optional[str] = None,
-                 username: Optional[str] = None,
-                 password: Optional[str] = None):
+                 url: str = "ws://localhost:8000/rpc",
+                 namespace: str = "rainbow",
+                 database: str = "test",
+                 username: str = "root",
+                 password: str = "root"):
         """
-        Initialize the unified dialogue storage system.
+        Initialize the unified dialogue storage.
         
         Args:
-            url: SurrealDB WebSocket URL (optional, uses config if not provided)
-            namespace: SurrealDB namespace (optional, uses config if not provided)
-            database: SurrealDB database name (optional, uses config if not provided)
-            username: SurrealDB username (optional, uses config if not provided)
-            password: SurrealDB password (optional, uses config if not provided)
+            url: SurrealDB WebSocket URL
+            namespace: SurrealDB namespace
+            database: SurrealDB database name
+            username: SurrealDB username
+            password: SurrealDB password
         """
-        # Get configuration
+        self.url = url
+        self.namespace = namespace
+        self.database = database
+        self.username = username
+        self.password = password
+        
+        # 获取健康检查URL
         config = get_surreal_config()
+        self.health_url = config.get("health_url", self.url.replace("ws://", "http://").replace("/rpc", "/health"))
         
-        # Use provided values or fall back to config
-        self.url = url or config["url"]
-        self.namespace = namespace or config["namespace"]
-        self.database = database or config["database"]
-        self.username = username or config["username"]
-        self.password = password or config["password"]
-        self.health_url = config["health_url"]
-        
-        # Initialize managers with configuration
-        self.session_manager = UnifiedSessionManager(
+        # 创建一个共享的UnifiedSurrealClient实例
+        from .surreal.unified_client import UnifiedSurrealClient
+        self.shared_client = UnifiedSurrealClient(
             self.url, self.namespace, self.database, self.username, self.password
         )
+        
+        # 初始化管理器并直接传递共享客户端实例
+        self.session_manager = UnifiedSessionManager(
+            url=self.url, namespace=self.namespace, database=self.database, 
+            username=self.username, password=self.password,
+            client=self.shared_client
+        )
         self.turn_manager = UnifiedTurnManager(
-            self.url, self.namespace, self.database, self.username, self.password
+            url=self.url, namespace=self.namespace, database=self.database, 
+            username=self.username, password=self.password,
+            client=self.shared_client
         )
         
         # Initialize memory storage as fallback

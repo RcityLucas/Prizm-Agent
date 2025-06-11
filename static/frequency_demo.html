@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rainbow Agent - Frequency-Aware System Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            background-color: white;
+            margin-bottom: 15px;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            align-self: flex-end;
+            margin-left: 20%;
+        }
+        .ai-message {
+            background-color: #f1f1f1;
+            align-self: flex-start;
+            margin-right: 20%;
+        }
+        .proactive-message {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+        .system-message {
+            background-color: #d1e7dd;
+            text-align: center;
+            font-style: italic;
+        }
+        .connection-status {
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+        }
+        .connected {
+            color: green;
+        }
+        .disconnected {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Rainbow Agent - Frequency-Aware System Demo</h1>
+        
+        <div class="row mb-3">
+            <div class="col">
+                <div class="connection-status">
+                    WebSocket: <span id="connection-status" class="disconnected">Disconnected</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-3">
+            <div class="col">
+                <div class="input-group">
+                    <input type="text" id="user-id" class="form-control" placeholder="Enter User ID" value="user1">
+                    <button id="connect-btn" class="btn btn-primary">Connect</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-3">
+            <div class="col">
+                <div class="input-group">
+                    <input type="text" id="session-id" class="form-control" placeholder="Enter Session ID" value="session1">
+                    <button id="create-session-btn" class="btn btn-secondary">Create Session</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col">
+                <div class="chat-container" id="chat-container">
+                    <div class="system-message message">Welcome to the Frequency-Aware System Demo</div>
+                </div>
+                
+                <div class="input-group mb-3">
+                    <input type="text" id="message-input" class="form-control" placeholder="Type your message...">
+                    <button id="send-btn" class="btn btn-primary">Send</button>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col">
+                        <button id="trigger-greeting-btn" class="btn btn-warning">Trigger Greeting</button>
+                        <button id="trigger-farewell-btn" class="btn btn-warning">Trigger Farewell</button>
+                        <button id="trigger-reminder-btn" class="btn btn-warning">Trigger Reminder</button>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col">
+                        <button id="get-settings-btn" class="btn btn-info">Get Settings</button>
+                        <button id="update-settings-btn" class="btn btn-success">Update Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script>
+        // 全局变量
+        let socket;
+        let userId;
+        let sessionId;
+        
+        // DOM元素
+        const connectBtn = document.getElementById('connect-btn');
+        const createSessionBtn = document.getElementById('create-session-btn');
+        const sendBtn = document.getElementById('send-btn');
+        const messageInput = document.getElementById('message-input');
+        const chatContainer = document.getElementById('chat-container');
+        const userIdInput = document.getElementById('user-id');
+        const sessionIdInput = document.getElementById('session-id');
+        const connectionStatus = document.getElementById('connection-status');
+        const triggerGreetingBtn = document.getElementById('trigger-greeting-btn');
+        const triggerFarewellBtn = document.getElementById('trigger-farewell-btn');
+        const triggerReminderBtn = document.getElementById('trigger-reminder-btn');
+        const getSettingsBtn = document.getElementById('get-settings-btn');
+        const updateSettingsBtn = document.getElementById('update-settings-btn');
+        
+        // 初始化
+        function init() {
+            connectBtn.addEventListener('click', connectWebSocket);
+            createSessionBtn.addEventListener('click', createSession);
+            sendBtn.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
+            triggerGreetingBtn.addEventListener('click', () => triggerExpression('greeting'));
+            triggerFarewellBtn.addEventListener('click', () => triggerExpression('farewell'));
+            triggerReminderBtn.addEventListener('click', () => triggerExpression('reminder'));
+            getSettingsBtn.addEventListener('click', getFrequencySettings);
+            updateSettingsBtn.addEventListener('click', updateFrequencySettings);
+        }
+        
+        // 连接WebSocket
+        function connectWebSocket() {
+            userId = userIdInput.value.trim();
+            if (!userId) {
+                addSystemMessage('Please enter a User ID');
+                return;
+            }
+            
+            // 创建Socket.IO连接
+            socket = io();
+            
+            // 连接事件
+            socket.on('connect', () => {
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.classList.remove('disconnected');
+                connectionStatus.classList.add('connected');
+                addSystemMessage('WebSocket connected');
+                
+                // 注册用户
+                socket.emit('register_user', { userId });
+            });
+            
+            // 断开连接事件
+            socket.on('disconnect', () => {
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.classList.remove('connected');
+                connectionStatus.classList.add('disconnected');
+                addSystemMessage('WebSocket disconnected');
+            });
+            
+            // 注册成功事件
+            socket.on('registered', (data) => {
+                if (data.status === 'success') {
+                    addSystemMessage(`User ${data.userId} registered successfully`);
+                } else {
+                    addSystemMessage(`Registration failed: ${data.message}`);
+                }
+            });
+            
+            // 主动表达事件
+            socket.on('proactive_expression', (expression) => {
+                addProactiveMessage(expression);
+            });
+        }
+        
+        // 创建会话
+        function createSession() {
+            sessionId = sessionIdInput.value.trim();
+            if (!sessionId) {
+                addSystemMessage('Please enter a Session ID');
+                return;
+            }
+            
+            if (!userId) {
+                addSystemMessage('Please connect with a User ID first');
+                return;
+            }
+            
+            fetch('/api/dialogue/sessions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: userId,
+                    title: `Session for ${userId}`,
+                    dialogueType: 'human_to_ai_private'
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    sessionId = data.id || data.sessionId;
+                    sessionIdInput.value = sessionId;
+                    addSystemMessage(`Session created: ${sessionId}`);
+                } else {
+                    addSystemMessage(`Failed to create session: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addSystemMessage(`Error: ${error.message}`);
+            });
+        }
+        
+        // 发送消息
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            if (!userId || !sessionId) {
+                addSystemMessage('Please connect and create a session first');
+                return;
+            }
+            
+            // 添加用户消息到聊天窗口
+            addUserMessage(message);
+            
+            // 清空输入框
+            messageInput.value = '';
+            
+            // 发送到API
+            fetch('/api/dialogue/input', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sessionId: sessionId,
+                    userId: userId,
+                    input: message
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addAIMessage(data.response);
+                    
+                    // 显示频率感知系统元数据（如果有）
+                    if (data.metadata && data.metadata.frequency_aware) {
+                        const relationshipStage = data.metadata.relationship_stage || 'unknown';
+                        addSystemMessage(`Frequency System: Relationship Stage - ${relationshipStage}`);
+                    }
+                } else {
+                    addSystemMessage(`Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addSystemMessage(`Error: ${error.message}`);
+            });
+        }
+        
+        // 触发表达
+        function triggerExpression(expressionType) {
+            if (!userId || !sessionId) {
+                addSystemMessage('Please connect and create a session first');
+                return;
+            }
+            
+            fetch('/api/frequency/trigger', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: userId,
+                    sessionId: sessionId,
+                    expressionType: expressionType
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addSystemMessage(`Triggered ${expressionType} expression`);
+                    if (data.expression) {
+                        addProactiveMessage(data.expression);
+                    }
+                } else {
+                    addSystemMessage(`Failed to trigger expression: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addSystemMessage(`Error: ${error.message}`);
+            });
+        }
+        
+        // 获取频率设置
+        function getFrequencySettings() {
+            if (!userId) {
+                addSystemMessage('Please connect with a User ID first');
+                return;
+            }
+            
+            fetch(`/api/frequency/settings?userId=${userId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const settings = data.data || data.settings;
+                    addSystemMessage(`Frequency Settings: ${JSON.stringify(settings, null, 2)}`);
+                } else {
+                    addSystemMessage(`Failed to get settings: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addSystemMessage(`Error: ${error.message}`);
+            });
+        }
+        
+        // 更新频率设置
+        function updateFrequencySettings() {
+            if (!userId) {
+                addSystemMessage('Please connect with a User ID first');
+                return;
+            }
+            
+            const settings = {
+                userId: userId,
+                enabled: true,
+                expressionFrequency: 'medium',
+                expressionTypes: ['greeting', 'farewell', 'reminder']
+            };
+            
+            fetch('/api/frequency/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(settings),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addSystemMessage(`Settings updated: ${data.message}`);
+                } else {
+                    addSystemMessage(`Failed to update settings: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addSystemMessage(`Error: ${error.message}`);
+            });
+        }
+        
+        // 添加用户消息
+        function addUserMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', 'user-message');
+            messageElement.textContent = message;
+            chatContainer.appendChild(messageElement);
+            scrollToBottom();
+        }
+        
+        // 添加AI消息
+        function addAIMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', 'ai-message');
+            messageElement.textContent = message;
+            chatContainer.appendChild(messageElement);
+            scrollToBottom();
+        }
+        
+        // 添加主动表达消息
+        function addProactiveMessage(expression) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', 'proactive-message');
+            
+            const typeSpan = document.createElement('span');
+            typeSpan.style.fontWeight = 'bold';
+            typeSpan.textContent = `[${expression.type}] `;
+            
+            const contentSpan = document.createElement('span');
+            contentSpan.textContent = expression.content.content || expression.content;
+            
+            messageElement.appendChild(typeSpan);
+            messageElement.appendChild(contentSpan);
+            chatContainer.appendChild(messageElement);
+            scrollToBottom();
+        }
+        
+        // 添加系统消息
+        function addSystemMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', 'system-message');
+            messageElement.textContent = message;
+            chatContainer.appendChild(messageElement);
+            scrollToBottom();
+        }
+        
+        // 滚动到底部
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // 初始化应用
+        init();
+    </script>
+</body>
+</html>

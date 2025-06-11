@@ -18,6 +18,9 @@ from werkzeug.utils import secure_filename
 from rainbow_agent.core.dialogue_manager import DialogueManager, DIALOGUE_TYPES
 from rainbow_agent.api.dialogue_processor import DialogueProcessor, SessionManager
 from rainbow_agent.core.multi_modal_manager import MultiModalToolManager
+from rainbow_agent.memory.memory import Memory
+from rainbow_agent.memory.surreal_memory import SurrealMemory
+from rainbow_agent.frequency.frequency_integrator import FrequencyIntegrator
 from rainbow_agent.utils.logger import get_logger
 
 # 配置日志
@@ -45,8 +48,17 @@ def init_api_components():
         # 初始化会话管理器
         session_manager = SessionManager()
         
-        # 初始化对话管理器
-        dialogue_manager = DialogueManager()
+        # 初始化记忆系统
+        try:
+            # 尝试初始化SurrealDB记忆系统
+            memory = SurrealMemory()
+            logger.info("SurrealDB记忆系统初始化成功")
+        except Exception as e:
+            logger.warning(f"SurrealDB记忆系统初始化失败: {e}，将使用空记忆系统")
+            memory = None
+        
+        # 初始化对话管理器（包含频率感知系统）
+        dialogue_manager = DialogueManager(storage=session_manager, memory=memory)
         
         # 初始化多模态管理器
         multi_modal_manager = MultiModalToolManager()
@@ -58,7 +70,8 @@ def init_api_components():
             multi_modal_manager=multi_modal_manager
         )
         
-        logger.info("API组件初始化完成")
+        logger.info("API组件初始化完成，频率感知系统：{}".
+                   format("已启用" if dialogue_manager.frequency_integrator else "未启用"))
         _initialized = True
 
 # 会话管理API
@@ -251,12 +264,37 @@ def process_input():
         
         # 处理输入
         response, status_code = dialogue_processor.process_input(data)
+        
+        # 检查是否启用了频率感知系统
+        if hasattr(dialogue_manager, 'frequency_integrator') and dialogue_manager.frequency_integrator:
+            # 获取用户ID和会话ID
+            user_id = data.get('userId', 'default_user')
+            session_id = data.get('sessionId')
+            
+            # 异步更新用户交互计数（不阻塞响应）
+            try:
+                import threading
+                update_thread = threading.Thread(
+                    target=dialogue_manager.frequency_integrator.record_interaction,
+                    args=(user_id, session_id, "user_input")
+                )
+                update_thread.daemon = True
+                update_thread.start()
+                logger.debug(f"异步更新用户交互计数: {user_id}")
+            except Exception as e:
+                logger.warning(f"更新用户交互计数失败: {e}")
+        
         return jsonify(response), status_code
     except Exception as e:
         logger.error(f"处理输入失败: {e}")
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(error_traceback)
+        
         return jsonify({
             "success": False,
             "error": str(e),
+            "traceback": error_traceback,
             "sessionId": request.json.get("sessionId", ""),
             "input": request.json.get("input", ""),
             "response": f"处理输入时出现错误: {str(e)}",
@@ -556,6 +594,177 @@ def get_uploaded_file(filename):
             "success": False,
             "error": str(e)
         }), 404
+
+# 频率感知系统API
+@api.route('/frequency/expressions', methods=['GET'])
+def get_pending_expressions():
+    """获取待处理的主动表达"""
+    init_api_components()
+    
+    try:
+        # 解析请求参数
+        user_id = request.args.get('userId')
+        session_id = request.args.get('sessionId')
+        
+        if not user_id:
+            return jsonify({
+                "success": False,
+                "error": "缺少必要参数: userId"
+            }), 400
+        
+        # 如果对话管理器没有频率集成器，返回空列表
+        if not dialogue_manager or not dialogue_manager.frequency_integrator:
+            return jsonify({
+                "success": True,
+                "data": {"expressions": []},
+                "expressions": [],
+                "message": "频率感知系统未启用"
+            })
+        
+        # 获取待处理的主动表达
+        expressions = dialogue_manager.frequency_integrator.get_pending_expressions(user_id, session_id)
+        
+        return jsonify({
+            "success": True,
+            "data": {"expressions": expressions},
+            "expressions": expressions,
+            "total": len(expressions)
+        })
+    except Exception as e:
+        logger.error(f"获取待处理的主动表达失败: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@api.route('/frequency/settings', methods=['GET'])
+def get_frequency_settings():
+    """获取频率感知系统设置"""
+    init_api_components()
+    
+    try:
+        # 解析请求参数
+        user_id = request.args.get('userId')
+        
+        if not user_id:
+            return jsonify({
+                "success": False,
+                "error": "缺少必要参数: userId"
+            }), 400
+        
+        # 如果对话管理器没有频率集成器，返回默认设置
+        if not dialogue_manager or not dialogue_manager.frequency_integrator:
+            return jsonify({
+                "success": True,
+                "data": {
+                    "enabled": False,
+                    "expressionFrequency": "medium",
+                    "relationshipStage": "initial",
+                    "expressionTypes": ["greeting", "farewell", "reminder"]
+                },
+                "message": "频率感知系统未启用"
+            })
+        
+        # 获取用户的频率设置
+        settings = dialogue_manager.frequency_integrator.get_user_settings(user_id)
+        
+        return jsonify({
+            "success": True,
+            "data": settings,
+            "settings": settings
+        })
+    except Exception as e:
+        logger.error(f"获取频率感知系统设置失败: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@api.route('/frequency/settings', methods=['POST'])
+def update_frequency_settings():
+    """更新频率感知系统设置"""
+    init_api_components()
+    
+    try:
+        # 解析请求数据
+        data = request.json
+        user_id = data.get('userId')
+        
+        if not user_id:
+            return jsonify({
+                "success": False,
+                "error": "缺少必要参数: userId"
+            }), 400
+        
+        # 如果对话管理器没有频率集成器，返回错误
+        if not dialogue_manager or not dialogue_manager.frequency_integrator:
+            return jsonify({
+                "success": False,
+                "error": "频率感知系统未启用",
+                "message": "频率感知系统未启用"
+            }), 400
+        
+        # 更新用户的频率设置
+        settings = dialogue_manager.frequency_integrator.update_user_settings(user_id, data)
+        
+        return jsonify({
+            "success": True,
+            "data": settings,
+            "settings": settings,
+            "message": "频率感知系统设置已更新"
+        })
+    except Exception as e:
+        logger.error(f"更新频率感知系统设置失败: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@api.route('/frequency/trigger', methods=['POST'])
+def trigger_expression():
+    """触发主动表达"""
+    init_api_components()
+    
+    try:
+        # 解析请求数据
+        data = request.json
+        user_id = data.get('userId')
+        session_id = data.get('sessionId')
+        expression_type = data.get('expressionType', 'greeting')
+        
+        if not user_id or not session_id:
+            return jsonify({
+                "success": False,
+                "error": "缺少必要参数: userId 和 sessionId"
+            }), 400
+        
+        # 如果对话管理器没有频率集成器，返回错误
+        if not dialogue_manager or not dialogue_manager.frequency_integrator:
+            return jsonify({
+                "success": False,
+                "error": "频率感知系统未启用",
+                "message": "频率感知系统未启用"
+            }), 400
+        
+        # 触发主动表达
+        expression = dialogue_manager.frequency_integrator.trigger_expression(
+            user_id=user_id,
+            session_id=session_id,
+            expression_type=expression_type
+        )
+        
+        return jsonify({
+            "success": True,
+            "data": {"expression": expression},
+            "expression": expression,
+            "message": "主动表达已触发"
+        })
+    except Exception as e:
+        logger.error(f"触发主动表达失败: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 # 注册API路由
 def register_api_routes(app):

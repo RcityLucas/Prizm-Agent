@@ -56,7 +56,25 @@ class UnifiedSurrealClient:
         # Initialize HTTP client as fallback
         self.http_client = HTTPSurrealClient(url, namespace, database, username, password)
         
+        # 创建持久连接
+        self.persistent_db = None
+        self._init_persistent_connection()
+        
         logger.info(f"Unified SurrealDB client initialized: {self.ws_url}, {namespace}, {database}")
+        
+    def _init_persistent_connection(self):
+        """
+        初始化持久连接
+        """
+        try:
+            logger.info(f"创建持久连接到SurrealDB: {self.ws_url}")
+            self.persistent_db = Surreal(self.ws_url)
+            self.persistent_db.signin({"username": self.username, "password": self.password})
+            self.persistent_db.use(self.namespace, self.database)
+            logger.info("SurrealDB持久连接创建成功")
+        except Exception as e:
+            logger.error(f"创建SurrealDB持久连接失败: {e}")
+            self.persistent_db = None
     
     @contextmanager
     def get_connection(self):
@@ -100,37 +118,72 @@ class UnifiedSurrealClient:
         Returns:
             List of records or empty list on failure
         """
-        try:
-            # Try WebSocket connection first
-            with self.get_connection() as db:
-                logger.info(f"Executing SQL: {sql}")
-                try:
+        # 最多重试3次
+        max_retries = 3
+        retry_count = 0
+        last_error = None
+        
+        while retry_count < max_retries:
+            try:
+                # 优先使用持久连接执行查询
+                if self.persistent_db:
+                    try:
+                        logger.info(f"使用持久连接执行SQL: {sql}")
+                        result = self.persistent_db.query(sql)
+                        
+                        if not result:
+                            logger.warning(f"SQL查询返回空结果: {sql}")
+                            return []
+                        
+                        # 转换SurrealDB对象为可序列化的Python类型
+                        serializable_result = self._make_serializable(result)
+                        return serializable_result
+                    except Exception as e:
+                        if "Cannot operate on a closed database" in str(e):
+                            logger.warning(f"持久连接已关闭，尝试重新连接 (重试 {retry_count+1}/{max_retries}): {e}")
+                            # 重新初始化持久连接
+                            self._init_persistent_connection()
+                            retry_count += 1
+                            last_error = e
+                            continue
+                        else:
+                            logger.warning(f"持久连接执行SQL失败: {e}，尝试临时连接")
+                
+                # 如果持久连接不可用或执行失败，使用临时连接
+                with self.get_connection() as db:
+                    logger.info(f"使用临时连接执行SQL: {sql}")
                     result = db.query(sql)
                     
-                    # Parse the result - SurrealDB returns a list of result objects
                     if not result:
-                        logger.warning(f"SQL query returned empty result: {sql}")
+                        logger.warning(f"SQL查询返回空结果: {sql}")
                         return []
                     
-                    # Extract actual data from result
-                    records = []
-                    for result_item in result:
-                        if hasattr(result_item, 'result') and result_item.result:
-                            if isinstance(result_item.result, list):
-                                records.extend(result_item.result)
-                            else:
-                                records.append(result_item.result)
+                    # 转换SurrealDB对象为可序列化的Python类型
+                    serializable_result = self._make_serializable(result)
+                    return serializable_result
                     
-                    logger.info(f"SQL query returned {len(records)} records")
-                except Exception as query_error:
-                    logger.error(f"SQL query execution error: {query_error}, SQL: {sql}")
-                    raise query_error
-                return records
-                
-        except Exception as e:
-            logger.warning(f"WebSocket SQL execution failed, trying HTTP fallback: {e}")
-            # Fallback to HTTP client
-            return self.http_client.execute_sql(sql, params)
+            except Exception as e:
+                if "Cannot operate on a closed database" in str(e):
+                    logger.warning(f"数据库连接已关闭，尝试重新连接 (重试 {retry_count+1}/{max_retries}): {e}")
+                    # 重新初始化持久连接
+                    self._init_persistent_connection()
+                    retry_count += 1
+                    last_error = e
+                else:
+                    # 如果WebSocket失败，尝试HTTP回退
+                    logger.warning(f"WebSocket查询失败，尝试HTTP回退: {e}")
+                    try:
+                        result = self.http_client.execute_sql(sql)
+                        return result
+                    except Exception as http_error:
+                        logger.error(f"HTTP回退也失败了: {http_error}")
+                        last_error = http_error
+                        retry_count += 1
+        
+        # 如果所有重试都失败
+        if last_error:
+            logger.error(f"在 {max_retries} 次重试后执行SQL仍然失败: {last_error}")
+            raise last_error
     
     def create_record(self, table: str, record_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
