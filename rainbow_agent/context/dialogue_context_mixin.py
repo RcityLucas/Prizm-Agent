@@ -213,8 +213,8 @@ class DialogueManagerContextMixin:
             return ""
     
     def build_prompt_with_context(self, 
-                                   turns: List[Dict[str, Any]], 
-                                   metadata: Optional[Dict[str, Any]]) -> str:
+                                    turns: List[Dict[str, Any]], 
+                                    metadata: Optional[Dict[str, Any]]) -> str:
         """
         构建包含上下文的提示
         
@@ -263,6 +263,65 @@ class DialogueManagerContextMixin:
         logger.debug(f"构建带上下文的提示完成，原始提示长度: {len(base_prompt)}，增强后提示长度: {len(enhanced_prompt)}")
         
         return enhanced_prompt
+        
+    def build_messages_with_context(self, 
+                                     turns: List[Dict[str, Any]], 
+                                     metadata: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
+        """
+        构建包含上下文的消息列表
+        
+        Args:
+            turns: 对话历史轮次
+            metadata: 元数据（可能包含上下文）
+            
+        Returns:
+            包含上下文的消息列表
+        """
+        # 处理上下文
+        processed_context = self.process_context(metadata)
+        
+        # 将对话轮次转换为消息列表格式
+        messages = []
+        
+        # 提取最近的主题
+        recent_topic = self._extract_recent_topic(turns)
+        
+        # 构建系统消息内容
+        system_content = "你是一个有帮助的AI助手，请用简洁、准确、友好的方式回答用户的问题。"
+        
+        # 在系统消息中添加处理"继续"的指令
+        if turns and len(turns) > 0:
+            continuity_instruction = "\n\n特别注意：如果用户输入\"继续\"或类似表达，请继续展开上一个话题，不要开始新话题。"
+            system_content += continuity_instruction
+            
+            if recent_topic:
+                system_content += f"\n当用户说\"继续\"时，请继续提供关于主题 '{recent_topic}' 的信息。"
+        
+        # 添加系统消息
+        messages.append({
+            "role": "system",
+            "content": system_content
+        })
+        
+        # 添加对话历史
+        for turn in turns:
+            if isinstance(turn, dict):
+                role = turn.get('role', '')
+                content = turn.get('content', '')
+                
+                # 将 'human' 和 'ai' 角色映射到 OpenAI 的 'user' 和 'assistant' 角色
+                if role == "human":
+                    messages.append({"role": "user", "content": content})
+                elif role == "ai":
+                    messages.append({"role": "assistant", "content": content})
+        
+        # 注入上下文到消息列表
+        enhanced_messages = self.inject_context_to_messages(messages, processed_context)
+        
+        # 添加调试日志
+        logger.debug(f"构建带上下文的消息列表完成，原始消息数: {len(messages)}，增强后消息数: {len(enhanced_messages)}")
+        
+        return enhanced_messages
         
     def get_context_metadata(self, processed_context: Dict[str, Any]) -> Dict[str, Any]:
         """

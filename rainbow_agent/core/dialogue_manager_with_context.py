@@ -90,11 +90,11 @@ class EnhancedDialogueManager(DialogueManager, DialogueManagerContextMixin):
                 # 使用上下文增强功能
                 logger.info(f"使用上下文增强功能处理会话 {session_id}")
                 
-                # 构建带上下文的提示
-                prompt = self.build_prompt_with_context(turns, processed_context)
+                # 构建带上下文的消息列表
+                messages = self.build_messages_with_context(turns, processed_context)
                 
                 # 调用AI服务
-                response = await self.ai_service.generate_response(prompt)
+                response = await self.ai_service.generate_response(messages)
                 
                 # 添加上下文元数据
                 context_metadata = self.get_context_metadata(processed_context)
@@ -170,11 +170,11 @@ class EnhancedDialogueManager(DialogueManager, DialogueManagerContextMixin):
             # 使用上下文增强功能
             logger.info(f"使用上下文增强功能处理人类与AI私聊 {session_id}")
             
-            # 构建带上下文的提示
-            prompt = self.build_prompt_with_context(turns, processed_context)
+            # 构建带上下文的消息列表
+            messages = self.build_messages_with_context(turns, processed_context)
             
             # 调用AI服务
-            response = await self.ai_service.generate_response(prompt)
+            response = await self.ai_service.generate_response(messages)
             
             # 构建响应元数据
             response_metadata = {

@@ -185,9 +185,16 @@ class UnifiedTurnManager:
             
             condition = f"session_id = '{actual_session_id}'"
             
+            # 获取记录并按created_at字段排序
             result = self.client.get_records("turns", condition, limit, offset)
             
-            logger.info(f"Retrieved {len(result)} turns for session: {actual_session_id}")
+            # 确保按照创建时间排序
+            if result:
+                result.sort(key=lambda x: x.get('created_at', ''))
+                logger.info(f"Retrieved and sorted {len(result)} turns for session: {actual_session_id}")
+            else:
+                logger.info(f"Retrieved {len(result)} turns for session: {actual_session_id}")
+            
             return result
             
         except Exception as e:
