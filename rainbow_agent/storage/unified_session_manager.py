@@ -7,7 +7,7 @@ eliminating complex fallback logic and HTTP endpoint mixing.
 
 import logging
 import uuid
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple, Union
 from datetime import datetime
 
 from .surreal.unified_client import UnifiedSurrealClient
@@ -143,25 +143,36 @@ class UnifiedSessionManager:
         # For now, use the synchronous method
         return self.create_session(user_id, title, metadata)
     
-    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_session(self, session_id: Union[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """
         Get a specific session by ID.
         
         Args:
-            session_id: Session ID to retrieve
-            
+            session_id: Session ID to retrieve (string or dictionary with id field)
+        
         Returns:
             Session record or None if not found
         """
         try:
-            condition = f"id = '{session_id}'"
+            # 检查session_id是否为字典，如果是则提取id字段
+            if isinstance(session_id, dict):
+                if 'id' in session_id:
+                    actual_id = session_id['id']
+                    logger.info(f"Extracted session_id from dictionary: {actual_id}")
+                else:
+                    logger.error(f"Invalid session_id dictionary without id field: {session_id}")
+                    return None
+            else:
+                actual_id = session_id
+                
+            condition = f"id = '{actual_id}'"
             result = self.client.get_records("sessions", condition, limit=1)
             
             if result:
-                logger.info(f"Retrieved session: {session_id}")
+                logger.info(f"Retrieved session: {actual_id}")
                 return result[0]
             else:
-                logger.warning(f"Session not found: {session_id}")
+                logger.warning(f"Session not found: {actual_id}")
                 return None
                 
         except Exception as e:

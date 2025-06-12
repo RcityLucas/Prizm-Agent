@@ -26,6 +26,7 @@ from rainbow_agent.utils.logger import get_logger
 from rainbow_agent.api.dialogue_processor import SessionManager, DialogueProcessor
 from rainbow_agent.api.unified_routes import register_api_routes
 from rainbow_agent.core.dialogue_manager import DialogueManager
+from rainbow_agent.core.dialogue_manager_with_context import EnhancedDialogueManager
 from rainbow_agent.core.multi_modal_manager import MultiModalToolManager
 from rainbow_agent.memory.memory import Memory
 from rainbow_agent.memory.surreal_memory import SurrealMemory
@@ -132,9 +133,15 @@ def init_components():
                 logger.warning(traceback.format_exc())
                 app.config['FREQUENCY_AWARE'] = False
 
-            # 初始化对话管理器
-            dialogue_manager = DialogueManager(memory=memory, frequency_integrator=frequency_integrator)
-            logger.info("对话管理器初始化完成")
+            # 初始化对话管理器 - 使用支持上下文的增强版对话管理器
+            try:
+                # 首先尝试使用增强版对话管理器
+                dialogue_manager = EnhancedDialogueManager(memory=memory, frequency_integrator=frequency_integrator)
+                logger.info("增强版对话管理器（支持上下文）初始化成功")
+            except Exception as e:
+                logger.warning(f"增强版对话管理器初始化失败: {e}，将使用基础版对话管理器")
+                dialogue_manager = DialogueManager(memory=memory, frequency_integrator=frequency_integrator)
+                logger.info("基础版对话管理器初始化完成")
             
             # 初始化多模态管理器
             multi_modal_manager = MultiModalToolManager()

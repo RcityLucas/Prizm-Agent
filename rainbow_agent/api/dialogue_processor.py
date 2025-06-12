@@ -13,7 +13,11 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional, Union
 
 from rainbow_agent.utils.logger import get_logger
-from rainbow_agent.core.dialogue_manager import DIALOGUE_TYPES
+from rainbow_agent.core.dialogue_manager import DialogueManager
+from rainbow_agent.core.session_manager import SessionManager
+from rainbow_agent.core.memory_manager import MemoryManager
+from rainbow_agent.utils.constants import DIALOGUE_TYPES
+from rainbow_agent.api.dialogue_history_integration import DialogueHistoryIntegrator
 
 # 配置日志
 logger = get_logger(__name__)
@@ -381,22 +385,23 @@ class SessionManager:
 class DialogueProcessor:
     """对话处理器，负责处理用户输入和生成响应"""
     
-    def __init__(self, session_manager, dialogue_manager, multi_modal_manager=None):
+    def __init__(self, dialogue_manager: DialogueManager, session_manager: SessionManager, memory_manager: Optional[MemoryManager] = None):
         """
         初始化对话处理器
         
         Args:
-            session_manager: 会话管理器实例
-            dialogue_manager: 对话管理器实例，应包含频率感知系统和上下文构建器
-            multi_modal_manager: 多模态管理器实例
+            dialogue_manager: 对话管理器
+            session_manager: 会话管理器
+            memory_manager: 记忆管理器
         """
-        self.session_manager = session_manager
         self.dialogue_manager = dialogue_manager
-        self.multi_modal_manager = multi_modal_manager
+        self.session_manager = session_manager
+        self.memory_manager = memory_manager
+        self.multi_modal_manager = None
+        self.has_frequency_system = hasattr(dialogue_manager, 'frequency_integrator')
+        self.history_integrator = DialogueHistoryIntegrator(max_history_turns=10)
         
-        # 检查对话管理器是否包含频率感知系统
-        self.has_frequency_system = hasattr(dialogue_manager, 'frequency_integrator') and dialogue_manager.frequency_integrator is not None
-        logger.info(f"对话处理器初始化完成，频率感知系统：{'已启用' if self.has_frequency_system else '未启用'}")
+        logger.info(f"对话处理器初始化成功，对话管理器: {dialogue_manager.__class__.__name__}, 会话管理器: {session_manager.__class__.__name__}")
     
     async def process_input(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
         """
@@ -470,6 +475,16 @@ class DialogueProcessor:
             # 创建用户轮次
             turn_id = str(uuid.uuid4())
             
+            # 获取对话历史
+            turns = self.dialogue_manager.get_turns(session_id)
+            
+            # 整合对话历史到元数据中
+            enhanced_metadata = self.history_integrator.prepare_dialogue_context(
+                session_id=session_id,
+                turns=turns,
+                metadata=metadata
+            )
+            
             # 调用对话管理器处理输入
             try:
                 # 检查是否是异步方法
@@ -482,7 +497,7 @@ class DialogueProcessor:
                         user_id=user_id,
                         content=content,
                         input_type="text",
-                        metadata=metadata
+                        metadata=enhanced_metadata
                     ))
                     loop.close()
                 else:
@@ -492,7 +507,7 @@ class DialogueProcessor:
                         user_id=user_id,
                         content=content,
                         input_type="text",
-                        metadata=metadata
+                        metadata=enhanced_metadata
                     )
                 
                 # 如果启用了频率感知系统，在响应中添加频率相关元数据

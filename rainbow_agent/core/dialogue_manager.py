@@ -13,8 +13,8 @@
 import logging
 import uuid
 import asyncio
+from typing import Dict, List, Any, Optional, Tuple, Union
 from datetime import datetime
-from typing import Dict, Any, List, Optional, Tuple
 
 from rainbow_agent.ai.openai_service import OpenAIService
 from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
@@ -157,7 +157,7 @@ class DialogueManager:
             return fallback_session
     
     async def process_input(self, 
-                           session_id: str, 
+                           session_id: Union[str, Dict[str, Any]], 
                            user_id: str, 
                            content: str,
                            input_type: str = "text",
@@ -175,27 +175,33 @@ class DialogueManager:
             处理结果，包含AI响应
         """
         try:
+            # 确保session_id是字符串类型
+            str_session_id = session_id
+            if isinstance(session_id, dict):
+                str_session_id = session_id.get('id', str(session_id))
+                logger.info(f"Extracted session_id from dictionary in process_input: {str_session_id}")
+            
             # 1. 创建用户轮次
-            user_turn = await self.create_turn(session_id, "human", content, metadata)
+            user_turn = await self.create_turn(str_session_id, "human", content, metadata)
             
             # 2. 获取会话历史
-            session_info = await self.storage.get_session_async(session_id)
+            session_info = await self.storage.get_session_async(str_session_id)
             if session_info and isinstance(session_info, dict):
                 dialogue_type = session_info.get("metadata", {}).get("dialogue_type", DIALOGUE_TYPES["HUMAN_AI_PRIVATE"])
             else:
-                logger.warning(f"无法获取会话信息，使用默认对话类型: {session_id}")
+                logger.warning(f"无法获取会话信息，使用默认对话类型: {str_session_id}")
                 dialogue_type = DIALOGUE_TYPES["HUMAN_AI_PRIVATE"]
             
             # 3. 获取对话历史
-            turns = await self.storage.get_turns_async(session_id)
+            turns = await self.storage.get_turns_async(str_session_id)
             
             # 4. 根据对话类型处理输入
             response_content, response_metadata = await self._process_by_dialogue_type(
-                dialogue_type, session_id, user_id, content, turns, metadata
+                dialogue_type, str_session_id, user_id, content, turns, metadata
             )
             
             # 5. 创建AI轮次
-            ai_turn = await self.create_turn(session_id, "ai", response_content, response_metadata)
+            ai_turn = await self.create_turn(str_session_id, "ai", response_content, response_metadata)
             
             # 6. 更新用户信息（如果频率集成器可用）
             if self.frequency_integrator and self.memory:
@@ -210,18 +216,23 @@ class DialogueManager:
                 "id": str(uuid.uuid4()),
                 "input": content,
                 "response": response_content,
-                "sessionId": session_id,
+                "sessionId": str_session_id,
                 "timestamp": datetime.now().isoformat(),
                 "metadata": response_metadata
             }
         except Exception as e:
             logger.error(f"处理输入失败: {e}")
+            # 确保session_id是字符串类型（即使在错误处理中）
+            str_session_id = session_id
+            if isinstance(session_id, dict):
+                str_session_id = session_id.get('id', str(session_id))
+            
             # 返回错误信息
             return {
                 "id": str(uuid.uuid4()),
                 "input": content,
                 "response": f"处理输入时出现错误: {str(e)}",
-                "sessionId": session_id,
+                "sessionId": str_session_id,
                 "timestamp": datetime.now().isoformat(),
                 "error": str(e)
             }
@@ -526,6 +537,26 @@ class DialogueManager:
         await self._update_user_interaction_count(user_id)
         
         return response, response_metadata
+    
+    async def _update_user_interaction_count(self, user_id: str) -> None:
+        """更新用户交互计数
+        
+        Args:
+            user_id: 用户ID
+        """
+        if self.frequency_integrator and self.memory:
+            try:
+                # 确保user_id是字符串类型
+                if not isinstance(user_id, str):
+                    user_id = str(user_id)
+                    
+                # 更新用户交互计数
+                await self.frequency_integrator.update_interaction_count(user_id)
+                logger.debug(f"已更新用户 {user_id} 的交互计数")
+            except Exception as e:
+                logger.error(f"更新用户交互计数失败: {e}")
+        else:
+            logger.debug("频率集成器或内存组件不可用，跳过更新用户交互计数")
     
     async def _process_ai_ai_dialogue(self,
                                     session_id: str,

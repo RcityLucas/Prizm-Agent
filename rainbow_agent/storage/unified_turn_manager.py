@@ -177,11 +177,17 @@ class UnifiedTurnManager:
             List of turn records
         """
         try:
-            condition = f"session_id = '{session_id}'"
+            # 处理session_id可能是字典的情况
+            actual_session_id = session_id
+            if isinstance(session_id, dict) and 'id' in session_id:
+                actual_session_id = session_id['id']
+                logger.info(f"Extracted session_id from dictionary: {actual_session_id}")
+            
+            condition = f"session_id = '{actual_session_id}'"
             
             result = self.client.get_records("turns", condition, limit, offset)
             
-            logger.info(f"Retrieved {len(result)} turns for session: {session_id}")
+            logger.info(f"Retrieved {len(result)} turns for session: {actual_session_id}")
             return result
             
         except Exception as e:
@@ -296,15 +302,21 @@ class UnifiedTurnManager:
             Number of turns in the session
         """
         try:
-            sql = f"SELECT count() FROM turns WHERE session_id = '{session_id}' GROUP ALL;"
+            # 处理session_id可能是字典的情况
+            actual_session_id = session_id
+            if isinstance(session_id, dict) and 'id' in session_id:
+                actual_session_id = session_id['id']
+                logger.info(f"Extracted session_id from dictionary: {actual_session_id}")
+            
+            sql = f"SELECT count() FROM turns WHERE session_id = '{actual_session_id}' GROUP ALL;"
             result = self.client.execute_sql(sql)
             
             if result and len(result) > 0 and 'count' in result[0]:
                 count = result[0]['count']
-                logger.info(f"Session {session_id} has {count} turns")
+                logger.info(f"Session {actual_session_id} has {count} turns")
                 return count
             else:
-                logger.info(f"Session {session_id} has 0 turns")
+                logger.info(f"Session {actual_session_id} has 0 turns")
                 return 0
                 
         except Exception as e:

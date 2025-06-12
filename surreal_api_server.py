@@ -31,7 +31,8 @@ from rainbow_agent.storage.config import get_surreal_config
 from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
 from rainbow_agent.api.unified_dialogue_processor import UnifiedDialogueProcessor
 from rainbow_agent.ai.openai_service import OpenAIService
-from rainbow_agent.core.dialogue_manager import DialogueManager, DIALOGUE_TYPES
+from rainbow_agent.core.dialogue_manager import DIALOGUE_TYPES
+from rainbow_agent.core.dialogue_manager_with_context import EnhancedDialogueManager
 
 # Configure logging
 logging.basicConfig(
@@ -106,11 +107,13 @@ def init_dialogue_system():
     if dialogue_manager is None:
         logger.info("Initializing dialogue manager...")
         openai_service = OpenAIService()
-        dialogue_manager = DialogueManager(
+        
+        # 使用增强型对话管理器，支持上下文处理和注入
+        dialogue_manager = EnhancedDialogueManager(
             storage=storage,
             ai_service=openai_service
         )
-        logger.info("Dialogue manager initialized successfully")
+        logger.info("Enhanced dialogue manager initialized successfully")
 
 @app.errorhandler(Exception)
 def handle_exception(e):
