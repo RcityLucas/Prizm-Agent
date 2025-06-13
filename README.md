@@ -1,10 +1,12 @@
-# Rainbow Agent
+# Prizm Agent
 
-一个简单而强大的基于Python的AI代理框架，支持多模态交互、高级存储系统和协作功能。
+一个简单而强大的基于Python的AI代理框架，支持多模态交互、高级存储系统和协作功能。基于Rainbow Agent框架开发。
+
+![Prizm Agent](docs/images/logo.png)
 
 ## 项目介绍
 
-Rainbow Agent是一个功能丰富的AI代理框架，专为构建复杂的智能应用设计。它允许您创建智能代理，这些代理可以：
+Prizm Agent是一个功能丰富的AI代理框架，专为构建复杂的智能应用设计。它允许您创建智能代理，这些代理可以：
 
 - 与大型语言模型（如GPT-3.5/GPT-4）进行交互
 - 使用工具执行各种操作（网络搜索、天气查询、文件读写等）
@@ -27,14 +29,22 @@ Rainbow Agent是一个功能丰富的AI代理框架，专为构建复杂的智�
 
 ## 安装方法
 
+### 前提条件
+
+- Python 3.8 或更高版本
+- SurrealDB (最新版本)
+- OpenAI API 密钥或兼容的替代服务
+
+### 安装步骤
+
 1. 克隆仓库
 ```bash
-git clone https://github.com/your-username/rainbow-agent.git
+git clone https://github.com/your-username/Prizm-Agent.git
 ```
 
 2. 安装依赖
 ```bash
-cd rainbow-agent
+cd Prizm-Agent
 pip install -r requirements.txt
 ```
 
@@ -42,12 +52,18 @@ pip install -r requirements.txt
 
 下载并安装 [SurrealDB](https://surrealdb.com/install)
 
-4. 启动 SurrealDB 服务
+对于 Windows 用户:
+```powershell
+# 使用提供的脚本启动 SurrealDB
+.\start-surreal.ps1
+```
+
+对于 Linux/Mac 用户:
 ```bash
 surreal start --bind 127.0.0.1:8000 --user root --pass root file://database.db
 ```
 
-5. 配置环境变量
+4. 配置环境变量
 ```bash
 # 复制示例环境变量文件
 cp .env.example .env
@@ -55,16 +71,64 @@ cp .env.example .env
 # 然后编辑.env文件，填入您的API密钥和其他配置
 ```
 
+必要的环境变量:
+- `OPENAI_API_KEY`: 您的 OpenAI API 密钥
+- `SURREAL_URL`: SurrealDB 服务器 URL (默认: http://localhost:8000)
+- `SURREAL_NAMESPACE`: SurrealDB 命名空间 (默认: test)
+- `SURREAL_DATABASE`: SurrealDB 数据库名称 (默认: rainbow)
+- `SURREAL_USERNAME`: SurrealDB 用户名 (默认: root)
+- `SURREAL_PASSWORD`: SurrealDB 密码 (默认: root)
+
 ## 使用方法
 
 ### 快速开始
 
-运行示例应用:
-```bash
-python main.py
+1. 首先启动SurrealDB服务：
+
+对于 Windows 用户:
+```powershell
+# 使用提供的脚本启动 SurrealDB
+.\start-surreal.ps1
 ```
-surreal start --bind 127.0.0.1:8000 --user root --pass root file://D:\btc\rainbow\rainbow-agent\database.db
-这将启动一个简单的交互式命令行界面，您可以开始与Rainbow Agent对话。
+
+对于 Linux/Mac 用户:
+```bash
+surreal start --bind 127.0.0.1:8000 --user root --pass root file://database.db
+```
+
+2. 运行API服务器：
+```bash
+python surreal_api_server.py
+```
+
+3. 访问API服务器：
+   - API 服务器默认运行在 http://localhost:5000
+   - 可以使用 Postman 或其他 API 测试工具访问端点
+
+这将启动统一的SurrealDB API服务器，您可以通过Web界面或API与Prizm Agent进行交互。
+
+### API服务器
+
+项目的主要入口点是`surreal_api_server.py`，它提供了以下功能：
+
+- 统一的SurrealDB存储系统集成
+- 对话会话管理
+- 增强型对话管理器，支持上下文处理和注入
+- RESTful API接口
+- Web界面
+
+#### 主要API端点
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
+| `/api/dialogue/sessions` | GET | 获取所有对话会话 |
+| `/api/dialogue/sessions` | POST | 创建新对话会话 |
+| `/api/dialogue/sessions/{session_id}` | GET | 获取特定会话信息 |
+| `/api/dialogue/sessions/{session_id}/turns` | GET | 获取会话的所有轮次 |
+| `/api/dialogue/input` | POST | 发送用户输入到会话 |
+| `/api/dialogue/tools` | GET | 获取可用工具列表 |
+
+更多API端点和详细文档请参见 `docs/api/` 目录。
 
 ### 创建自定义代理
 
@@ -116,35 +180,60 @@ agent.add_tool(MyCustomTool())
 ## 项目结构
 
 ```
-rainbow-agent/
+Prizm-Agent/
 ├─ rainbow_agent/              # 核心库
 │   ├─ agent.py                # 代理核心类
 │   ├─ ai/                     # AI模型集成
+│   │   ├─ base.py             # 基础AI模型接口
+│   │   ├─ openai.py           # OpenAI API集成
+│   │   └─ chat_anywhere.py    # ChatAnywhere集成
 │   ├─ api/                    # API接口
+│   │   ├─ dialogue_routes.py  # 对话相关API路由
+│   │   └─ tool_routes.py      # 工具相关API路由
 │   ├─ collaboration/          # 多代理协作系统
 │   ├─ config/                 # 配置管理
+│   │   └─ config.py           # 配置加载和管理
 │   ├─ core/                   # 核心功能模块
+│   │   ├─ dialogue_manager.py # 对话管理器
+│   │   ├─ session_manager.py  # 会话管理
+│   │   ├─ turn_manager.py     # 轮次管理
+│   │   └─ unified_dialogue_storage.py # 统一对话存储系统
 │   ├─ memory/                 # 记忆系统
+│   │   ├─ base.py             # 基础记忆接口
+│   │   ├─ simple_memory.py    # 简单记忆实现
+│   │   └─ layered_memory.py   # 分层记忆实现
 │   ├─ relationship/           # 代理关系管理
 │   ├─ storage/                # 存储系统
-│   │   ├─ surreal_http_client.py   # SurrealDB HTTP客户端
+│   │   ├─ dialogue_storage_system.py # 对话存储系统
 │   │   ├─ session_manager.py      # 会话管理
 │   │   ├─ turn_manager.py        # 轮次管理
-│   │   ├─ dialogue_storage_system.py # 对话存储系统
-│   │   ├─ models.py              # 数据模型
-│   │   └─ async_utils.py         # 异步工具
+│   │   ├─ unified_dialogue_storage.py # 统一对话存储系统
+│   │   ├─ async_utils.py         # 异步工具
+│   │   └─ surreal_client.py      # SurrealDB客户端
 │   ├─ tools/                  # 工具系统
+│   │   ├─ base.py             # 基础工具接口
+│   │   ├─ web_tools.py        # 网络相关工具
+│   │   ├─ file_tools.py       # 文件操作工具
+│   │   └─ utility_tools.py    # 实用工具集合
 │   └─ utils/                  # 工具函数
+│       ├─ logger.py           # 日志工具
+│       └─ helpers.py          # 辅助函数
 ├─ custom_tools/               # 自定义工具
 ├─ docs/                      # 文档
+│   ├─ api/                   # API文档
+│   ├─ images/                # 图片资源
+│   └─ archive/               # 存档文档
 ├─ examples/                  # 示例代码
-├─ static/                    # 前端静态资源
-├─ tests/                     # 测试
-├─ uploads/                   # 上传文件存储
+├─ tests/                     # 测试用例
+│   ├─ test_agent.py          # 代理测试
+│   ├─ test_storage.py        # 存储系统测试
+│   └─ test_tools.py          # 工具测试
 ├─ .env.example               # 环境变量示例
-├─ main.py                    # 主应用入口
-├─ README.md                  # 项目文档
-└─ requirements.txt           # 依赖列表
+├─ requirements.txt           # 项目依赖
+├─ surreal_api_server.py      # 主入口文件 - SurrealDB API服务器
+├─ start-surreal.ps1          # Windows启动SurrealDB脚本
+├─ db_init.py                 # 数据库初始化脚本
+└─ README.md                  # 项目说明文档
 ```
 
 ## 配置选项
@@ -179,8 +268,8 @@ rainbow-agent/
 ### 开发新的API端点
 
 1. 在 `rainbow_agent/api/` 目录下创建新的路由文件
-2. 使用FastAPI的路由器定义新的端点
-3. 在 `unified_api_server.py` 中注册新的路由器
+2. 使用Flask定义新的端点
+3. 在 `surreal_api_server.py` 中注册新的路由
 
 ### 添加新的对话类型
 
@@ -333,3 +422,22 @@ python -m rainbow_agent.tests.test_dialogue_storage
 1. 添加适当的测试用例
 2. 同时实现同步和异步方法（如适用）
 3. 遵循项目的代码风格和文档规范
+
+### 开发流程
+
+1. Fork 项目仓库
+2. 创建您的特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交您的更改 (`git commit -m 'Add some amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 打开一个 Pull Request
+
+### 代码规范
+
+- 使用 PEP 8 风格指南
+- 为所有函数和类添加文档字符串
+- 使用类型提示增强代码可读性
+- 编写单元测试覆盖新功能
+
+## 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件

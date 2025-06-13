@@ -27,7 +27,7 @@ ENV/
 .venv
 env/
 surreal-test/
-
+rainbow-angent/
 # IDE files
 .idea/
 .vscode/
