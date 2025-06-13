@@ -318,11 +318,26 @@ Prizm-Agent/
 - 相关性检索：根据当前上下文检索相关记忆
 - 记忆压缩：自动压缩和总结长对话
 
-### 4. 多模态与工具注册
+### 4. 多模态与工具管理
 
-- 多模态支持：处理图像、音频等输入
-- 动态工具发现：自动发现和注册新工具
-- 工具版本管理：管理不同版本的工具
+Prizm Agent 提供了两种多模态管理器实现：
+
+1. **核心多模态管理器** (`core/multi_modal_manager.py`):
+   - 简洁的实现，专注于基本图像和音频处理
+   - 直接文件存储和管理
+   - 主要用于核心应用代码和 API 路由
+
+2. **高级工具多模态管理器** (`tools/multimodal_manager.py`):
+   - 更复杂的实现，支持动态工具发现
+   - 工具版本管理和注册机制
+   - 主要用于测试、示例和文档
+
+这两种实现提供了以下功能：
+
+- **多模态支持**：处理图像、音频等多种输入类型
+- **动态工具发现**：自动发现和注册新工具
+- **工具版本管理**：管理不同版本的工具
+- **扩展性**：可以根据需求选择简单或高级实现
 
 ## 异步操作支持
 
@@ -361,11 +376,24 @@ async def create_session_example():
     return turns
 ```
 
-### SurrealDB HTTP API 集成
+### SurrealDB 连接机制
 
-Rainbow Agent 使用 SurrealDB 的 HTTP API 而非原始 SQL 语句来操作数据，这大大提高了系统的安全性和稳定性：
+Rainbow Agent 提供了两种连接 SurrealDB 的方式：
 
-- **避免 SQL 注入风险**：直接使用 HTTP API 传递 JSON 数据
+1. **WebSocket 连接**（主要方式）：
+   - 使用官方 SurrealDB Python 客户端库
+   - 通过 WebSocket 协议提供实时数据交互
+   - 支持事务和复杂查询
+
+2. **HTTP API 连接**（备用方式）：
+   - 当 WebSocket 连接失败时自动切换
+   - 使用 HTTP REST API 进行数据操作
+   - 提供更高的兼容性和稳定性
+
+这种双重连接机制提供了以下优势：
+
+- **高可用性**：当主要连接方式失效时自动切换
+- **避免 SQL 注入风险**：直接使用 API 传递 JSON 数据
 - **处理特殊字符**：避免了在 SQL 中处理特殊字符的复杂性
 - **类型安全**：自动处理不同数据类型的序列化和反序列化
 - **异步支持**：完全支持异步操作，使用 `aiohttp` 库
@@ -395,6 +423,16 @@ python -m unittest rainbow_agent.tests.test_dialogue_storage.TestDialogueStorage
 ```bash
 python -m rainbow_agent.tests.test_dialogue_storage
 ```
+
+### 测试SurrealDB连接
+
+项目tests目录中的`test_surreal_http.py`提供了SurrealDB连接的基本示例：
+
+```bash
+python test_surreal_http.py
+```
+
+这个测试演示了使用官方SurrealDB Python客户端的基本CRUD操作。
 
 异步测试用例 `TestDialogueStorageAsync` 会测试我们实现的异步方法，包括：
 
