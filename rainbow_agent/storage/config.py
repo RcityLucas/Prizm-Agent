@@ -1,32 +1,41 @@
 """
-存储系统配置
+Storage system configuration.
 
-定义存储系统的配置选项
+This module defines configuration options for the storage system.
+It now uses the centralized configuration system while maintaining 
+backward compatibility with existing code.
 """
 import os
 from typing import Dict, Any
 from urllib.parse import urlparse
 
-# Load environment variables from .env file
+# Import the centralized configuration system
 try:
-    from dotenv import load_dotenv
-    load_dotenv()
+    from rainbow_agent.config import config
+    USE_CENTRAL_CONFIG = True
 except ImportError:
-    # dotenv is optional
-    pass
+    # Fallback to legacy configuration if the new system is not available
+    USE_CENTRAL_CONFIG = False
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        # dotenv is optional
+        pass
 
 def _get_http_url_from_ws(ws_url: str) -> str:
-    """从WebSocket URL推导HTTP URL
+    """
+    Derive HTTP URL from WebSocket URL.
     
     Args:
-        ws_url: WebSocket URL (如: ws://localhost:8000/rpc)
+        ws_url: WebSocket URL (e.g., ws://localhost:8000/rpc)
         
     Returns:
-        对应的HTTP URL (如: http://localhost:8000)
+        Corresponding HTTP URL (e.g., http://localhost:8000)
     """
     parsed = urlparse(ws_url)
     
-    # 转换协议
+    # Convert protocol
     if parsed.scheme == 'ws':
         scheme = 'http'
     elif parsed.scheme == 'wss':
@@ -34,27 +43,46 @@ def _get_http_url_from_ws(ws_url: str) -> str:
     else:
         scheme = parsed.scheme
     
-    # 构建HTTP URL，移除路径部分
+    # Build HTTP URL without path
     return f"{scheme}://{parsed.netloc}"
 
 def get_surreal_config() -> Dict[str, Any]:
-    """从环境变量获取SurrealDB配置
+    """
+    Get SurrealDB configuration.
+    
+    This function now uses the centralized configuration system if available,
+    but falls back to the legacy implementation for backward compatibility.
     
     Returns:
-        SurrealDB配置字典，包含WebSocket和HTTP URL
+        SurrealDB configuration dictionary, including WebSocket and HTTP URLs.
     """
-    ws_url = os.getenv("SURREALDB_URL", "ws://localhost:8000/rpc")
-    http_url = _get_http_url_from_ws(ws_url)
-    
-    return {
-        "url": ws_url,
-        "http_url": http_url,
-        "health_url": f"{http_url}/health",
-        "namespace": os.getenv("SURREALDB_NAMESPACE", "rainbow"),
-        "database": os.getenv("SURREALDB_DATABASE", "test"),
-        "username": os.getenv("SURREALDB_USERNAME", "root"),
-        "password": os.getenv("SURREALDB_PASSWORD", "root")
-    }
+    if USE_CENTRAL_CONFIG:
+        # Use the centralized configuration system
+        http_url = config.surreal.http_url
+        
+        return {
+            "url": config.surreal.url,
+            "http_url": http_url,
+            "health_url": f"{http_url}/health" if http_url else None,
+            "namespace": config.surreal.namespace,
+            "database": config.surreal.database,
+            "username": config.surreal.username,
+            "password": config.surreal.password
+        }
+    else:
+        # Legacy implementation for backward compatibility
+        ws_url = os.getenv("SURREALDB_URL", "ws://localhost:8000/rpc")
+        http_url = _get_http_url_from_ws(ws_url)
+        
+        return {
+            "url": ws_url,
+            "http_url": http_url,
+            "health_url": f"{http_url}/health",
+            "namespace": os.getenv("SURREALDB_NAMESPACE", "rainbow"),
+            "database": os.getenv("SURREALDB_DATABASE", "test"),
+            "username": os.getenv("SURREALDB_USERNAME", "root"),
+            "password": os.getenv("SURREALDB_PASSWORD", "root")
+        }
 
-# 存储系统类型
+# Storage system types
 STORAGE_TYPE_SURREAL = "surreal"

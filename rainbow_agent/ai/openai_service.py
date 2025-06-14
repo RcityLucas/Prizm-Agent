@@ -1,60 +1,87 @@
 """
-OpenAI 服务模块
+OpenAI service module.
 
-提供与 OpenAI API 交互的功能
+Provides functionality for interacting with the OpenAI API.
 """
 import os
 import logging
 from typing import Dict, Any, List, Optional
 
-# 导入新版本的 OpenAI 客户端
+# Import the new version of the OpenAI client
 from openai import OpenAI
 
-# 配置日志
+# Import the centralized configuration system
+try:
+    from rainbow_agent.config import config
+    USE_CENTRAL_CONFIG = True
+except ImportError:
+    # Fallback to legacy configuration if the new system is not available
+    USE_CENTRAL_CONFIG = False
+
+# Configure logging
 logger = logging.getLogger(__name__)
 
 class OpenAIService:
-    """OpenAI 服务类，处理与 OpenAI API 的交互"""
+    """OpenAI service class for interacting with the OpenAI API."""
     
     def __init__(self, api_key: Optional[str] = None):
-        """初始化 OpenAI 服务
+        """
+        Initialize the OpenAI service.
         
         Args:
-            api_key: OpenAI API 密钥，如果不提供则从环境变量获取
+            api_key: OpenAI API key, if not provided uses environment variable or config.
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        if USE_CENTRAL_CONFIG:
+            # Use the centralized configuration system
+            self.api_key = api_key or config.openai.api_key
+        else:
+            # Legacy behavior
+            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+            
         if not self.api_key:
-            logger.warning("未设置 OPENAI_API_KEY 环境变量，OpenAI 服务将无法使用")
+            logger.warning("OPENAI_API_KEY not set, OpenAI service will not be available")
             self.client = None
         else:
-            # 创建 OpenAI 客户端
+            # Create OpenAI client
             self.client = OpenAI(api_key=self.api_key)
-            logger.info("OpenAI 服务初始化成功")
+            logger.info("OpenAI service initialized successfully")
     
     def generate_response(self, 
                         messages: List[Dict[str, str]], 
-                        model: str = "gpt-3.5-turbo",
-                        temperature: float = 0.7,
-                        max_tokens: int = 1000) -> str:
-        """生成 AI 回复
+                        model: str = None,
+                        temperature: float = None,
+                        max_tokens: int = None) -> str:
+        """
+        Generate AI response.
         
         Args:
-            messages: 对话历史消息列表，格式为 [{"role": "user", "content": "..."}, ...]
-            model: 使用的模型名称
-            temperature: 温度参数，控制随机性
-            max_tokens: 最大生成的 token 数量
+            messages: List of conversation messages in format [{"role": "user", "content": "..."}, ...].
+            model: Model name to use.
+            temperature: Temperature parameter to control randomness.
+            max_tokens: Maximum number of tokens to generate.
             
         Returns:
-            生成的回复文本
+            Generated response text.
         """
         try:
             if not self.client:
-                logger.warning("未设置 API 密钥，返回默认回复")
-                return "抱歉，我无法生成回复，因为未设置 OpenAI API 密钥。"
+                logger.warning("API key not set, returning default response")
+                return "Sorry, I cannot generate a response because the OpenAI API key is not set."
             
-            logger.info(f"调用 OpenAI API 生成回复，模型: {model}, 消息数: {len(messages)}")
+            # Set default values from config if available
+            if USE_CENTRAL_CONFIG:
+                model = model or config.openai.default_model
+                temperature = temperature if temperature is not None else config.openai.temperature
+                max_tokens = max_tokens or config.openai.max_tokens
+            else:
+                # Legacy defaults
+                model = model or "gpt-3.5-turbo"
+                temperature = temperature if temperature is not None else 0.7
+                max_tokens = max_tokens or 1000
             
-            # 使用新版 API 调用方式
+            logger.info(f"Calling OpenAI API, model: {model}, messages: {len(messages)}")
+            
+            # Use the new API call method
             response = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -62,39 +89,44 @@ class OpenAIService:
                 max_tokens=max_tokens
             )
             
-            # 提取回复文本
+            # Extract response text
             reply = response.choices[0].message.content.strip()
-            logger.info(f"成功生成回复，长度: {len(reply)}")
+            logger.info(f"Successfully generated response, length: {len(reply)}")
             
             return reply
         except Exception as e:
-            logger.error(f"生成回复失败: {e}")
-            # 返回错误信息
-            return f"抱歉，生成回复时出现错误: {str(e)}"
+            logger.error(f"Failed to generate response: {e}")
+            # Return error message
+            return f"Sorry, an error occurred while generating a response: {str(e)}"
     
     def format_dialogue_history(self, turns: List[Dict[str, Any]]) -> List[Dict[str, str]]:
-        """将对话轮次格式化为 OpenAI API 所需的格式
+        """
+        Format dialogue turns for the OpenAI API.
         
         Args:
-            turns: 对话轮次列表
+            turns: List of dialogue turns.
             
         Returns:
-            格式化后的消息列表
+            Formatted message list.
         """
         messages = []
         
-        # 添加系统消息
+        # Add system message
+        system_prompt = "You are a helpful AI assistant. Please respond concisely, accurately, and in a friendly manner."
+        if USE_CENTRAL_CONFIG:
+            system_prompt = config.agent.system_prompt
+            
         messages.append({
             "role": "system",
-            "content": "你是一个有帮助的AI助手，请用简洁、准确、友好的方式回答用户的问题。"
+            "content": system_prompt
         })
         
-        # 添加对话历史
+        # Add dialogue history
         for turn in turns:
             role = turn.get("role", "")
             content = turn.get("content", "")
             
-            # 将 'human' 和 'ai' 角色映射到 OpenAI 的 'user' 和 'assistant' 角色
+            # Map 'human' and 'ai' roles to OpenAI's 'user' and 'assistant' roles
             if role == "human":
                 messages.append({"role": "user", "content": content})
             elif role == "ai":

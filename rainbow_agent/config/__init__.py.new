@@ -1,0 +1,7 @@
+"
+Configuration system module for Rainbow Agent.
+
+This module provides a centralized configuration system for the Rainbow Agent project.
+It loads configuration from environment variables, .env files, and optionally
+configuration files, and provides a validated configuration object.
+"

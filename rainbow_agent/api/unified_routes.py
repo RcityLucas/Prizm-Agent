@@ -16,7 +16,7 @@ from flask import Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 
 from rainbow_agent.core.dialogue_manager import DialogueManager, DIALOGUE_TYPES
-from rainbow_agent.api.dialogue_processor import DialogueProcessor, SessionManager
+from rainbow_agent.api.unified_dialogue_processor import UnifiedDialogueProcessor, get_unified_processor
 from rainbow_agent.core.multi_modal_manager import MultiModalToolManager
 from rainbow_agent.memory.memory import Memory
 from rainbow_agent.memory.surreal_memory import SurrealMemory
