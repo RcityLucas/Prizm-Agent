@@ -6,7 +6,6 @@ from .unified_dialogue_storage import UnifiedDialogueStorage
 from .unified_session_manager import UnifiedSessionManager
 from .unified_turn_manager import UnifiedTurnManager
 from .models import SessionModel, TurnModel, UserProfileModel
-from .config import get_surreal_config
 
 __all__ = [
     'UnifiedDialogueStorage',
@@ -14,6 +13,5 @@ __all__ = [
     'UnifiedTurnManager',
     'SessionModel',
     'TurnModel',
-    'UserProfileModel',
-    'get_surreal_config'
+    'UserProfileModel'
 ]

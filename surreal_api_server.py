@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Unified SurrealDB API Server
+Unified SurrealDB API Server (更新版)
 
-Uses the new unified storage system for dialogue management and agent interactions.
+使用统一的配置系统和新的统一存储系统进行对话管理和代理交互。
 """
 import os
 import sys
@@ -27,10 +27,12 @@ if root_dir not in sys.path:
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-from rainbow_agent.storage.config import get_surreal_config
+# 导入中央配置系统
+from rainbow_agent.config.settings import get_settings
+
 from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
 from rainbow_agent.api.unified_dialogue_processor import UnifiedDialogueProcessor
-from rainbow_agent.ai.openai_service import OpenAIService
+from rainbow_agent.ai.openai_service import OpenAIService  # 使用更新版本的OpenAI服务
 from rainbow_agent.core.dialogue_manager import DIALOGUE_TYPES
 from rainbow_agent.core.dialogue_manager_with_context import EnhancedDialogueManager
 
@@ -73,8 +75,9 @@ def init_storage():
         if storage is None:
             logger.info("Initializing unified storage system...")
             
-            # Get SurrealDB configuration for logging
-            surreal_config = get_surreal_config()
+            # 从中央配置系统获取SurrealDB配置
+            settings = get_settings()
+            surreal_config = settings.get("storage", {})
             logger.info(f"SurrealDB configuration: {surreal_config}")
             
             # Initialize unified storage (uses configuration automatically)
@@ -388,12 +391,15 @@ if __name__ == '__main__':
         
         logger.info("Unified API Server initialized successfully")
         
-        # Start Flask server
-        port = int(os.environ.get('PORT', 5000))
-        host = os.environ.get('HOST', '0.0.0.0')
+        # 从中央配置系统获取服务器配置
+        settings = get_settings()
+        server_config = settings.get("server", {})
+        port = server_config.get("port", 5000)
+        host = server_config.get("host", "0.0.0.0")
+        debug = server_config.get("debug", True)
         
-        logger.info(f"Starting server on {host}:{port}")
-        app.run(host=host, port=port, debug=True)
+        logger.info(f"Starting server on {host}:{port} (debug={debug})")
+        app.run(host=host, port=port, debug=debug)
         
     except Exception as e:
         logger.error(f"Failed to start server: {e}")

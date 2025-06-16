@@ -12,7 +12,7 @@ from datetime import datetime
 from .unified_session_manager import UnifiedSessionManager
 from .unified_turn_manager import UnifiedTurnManager
 from .memory_storage import get_memory_storage
-from .config import get_surreal_config
+from rainbow_agent.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +48,19 @@ class UnifiedDialogueStorage:
         self.username = username
         self.password = password
         
+        # 从中央配置系统获取SurrealDB配置
+        settings = get_settings()
+        storage_config = settings.get("storage", {})
+        
+        # 如果提供了参数，则使用参数值，否则使用配置中的值
+        self.url = url if url != "ws://localhost:8000/rpc" else storage_config.get("url", url)
+        self.namespace = namespace if namespace != "rainbow" else storage_config.get("namespace", namespace)
+        self.database = database if database != "test" else storage_config.get("database", database)
+        self.username = username if username != "root" else storage_config.get("username", username)
+        self.password = password if password != "root" else storage_config.get("password", password)
+        
         # 获取健康检查URL
-        config = get_surreal_config()
-        self.health_url = config.get("health_url", self.url.replace("ws://", "http://").replace("/rpc", "/health"))
+        self.health_url = storage_config.get("health_url", self.url.replace("ws://", "http://").replace("/rpc", "/health"))
         
         # 创建一个共享的UnifiedSurrealClient实例
         from .surreal.unified_client import UnifiedSurrealClient

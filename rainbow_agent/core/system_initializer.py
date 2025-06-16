@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any, Optional, Tuple
 
 from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
-from rainbow_agent.storage.config import get_surreal_config
+from rainbow_agent.config.settings import get_settings
 from rainbow_agent.ai.openai_service import OpenAIService
 from rainbow_agent.core.dialogue_manager import DialogueManager
 from rainbow_agent.core.multi_modal_manager import MultiModalToolManager
@@ -31,18 +31,14 @@ class SystemInitializer:
         try:
             logger.info("开始初始化统一存储系统...")
             
-            # 获取 SurrealDB 配置
-            surreal_config = get_surreal_config()
-            logger.info(f"SurrealDB 配置: {surreal_config}")
+            # 从中央配置系统获取 SurrealDB 配置
+            settings = get_settings()
+            storage_config = settings.get("storage", {})
+            logger.info(f"SurrealDB 配置: {storage_config}")
             
             # 初始化统一存储
-            storage = UnifiedDialogueStorage(
-                url=surreal_config["url"],
-                namespace=surreal_config["namespace"],
-                database=surreal_config["database"],
-                username=surreal_config["username"],
-                password=surreal_config["password"]
-            )
+            storage = UnifiedDialogueStorage()
+            
             
             # 测试连接
             health = storage.health_check()

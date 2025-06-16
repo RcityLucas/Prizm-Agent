@@ -1,14 +1,16 @@
 """
 OpenAI 服务模块
 
-提供与 OpenAI API 交互的功能
+提供与 OpenAI API 交互的功能，使用中央配置系统
 """
-import os
 import logging
 from typing import Dict, Any, List, Optional
 
 # 导入新版本的 OpenAI 客户端
 from openai import OpenAI
+
+# 导入中央配置系统
+from ..config.settings import get_settings
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -20,29 +22,50 @@ class OpenAIService:
         """初始化 OpenAI 服务
         
         Args:
-            api_key: OpenAI API 密钥，如果不提供则从环境变量获取
+            api_key: OpenAI API 密钥，如果不提供则从配置系统获取
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        # 获取配置实例
+        settings = get_settings()
+        
+        # 优先使用传入的API密钥，其次使用配置系统中的API密钥
+        self.api_key = api_key or settings.get("api.api_key")
+        
         if not self.api_key:
-            logger.warning("未设置 OPENAI_API_KEY 环境变量，OpenAI 服务将无法使用")
+            logger.warning("未设置 OpenAI API 密钥，OpenAI 服务将无法使用")
             self.client = None
         else:
-            # 创建 OpenAI 客户端
-            self.client = OpenAI(api_key=self.api_key)
+            # 创建 OpenAI 客户端，使用配置系统中的设置
+            client_kwargs = {
+                "api_key": self.api_key,
+                "timeout": settings.get("api.timeout", 60)
+            }
+            
+            # 添加代理配置（如果有）
+            proxy = settings.get("api.proxy")
+            if proxy:
+                client_kwargs["http_client"] = {"proxy": proxy}
+            
+            # 添加自定义基础URL（如果有）
+            base_url = settings.get("api.base_url")
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            
+            # 创建客户端
+            self.client = OpenAI(**client_kwargs)
             logger.info("OpenAI 服务初始化成功")
     
     def generate_response(self, 
                         messages: List[Dict[str, str]], 
-                        model: str = "gpt-3.5-turbo",
-                        temperature: float = 0.7,
-                        max_tokens: int = 1000) -> str:
+                        model: Optional[str] = None,
+                        temperature: Optional[float] = None,
+                        max_tokens: Optional[int] = None) -> str:
         """生成 AI 回复
         
         Args:
             messages: 对话历史消息列表，格式为 [{"role": "user", "content": "..."}, ...]
-            model: 使用的模型名称
-            temperature: 温度参数，控制随机性
-            max_tokens: 最大生成的 token 数量
+            model: 使用的模型名称，如果不提供则从配置获取
+            temperature: 温度参数，控制随机性，如果不提供则从配置获取
+            max_tokens: 最大生成的 token 数量，如果不提供则从配置获取
             
         Returns:
             生成的回复文本
@@ -51,6 +74,12 @@ class OpenAIService:
             if not self.client:
                 logger.warning("未设置 API 密钥，返回默认回复")
                 return "抱歉，我无法生成回复，因为未设置 OpenAI API 密钥。"
+            
+            # 从配置系统获取默认参数
+            settings = get_settings()
+            model = model or settings.get("llm.model", "gpt-3.5-turbo")
+            temperature = temperature if temperature is not None else settings.get("llm.temperature", 0.7)
+            max_tokens = max_tokens or settings.get("llm.max_tokens", 1000)
             
             logger.info(f"调用 OpenAI API 生成回复，模型: {model}, 消息数: {len(messages)}")
             
@@ -83,10 +112,14 @@ class OpenAIService:
         """
         messages = []
         
+        # 从配置获取系统消息
+        settings = get_settings()
+        system_message = settings.get("llm.system_message", "你是一个有帮助的AI助手，请用简洁、准确、友好的方式回答用户的问题。")
+        
         # 添加系统消息
         messages.append({
             "role": "system",
-            "content": "你是一个有帮助的AI助手，请用简洁、准确、友好的方式回答用户的问题。"
+            "content": system_message
         })
         
         # 添加对话历史

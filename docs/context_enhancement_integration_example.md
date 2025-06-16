@@ -13,7 +13,8 @@
 ```python
 # 导入必要的组件
 from rainbow_agent.context import DialogueManagerContextMixin
-from rainbow_agent.config.context_settings import get_context_settings
+from rainbow_agent.config.settings import get_settings
+from rainbow_agent.context.context_types import ContextConfig
 
 # 修改 DialogueManager 类定义
 class DialogueManager(DialogueManagerContextMixin):
@@ -22,8 +23,19 @@ class DialogueManager(DialogueManagerContextMixin):
                  ai_service=None,
                  memory=None,
                  frequency_integrator=None):
-        # 初始化上下文增强功能
-        context_config = ContextConfig(**get_context_settings())
+        # 从中央配置系统获取上下文配置
+        settings = get_settings()
+        context_settings = settings.get("context", {})
+        
+        # 参数名称映射
+        config_params = {
+            "enable_injection": context_settings.get("enable_injection", True),
+            "priority_level": context_settings.get("priority_level", "medium"),
+            "max_tokens": context_settings.get("max_tokens", 1000)
+        }
+        
+        # 创建上下文配置
+        context_config = ContextConfig(**config_params)
         
         # 调用混入类初始化
         DialogueManagerContextMixin.__init__(self, context_config=context_config)
@@ -159,17 +171,32 @@ class TestContextIntegration(unittest.TestCase):
 
 ## 4. 配置选项
 
-可以通过修改 `rainbow_agent/config/context_settings.py` 文件来配置上下文增强功能：
+可以通过修改 `rainbow_agent/config/settings.py` 文件或环境变量来配置上下文增强功能：
 
 ```python
+# 在settings.py中修改默认值
+def _load_defaults(self):
+    # ...
+    self._settings["context"] = {
+        "enable_injection": True,
+        "priority_level": "medium",
+        "max_tokens": 1000,
+        "injection_position": "user"
+    }
+    # ...
+```
+
+或者通过环境变量：
+
+```bash
 # 禁用上下文注入
-CONTEXT_SETTINGS["enable_context_injection"] = False
+export CONTEXT_ENABLE_INJECTION=false
 
 # 修改上下文优先级
-CONTEXT_SETTINGS["context_priority_level"] = "high"
+export CONTEXT_PRIORITY_LEVEL=high
 
 # 修改上下文注入位置
-CONTEXT_SETTINGS["context_injection_position"] = "system"
+export CONTEXT_INJECTION_POSITION=system
 ```
 
 ## 5. 故障排除

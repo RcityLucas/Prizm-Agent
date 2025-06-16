@@ -11,7 +11,7 @@ from datetime import datetime
 from rainbow_agent.core.dialogue_manager import DialogueManager, DIALOGUE_TYPES
 from rainbow_agent.context import DialogueManagerContextMixin
 from rainbow_agent.context.context_types import ContextConfig
-from rainbow_agent.config.context_settings import get_context_settings
+from rainbow_agent.config.settings import get_settings
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -30,14 +30,15 @@ class EnhancedDialogueManager(DialogueManager, DialogueManagerContextMixin):
         
         扩展原有初始化方法，添加上下文处理组件。
         """
-        # 获取上下文配置
-        context_settings = get_context_settings()
+        # 从中央配置系统获取上下文配置
+        settings = get_settings()
+        context_settings = settings.get("context", {})
         
         # 参数名称映射
         config_params = {
-            "enable_injection": context_settings.get("enable_context_injection", True),
-            "priority_level": context_settings.get("context_priority_level", "medium"),
-            "max_tokens": context_settings.get("max_context_tokens", 1000)
+            "enable_injection": context_settings.get("enable_injection", True),
+            "priority_level": context_settings.get("priority_level", "medium"),
+            "max_tokens": context_settings.get("max_tokens", 1000)
         }
         
         # 创建上下文配置

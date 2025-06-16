@@ -14,7 +14,7 @@ from typing import Dict, Any
 # Add the parent directory to the path so we can import the modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from rainbow_agent.storage.config import get_surreal_config
+from rainbow_agent.config.settings import get_settings
 from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
 from rainbow_agent.storage.memory import SurrealMemory
 from rainbow_agent.memory.surreal_memory_adapter import SurrealMemoryAdapter
@@ -86,17 +86,11 @@ class TestDialogueSystem(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Set up test environment once before all tests."""
-        # Get SurrealDB connection details from environment variables or use defaults
-        config = get_surreal_config()
+        # 从中央配置系统获取 SurrealDB 配置
+        settings = get_settings()
         
-        # Create the UnifiedDialogueStorage
-        cls.dialogue_storage = UnifiedDialogueStorage(
-            url=config["url"],
-            namespace=config["namespace"],
-            database=config["database"],
-            username=config["username"],
-            password=config["password"]
-        )
+        # 创建统一对话存储，它会自动从中央配置获取连接信息
+        cls.dialogue_storage = UnifiedDialogueStorage()
         
         # Create a simple storage factory
         cls.storage_factory = StorageFactory(cls.dialogue_storage)
