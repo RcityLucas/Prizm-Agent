@@ -5,6 +5,9 @@ import uuid
 import asyncio
 from functools import wraps
 
+from rainbow_agent.ai.openai_service import OpenAIService
+from rainbow_agent.utils.vector_utils import cosine_similarity, sort_by_similarity
+
 from .models import ChatSessionModel, ChatMessageModel
 from .message_router import MessageRouter
 from .presence_service import PresenceService
@@ -448,3 +451,73 @@ class HumanChatManager:
         self.cache.set(cache_key, unread_count)
         
         return unread_count
+        
+    async def search_relevant_messages(self, 
+                                     session_id: str, 
+                                     query_text: str, 
+                                     top_k: int = 5,
+                                     embedding_model: str = "text-embedding-3-small") -> List[Dict[str, Any]]:
+        """搜索与查询文本语义相关的消息
+        
+        使用嵌入向量进行语义相似度搜索，找出与查询文本最相关的消息
+        
+        Args:
+            session_id: 会话ID
+            query_text: 查询文本
+            top_k: 返回的最相关消息数量
+            embedding_model: 用于生成嵌入向量的模型
+            
+        Returns:
+            按相关性降序排序的消息列表，每个消息增加一个"similarity"字段
+        """
+        try:
+            # 创建OpenAI服务实例并生成查询文本的嵌入向量
+            openai_service = OpenAIService()
+            query_embedding = await openai_service.get_embedding_async(query_text, model=embedding_model)
+            
+            if not query_embedding:
+                logger.error("生成查询文本的嵌入向量失败")
+                return []
+                
+            # 使用存储组件的向量搜索功能
+            similar_turns = await self.storage.search_similar_turns(
+                query_embedding=query_embedding,
+                session_id=session_id,
+                top_k=top_k
+            )
+            
+            # 格式化消息结果
+            formatted_messages = []
+            for turn in similar_turns:
+                # 提取基本信息
+                message_id = turn.get("id", "")
+                content = turn.get("content", "")
+                role = turn.get("role", "")
+                created_at = turn.get("created_at", "")
+                similarity = turn.get("similarity", 0.0)
+                
+                # 提取元数据
+                metadata = turn.get("metadata", {})
+                sender_id = metadata.get("sender_id", "")
+                message_type = metadata.get("message_type", "text")
+                
+                # 创建格式化消息
+                formatted_message = {
+                    "id": message_id,
+                    "session_id": session_id,
+                    "sender_id": sender_id,
+                    "content": content,
+                    "role": role,
+                    "message_type": message_type,
+                    "created_at": created_at,
+                    "similarity": similarity,  # 添加相似度分数
+                    "metadata": metadata
+                }
+                
+                formatted_messages.append(formatted_message)
+            
+            return formatted_messages
+            
+        except Exception as e:
+            logger.error(f"搜索相关消息失败: {e}")
+            return []

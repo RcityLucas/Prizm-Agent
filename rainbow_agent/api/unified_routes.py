@@ -16,7 +16,12 @@ from flask import Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 
 from rainbow_agent.core.dialogue_manager import DialogueManager, DIALOGUE_TYPES
-from rainbow_agent.api.dialogue_processor import DialogueProcessor, SessionManager
+from rainbow_agent.api.unified_dialogue_processor import UnifiedDialogueProcessor
+from rainbow_agent.storage.unified_session_manager import UnifiedSessionManager
+
+# Create aliases for backward compatibility
+DialogueProcessor = UnifiedDialogueProcessor
+SessionManager = UnifiedSessionManager
 from rainbow_agent.core.multi_modal_manager import MultiModalToolManager
 from rainbow_agent.memory.memory import Memory
 from rainbow_agent.memory.surreal_memory import SurrealMemory
@@ -50,24 +55,29 @@ def init_api_components():
         
         # 初始化记忆系统
         try:
-            # 尝试初始化SurrealDB记忆系统
             memory = SurrealMemory()
             logger.info("SurrealDB记忆系统初始化成功")
         except Exception as e:
             logger.warning(f"SurrealDB记忆系统初始化失败: {e}，将使用空记忆系统")
             memory = None
         
-        # 初始化对话管理器（包含频率感知系统）
-        dialogue_manager = DialogueManager(storage=session_manager, memory=memory)
+        # 初始化会话管理器
+        session_manager = SessionManager()
         
-        # 初始化多模态管理器
+        # 初始化统一对话存储
+        unified_storage = UnifiedDialogueStorage()
+        
+        # 初始化对话管理器
+        dialogue_manager = DialogueManager(storage=unified_storage, memory=memory)
+        
+        # 初始化多模态工具管理器
         multi_modal_manager = MultiModalToolManager()
         
         # 初始化对话处理器
         dialogue_processor = DialogueProcessor(
-            session_manager=session_manager,
-            dialogue_manager=dialogue_manager,
-            multi_modal_manager=multi_modal_manager
+            storage=unified_storage,  # UnifiedDialogueProcessor expects UnifiedDialogueStorage
+            dialogue_manager=dialogue_manager
+            # multi_modal_manager is not used by UnifiedDialogueProcessor
         )
         
         logger.info("API组件初始化完成，频率感知系统：{}".
@@ -262,8 +272,22 @@ def process_input():
         # 解析请求数据
         data = request.json
         
-        # 处理输入
-        response, status_code = dialogue_processor.process_input(data)
+        # 从数据字典中提取参数
+        user_input = data.get('input', '')
+        user_id = data.get('userId', 'default_user')
+        session_id = data.get('sessionId')
+        input_type = data.get('inputType', 'text')
+        context = data.get('metadata') or data.get('context')
+        
+        # 处理输入使用同步版本
+        response = dialogue_processor.process_input_sync(
+            user_input=user_input,
+            user_id=user_id,
+            session_id=session_id,
+            input_type=input_type,
+            context=context
+        )
+        status_code = 200
         
         # 检查是否启用了频率感知系统
         if hasattr(dialogue_manager, 'frequency_integrator') and dialogue_manager.frequency_integrator:

@@ -70,19 +70,37 @@ class UnifiedTurnManager:
     def _ensure_table_structure(self) -> None:
         """Ensure the turns table exists with proper schema."""
         try:
-            fields = {
-                "id": "string",
-                "session_id": "string",
-                "role": "string", 
-                "content": "string",
-                "created_at": "datetime",
-                "updated_at": "datetime",
-                "embedding": "option<array>",
-                "metadata": "option<object>"
-            }
+            # 首先确保表存在
+            self.client.ensure_table_exists("turns")
             
-            self.client.ensure_table("turns", fields)
-            logger.info("Turns table structure ensured")
+            # 使用 SQL 直接定义字段，确保 embedding 字段正确定义为数组类型
+            sql_statements = [
+                "DEFINE FIELD id ON TABLE turns TYPE string;",
+                "DEFINE FIELD session_id ON TABLE turns TYPE string;",
+                "DEFINE FIELD role ON TABLE turns TYPE string;",
+                "DEFINE FIELD content ON TABLE turns TYPE string;",
+                "DEFINE FIELD created_at ON TABLE turns TYPE datetime;",
+                "DEFINE FIELD updated_at ON TABLE turns TYPE datetime;",
+                "DEFINE FIELD embedding ON TABLE turns TYPE array;",  # 明确定义为数组类型，不使用 option<array>
+                "DEFINE FIELD metadata ON TABLE turns TYPE option<object>;",
+                # 添加索引以加快查询
+                "DEFINE INDEX turn_session_id ON TABLE turns COLUMNS session_id;",
+                "DEFINE INDEX turn_role ON TABLE turns COLUMNS role;"
+            ]
+            
+            # 执行 SQL 语句
+            for sql in sql_statements:
+                try:
+                    self.client.execute_sql(sql)
+                    logger.info(f"Executed SQL: {sql}")
+                except Exception as sql_error:
+                    # 如果字段已存在，忽略错误
+                    if "already exists" in str(sql_error):
+                        logger.info(f"Field already exists: {sql}")
+                    else:
+                        logger.warning(f"Error executing SQL: {sql}, Error: {sql_error}")
+            
+            logger.info("Turns table structure ensured with explicit embedding array type")
             
         except Exception as e:
             logger.error(f"Failed to ensure table structure: {e}")

@@ -11,8 +11,10 @@ from datetime import datetime
 
 from .unified_session_manager import UnifiedSessionManager
 from .unified_turn_manager import UnifiedTurnManager
+from .unified_turn_vector_manager import UnifiedTurnVectorManager
 from .memory_storage import get_memory_storage
 from rainbow_agent.config.settings import get_settings
+from ..utils.vector_utils import cosine_similarity, sort_by_similarity
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,12 @@ class UnifiedDialogueStorage:
             client=self.shared_client
         )
         self.turn_manager = UnifiedTurnManager(
+            url=self.url, namespace=self.namespace, database=self.database, 
+            username=self.username, password=self.password,
+            client=self.shared_client
+        )
+        # 初始化向量管理器
+        self.turn_vector_manager = UnifiedTurnVectorManager(
             url=self.url, namespace=self.namespace, database=self.database, 
             username=self.username, password=self.password,
             client=self.shared_client
@@ -398,6 +406,41 @@ class UnifiedDialogueStorage:
         """Count turns in a session."""
         return self.turn_manager.count_turns(session_id)
     
+    # ===== Vector Search =====
+    
+    async def search_similar_turns(self, 
+                                  query_embedding: List[float], 
+                                  session_id: Optional[str] = None,
+                                  top_k: int = 5) -> List[Dict[str, Any]]:
+        """
+        搜索与查询向量相似的对话轮次
+        
+        Args:
+            query_embedding: 查询嵌入向量
+            session_id: 会话ID，如果为None则搜索所有会话
+            top_k: 返回的最相似结果数量
+            
+        Returns:
+            按相似度降序排序的对话轮次列表，每个轮次增加一个"similarity"字段
+        """
+        if self.db_available:
+            try:
+                result = await self.turn_vector_manager.search_similar_turns(
+                    query_embedding=query_embedding,
+                    session_id=session_id,
+                    top_k=top_k
+                )
+                if result is not None:  # Allow empty list as valid result
+                    return result
+            except Exception as e:
+                logger.warning(f"SurrealDB vector search error, falling back to memory: {e}")
+                self.db_available = False
+        
+        # 如果数据库不可用，尝试从内存存储中搜索（如果内存存储支持）
+        # 注意：标准内存存储可能不支持向量搜索，这里只是一个框架
+        logger.warning("数据库不可用，内存存储可能不支持向量搜索")
+        return []
+    
     # ===== Health Check =====
     
     def health_check(self) -> Dict[str, Any]:
@@ -425,3 +468,33 @@ class UnifiedDialogueStorage:
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
+
+    async def init_db(self) -> bool:
+        """初始化数据库"""
+        try:
+            # 初始化会话和轮次管理器
+            await self.session_manager.connect()
+            await self.turn_manager.connect()
+            await self.turn_vector_manager.connect()
+            
+            # 初始化向量存储模式
+            await self.init_vector_storage_schema()
+            
+            return True
+        except Exception as e:
+            logger.error(f"初始化数据库失败: {e}")
+            return False
+            
+    async def init_vector_storage_schema(self) -> bool:
+        """初始化向量存储模式
+        
+        确保turns表有正确的嵌入向量字段和索引
+        
+        Returns:
+            初始化是否成功
+        """
+        try:
+            return await self.turn_vector_manager.init_vector_storage_schema()
+        except Exception as e:
+            logger.error(f"初始化向量存储模式失败: {e}")
+            return False

@@ -181,10 +181,23 @@ class DialogueManager:
                 str_session_id = session_id.get('id', str(session_id))
                 logger.info(f"Extracted session_id from dictionary in process_input: {str_session_id}")
             
-            # 1. 创建用户轮次
-            user_turn = await self.create_turn(str_session_id, "human", content, metadata)
+            logger.info(f"Processing input for session {str_session_id}, content length: {len(content)}")
             
-            # 2. 获取会话历史
+            # 1. 为用户内容生成嵌入向量
+            user_embedding = []
+            if content and self.ai_service:
+                try:
+                    logger.info(f"正在为用户内容生成嵌入向量: {content[:30]}...")
+                    user_embedding = await self.ai_service.get_embedding_async(content)
+                    logger.info(f"[DEBUG] Generated user embedding: type={type(user_embedding)}, length={len(user_embedding) if isinstance(user_embedding, list) else 'not a list'}, first few values: {user_embedding[:5] if isinstance(user_embedding, list) and len(user_embedding) > 0 else 'empty or not a list'}")
+                except Exception as e:
+                    logger.error(f"生成用户内容嵌入向量失败: {e}")
+            
+            # 2. 创建用户轮次，包含嵌入向量
+            user_turn = await self.create_turn(str_session_id, "human", content, metadata, embedding=user_embedding)
+            logger.info(f"[DEBUG] Created user turn: {user_turn}")
+            
+            # 3. 获取会话历史
             session_info = await self.storage.get_session_async(str_session_id)
             if session_info and isinstance(session_info, dict):
                 dialogue_type = session_info.get("metadata", {}).get("dialogue_type", DIALOGUE_TYPES["HUMAN_AI_PRIVATE"])
@@ -192,18 +205,29 @@ class DialogueManager:
                 logger.warning(f"无法获取会话信息，使用默认对话类型: {str_session_id}")
                 dialogue_type = DIALOGUE_TYPES["HUMAN_AI_PRIVATE"]
             
-            # 3. 获取对话历史
+            # 4. 获取对话历史
             turns = await self.storage.get_turns_async(str_session_id)
             
-            # 4. 根据对话类型处理输入
+            # 5. 根据对话类型处理输入
             response_content, response_metadata = await self._process_by_dialogue_type(
                 dialogue_type, str_session_id, user_id, content, turns, metadata
             )
             
-            # 5. 创建AI轮次
-            ai_turn = await self.create_turn(str_session_id, "ai", response_content, response_metadata)
+            # 6. 为AI响应生成嵌入向量
+            ai_embedding = []
+            if response_content and self.ai_service:
+                try:
+                    logger.info(f"正在为AI响应生成嵌入向量: {response_content[:30]}...")
+                    ai_embedding = await self.ai_service.get_embedding_async(response_content)
+                    logger.info(f"[DEBUG] Generated AI embedding: type={type(ai_embedding)}, length={len(ai_embedding) if isinstance(ai_embedding, list) else 'not a list'}, first few values: {ai_embedding[:5] if isinstance(ai_embedding, list) and len(ai_embedding) > 0 else 'empty or not a list'}")
+                except Exception as e:
+                    logger.error(f"生成AI响应嵌入向量失败: {e}")
             
-            # 6. 更新用户信息（如果频率集成器可用）
+            # 7. 创建AI轮次，包含嵌入向量
+            ai_turn = await self.create_turn(str_session_id, "ai", response_content, response_metadata, embedding=ai_embedding)
+            logger.info(f"[DEBUG] Created AI turn: {ai_turn}")
+            
+            # 8. 更新用户信息（如果频率集成器可用）
             if self.frequency_integrator and self.memory:
                 try:
                     # 更新用户交互计数
@@ -238,10 +262,11 @@ class DialogueManager:
             }
     
     async def create_turn(self, 
-                         session_id: str, 
-                         role: str, 
-                         content: str, 
-                         metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                          session_id: str, 
+                          role: str, 
+                          content: str, 
+                          metadata: Optional[Dict[str, Any]] = None,
+                          embedding: Optional[List[float]] = None) -> Dict[str, Any]:
         """创建对话轮次
         
         Args:
@@ -249,15 +274,30 @@ class DialogueManager:
             role: 角色，如human或ai
             content: 内容
             metadata: 元数据
+            embedding: 内容的嵌入向量，用于语义搜索
             
         Returns:
             创建的轮次信息
         """
         try:
-            # 调用统一存储创建轮次
-            turn = await self.storage.create_turn_async(session_id, role, content, metadata=metadata)
+            # 添加详细的嵌入向量调试信息
+            if embedding is not None:
+                logger.info(f"创建轮次前的嵌入向量: 类型={type(embedding)}, 长度={len(embedding)}, 前5个值={embedding[:5] if len(embedding) > 0 else '空列表'}")
+            else:
+                logger.warning("创建轮次时嵌入向量为None")
+                
+            # 调用统一存储创建轮次，包含嵌入向量
+            turn = await self.storage.create_turn_async(session_id, role, content, metadata=metadata, embedding=embedding)
+            
+            # 检查返回的轮次中是否包含嵌入向量
             if turn and isinstance(turn, dict):
-                logger.info(f"成功创建轮次: {turn.get('id', '')}")
+                if 'embedding' in turn:
+                    turn_embedding = turn.get('embedding')
+                    logger.info(f"存储返回的轮次嵌入向量: 类型={type(turn_embedding)}, 长度={len(turn_embedding) if isinstance(turn_embedding, list) else '非列表'}, 值={turn_embedding[:5] if isinstance(turn_embedding, list) and len(turn_embedding) > 0 else '空或非列表'}")
+                else:
+                    logger.warning("存储返回的轮次中没有embedding字段")
+                    
+                logger.info(f"成功创建轮次: {turn.get('id', 'unknown_id')}，嵌入向量维度: {len(embedding) if embedding else 0}")
                 return turn
             else:
                 logger.error("存储系统返回了无效的轮次数据")
@@ -268,7 +308,8 @@ class DialogueManager:
                     'role': role,
                     'content': content,
                     'created_at': datetime.now().isoformat(),
-                    'metadata': metadata or {}
+                    'metadata': metadata or {},
+                    'embedding': embedding or []
                 }
                 logger.warning(f"使用后备轮次: {fallback_turn['id']}")
                 return fallback_turn
@@ -282,6 +323,7 @@ class DialogueManager:
                 'content': content,
                 'created_at': datetime.now().isoformat(),
                 'metadata': metadata or {},
+                'embedding': embedding or [],
                 'error': 'Database connection failed'
             }
             logger.warning(f"使用后备轮次（数据库错误）: {fallback_turn['id']}")

@@ -4,15 +4,17 @@ OpenAI 服务模块
 提供与 OpenAI API 交互的功能，使用中央配置系统
 """
 import logging
-from typing import Dict, Any, List, Optional
+import json
+from typing import List, Dict, Any, Optional, Union, Tuple
+import asyncio
+from tenacity import retry, stop_after_attempt, wait_random_exponential
 
-# 导入新版本的 OpenAI 客户端
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
+from openai.types.chat import ChatCompletion
 
-# 导入中央配置系统
 from ..config.settings import get_settings
+from ..utils.format_utils import format_dialogue_history
 
-# 配置日志
 logger = logging.getLogger(__name__)
 
 class OpenAIService:
@@ -134,3 +136,90 @@ class OpenAIService:
                 messages.append({"role": "assistant", "content": content})
         
         return messages
+        
+    @retry(stop=stop_after_attempt(3), wait=wait_random_exponential(min=1, max=10))
+    async def get_embedding_async(self, text: str, model: str = "text-embedding-3-small") -> List[float]:
+        """生成文本的嵌入向量（异步版本）
+        
+        Args:
+            text: 需要生成嵌入向量的文本
+            model: 使用的嵌入模型，默认为 text-embedding-3-small
+            
+        Returns:
+            嵌入向量，通常是1536维的浮点数列表
+        """
+        if not self.client:
+            logger.warning("未设置 API 密钥，无法生成嵌入向量")
+            raise ValueError("未设置 OpenAI API 密钥，无法生成嵌入向量")
+        
+        # 获取配置实例
+        settings = get_settings()
+        
+        # 创建异步客户端
+        client_kwargs = {
+            "api_key": self.api_key,
+            "timeout": settings.get("api.timeout", 60)
+        }
+        
+        # 添加代理配置（如果有）
+        proxy = settings.get("api.proxy")
+        if proxy:
+            client_kwargs["http_client"] = {"proxy": proxy}
+        
+        # 添加自定义基础URL（如果有）
+        base_url = settings.get("api.base_url")
+        if base_url:
+            client_kwargs["base_url"] = base_url
+            
+        # 创建异步客户端
+        async_client = AsyncOpenAI(**client_kwargs)
+        
+        try:
+            logger.info(f"调用 OpenAI API 生成嵌入向量，模型: {model}, 文本长度: {len(text)}")
+            
+            # 调用嵌入API
+            response = await async_client.embeddings.create(
+                model=model,
+                input=text
+            )
+            
+            # 提取嵌入向量
+            embedding = response.data[0].embedding
+            logger.info(f"成功生成嵌入向量，维度: {len(embedding)}")
+            
+            return embedding
+        except Exception as e:
+            logger.error(f"生成嵌入向量失败: {e}")
+            raise
+            
+    def get_embedding(self, text: str, model: str = "text-embedding-3-small") -> List[float]:
+        """生成文本的嵌入向量（同步版本）
+        
+        Args:
+            text: 需要生成嵌入向量的文本
+            model: 使用的嵌入模型，默认为 text-embedding-3-small
+            
+        Returns:
+            嵌入向量，通常是1536维的浮点数列表
+        """
+        if not self.client:
+            logger.warning("未设置 API 密钥，无法生成嵌入向量")
+            raise ValueError("未设置 OpenAI API 密钥，无法生成嵌入向量")
+            
+        try:
+            logger.info(f"调用 OpenAI API 生成嵌入向量，模型: {model}, 文本长度: {len(text)}")
+            
+            # 调用嵌入API
+            response = self.client.embeddings.create(
+                model=model,
+                input=text
+            )
+            
+            # 提取嵌入向量
+            embedding = response.data[0].embedding
+            logger.info(f"成功生成嵌入向量，维度: {len(embedding)}")
+            
+            return embedding
+        except Exception as e:
+            logger.error(f"生成嵌入向量失败: {e}")
+            raise
