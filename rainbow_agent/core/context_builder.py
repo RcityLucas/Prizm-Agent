@@ -3,7 +3,10 @@ from typing import Dict, Any, List, Optional, Tuple
 import asyncio
 from datetime import datetime
 
-from ..memory.memory import Memory
+from langmem.core.memory_manager import MemoryManager as LangMemManager
+from langmem.core.models import Memory as LangMemMemory
+from langmem.core.models import MemoryQuery as LangMemMemoryQuery
+from langmem.core.models import RetrievedMemory as LangMemRetrievedMemory
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -13,12 +16,12 @@ class ContextBuilder:
     上下文构建器，负责构建LLM所需的上下文
     """
     
-    def __init__(self, memory: Memory, max_context_items: int = 10, max_history_turns: int = 10):
+    def __init__(self, memory: LangMemManager, max_context_items: int = 10, max_history_turns: int = 10):
         """
         初始化上下文构建器
         
         Args:
-            memory: 记忆系统
+            memory: LangMem记忆管理器
             max_context_items: 最大上下文项数量
             max_history_turns: 最大历史轮次数量
         """
@@ -80,18 +83,29 @@ class ContextBuilder:
         Returns:
             构建好的上下文字典
         """
-        # 获取相关记忆
-        relevant_memories = self.memory.retrieve(user_input, limit=self.max_context_items)
+        # 获取相关记忆 (同步方式)
+        query = LangMemMemoryQuery(content=user_input)
+        retrieved_memories = asyncio.run(self.memory.retrieve_memories(query, limit=self.max_context_items))
+        
+        # 格式化检索到的记忆
+        formatted_memories = []
+        for retrieved in retrieved_memories:
+            memory = retrieved.memory
+            relevance = retrieved.relevance
+            formatted = f"记忆 (相关度: {relevance:.2f}):\n{memory.content}"
+            if memory.metadata and memory.metadata.get('source'):
+                formatted += f"\n来源: {memory.metadata.get('source')}"
+            formatted_memories.append(formatted)
         
         # 构建上下文字典
         context = {
             "user_input": user_input,
             "input_type": input_type,
-            "relevant_memories": relevant_memories,
-            "messages": self._format_as_messages(user_input, relevant_memories)
+            "relevant_memories": formatted_memories,
+            "messages": self._format_as_messages(user_input, formatted_memories)
         }
         
-        logger.info(f"上下文构建完成，包含 {len(relevant_memories)} 条相关记忆")
+        logger.info(f"上下文构建完成，包含 {len(formatted_memories)} 条相关记忆")
         return context
     
     def add_tool_result(self, context: Dict[str, Any], tool_info: Dict[str, Any], tool_result: str) -> Dict[str, Any]:
@@ -139,11 +153,23 @@ class ContextBuilder:
             相关记忆列表
         """
         try:
-            if hasattr(self.memory, 'retrieve_async'):
-                return await self.memory.retrieve_async(user_input, limit=self.max_context_items)
-            else:
-                # 如果没有异步方法，则使用同步方法
-                return self.memory.retrieve(user_input, limit=self.max_context_items)
+            # 创建记忆查询对象
+            query = LangMemMemoryQuery(content=user_input)
+            
+            # 使用LangMem的记忆管理器检索相关记忆
+            retrieved_memories = await self.memory.retrieve_memories(query, limit=self.max_context_items)
+            
+            # 格式化检索到的记忆
+            formatted_memories = []
+            for retrieved in retrieved_memories:
+                memory = retrieved.memory
+                relevance = retrieved.relevance
+                formatted = f"记忆 (相关度: {relevance:.2f}):\n{memory.content}"
+                if memory.metadata and memory.metadata.get('source'):
+                    formatted += f"\n来源: {memory.metadata.get('source')}"
+                formatted_memories.append(formatted)
+            
+            return formatted_memories
         except Exception as e:
             logger.error(f"获取相关记忆失败: {e}")
             return []
@@ -182,15 +208,30 @@ class ContextBuilder:
             用户信息字典
         """
         try:
-            if hasattr(self.memory, 'retrieve_async'):
-                user_memories = await self.memory.retrieve_async(f"user_info:{user_id}", limit=1)
-                if user_memories and len(user_memories) > 0:
-                    return user_memories[0]
-            elif hasattr(self.memory, 'retrieve'):
-                user_memories = self.memory.retrieve(f"user_info:{user_id}", limit=1)
-                if user_memories and len(user_memories) > 0:
-                    return user_memories[0]
-                    
+            # 创建记忆查询对象，使用过滤器查找用户信息
+            query = LangMemMemoryQuery(
+                content=f"user_info:{user_id}",
+                filters={
+                    "memory_type": "user_profile",
+                    "user_id": user_id
+                }
+            )
+            
+            # 使用LangMem的记忆管理器检索用户信息
+            retrieved_memories = await self.memory.retrieve_memories(query, limit=1)
+            
+            if retrieved_memories and len(retrieved_memories) > 0:
+                # 如果找到用户信息，解析并返回
+                user_memory = retrieved_memories[0].memory
+                if user_memory.metadata and 'user_info' in user_memory.metadata:
+                    return user_memory.metadata['user_info']
+                elif user_memory.content:
+                    # 尝试解析内容为JSON
+                    try:
+                        return json.loads(user_memory.content)
+                    except:
+                        pass
+            
             # 返回默认用户信息
             return {
                 "id": user_id,
