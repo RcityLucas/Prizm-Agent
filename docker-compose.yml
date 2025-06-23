@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # SurrealDB service
+  surreal:
+    image: surrealdb/surrealdb:latest
+    container_name: prizm_surreal
+    command: start --bind 0.0.0.0:8000 --user root --pass root surrealkv:///data/database.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - surreal_data:/data
+    restart: unless-stopped
+    networks:
+      - prizm_network
+
+  # API server service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prizm_api
+    depends_on:
+      - surreal
+    ports:
+      - "5000:5000"
+    environment:
+      - SURREALDB_URL=ws://surreal:8000/rpc
+      - SURREALDB_NAMESPACE=rainbow
+      - SURREALDB_DATABASE=test
+      - SURREALDB_USERNAME=root
+      - SURREALDB_PASSWORD=root
+      - HOST=0.0.0.0
+      - PORT=5000
+    restart: unless-stopped
+    networks:
+      - prizm_network
+
+volumes:
+  surreal_data:
+    name: prizm_surreal_data
+
+networks:
+  prizm_network:
+    name: prizm_network
