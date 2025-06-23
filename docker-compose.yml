@@ -9,8 +9,8 @@ services:
     ports:
       - "8001:8000"
     volumes:
-      - surreal_data:/data
-    user: "1000:1000"  # Use a non-root user for better permissions compatibility
+      - surreal_data:/data:z
+    # Remove user setting as it's not helping with permissions
     restart: unless-stopped
     networks:
       - prizm_network
