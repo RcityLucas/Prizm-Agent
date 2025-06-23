@@ -7,7 +7,7 @@ services:
     container_name: prizm_surreal
     command: start --bind 0.0.0.0:8000 --user root --pass root surrealkv:///data/database.db
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - surreal_data:/data
     restart: unless-stopped
@@ -25,7 +25,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - SURREALDB_URL=ws://surreal:8000/rpc
+      - SURREALDB_URL=ws://surreal:8000/rpc  # Internal network uses container port
       - SURREALDB_NAMESPACE=rainbow
       - SURREALDB_DATABASE=test
       - SURREALDB_USERNAME=root
