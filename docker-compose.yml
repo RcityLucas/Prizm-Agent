@@ -9,8 +9,8 @@ services:
     ports:
       - "8001:8000"
     volumes:
-      - surreal_data:/data:z
-    # Remove user setting as it's not helping with permissions
+      - ./surreal_data:/data
+    # Using a host bind mount instead of a Docker volume
     restart: unless-stopped
     networks:
       - prizm_network
@@ -37,9 +37,10 @@ services:
     networks:
       - prizm_network
 
-volumes:
-  surreal_data:
-    name: prizm_surreal_data
+# No need for named volumes as we're using a bind mount
+# volumes:
+#   surreal_data:
+#     name: prizm_surreal_data
 
 networks:
   prizm_network:
