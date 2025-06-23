@@ -11,8 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY . .
 
-# Install the local package in development mode
-RUN pip install -e .
+# No need to install as a package since it's not set up as one
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
