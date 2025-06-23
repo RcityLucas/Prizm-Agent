@@ -11,7 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY . .
 
-# No need to install as a package since it's not set up as one
+# Install the langmem package
+RUN cd /app/langmem && pip install -e .
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1

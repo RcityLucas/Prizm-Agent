@@ -10,6 +10,7 @@ services:
       - "8001:8000"
     volumes:
       - surreal_data:/data
+    user: "1000:1000"  # Use a non-root user for better permissions compatibility
     restart: unless-stopped
     networks:
       - prizm_network
