@@ -25,6 +25,8 @@ services:
       - surreal
     ports:
       - "5000:5000"
+    env_file:
+      - ./.env
     environment:
       - SURREALDB_URL=ws://surreal:8000/rpc  # Internal network uses container port
       - SURREALDB_NAMESPACE=rainbow
