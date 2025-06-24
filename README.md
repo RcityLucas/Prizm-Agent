@@ -119,14 +119,52 @@ python surreal_api_server.py
 
 #### 主要API端点
 
+##### 会话管理API
+
 | 端点 | 方法 | 描述 |
 |------|------|------|
 | `/api/dialogue/sessions` | GET | 获取所有对话会话 |
 | `/api/dialogue/sessions` | POST | 创建新对话会话 |
 | `/api/dialogue/sessions/{session_id}` | GET | 获取特定会话信息 |
+| `/api/dialogue/sessions/{session_id}` | PUT | 更新会话信息 |
+| `/api/dialogue/sessions/{session_id}` | DELETE | 删除会话 |
 | `/api/dialogue/sessions/{session_id}/turns` | GET | 获取会话的所有轮次 |
+
+##### 对话处理API
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
 | `/api/dialogue/input` | POST | 发送用户输入到会话 |
+
+##### 多模态API
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
+| `/api/dialogue/upload/image` | POST | 上传图像到会话 |
+| `/api/dialogue/upload/audio` | POST | 上传音频到会话 |
+| `/api/uploads/{filename}` | GET | 获取上传的文件 |
+
+##### 工具API
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
 | `/api/dialogue/tools` | GET | 获取可用工具列表 |
+
+##### 系统API
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
+| `/api/system/status` | GET | 获取系统状态信息 |
+| `/api/dialogue/types` | GET | 获取支持的对话类型 |
+
+##### 频率感知系统API
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
+| `/api/frequency/pending` | GET | 获取待处理的主动表达 |
+| `/api/frequency/settings` | GET | 获取频率感知系统设置 |
+| `/api/frequency/settings` | POST | 更新频率感知系统设置 |
+| `/api/frequency/trigger` | POST | 触发主动表达 |
 
 更多API端点和详细文档请参见 `docs/api/` 目录。
 
