@@ -1,12 +1,11 @@
 # rainbow_agent/core/context_builder.py
 from typing import Dict, Any, List, Optional, Tuple
 import asyncio
+import json
 from datetime import datetime
 
-from langmem.core.memory_manager import MemoryManager as LangMemManager
-from langmem.core.models import Memory as LangMemMemory
-from langmem.core.models import MemoryQuery as LangMemMemoryQuery
-from langmem.core.models import RetrievedMemory as LangMemRetrievedMemory
+from ..memory.memory import Memory
+from ..memory.surreal_memory import SurrealMemory
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -16,7 +15,7 @@ class ContextBuilder:
     上下文构建器，负责构建LLM所需的上下文
     """
     
-    def __init__(self, memory: LangMemManager, max_context_items: int = 10, max_history_turns: int = 10):
+    def __init__(self, memory: Memory, max_context_items: int = 10, max_history_turns: int = 10):
         """
         初始化上下文构建器
         
@@ -84,18 +83,7 @@ class ContextBuilder:
             构建好的上下文字典
         """
         # 获取相关记忆 (同步方式)
-        query = LangMemMemoryQuery(content=user_input)
-        retrieved_memories = asyncio.run(self.memory.retrieve_memories(query, limit=self.max_context_items))
-        
-        # 格式化检索到的记忆
-        formatted_memories = []
-        for retrieved in retrieved_memories:
-            memory = retrieved.memory
-            relevance = retrieved.relevance
-            formatted = f"记忆 (相关度: {relevance:.2f}):\n{memory.content}"
-            if memory.metadata and memory.metadata.get('source'):
-                formatted += f"\n来源: {memory.metadata.get('source')}"
-            formatted_memories.append(formatted)
+        formatted_memories = self.memory.retrieve(user_input, limit=self.max_context_items)
         
         # 构建上下文字典
         context = {
@@ -153,22 +141,19 @@ class ContextBuilder:
             相关记忆列表
         """
         try:
-            # 创建记忆查询对象
-            query = LangMemMemoryQuery(content=user_input)
+            # 检查是否支持异步检索
+            if hasattr(self.memory, 'retrieve_async'):
+                # 使用异步方法检索相关记忆
+                formatted_memories = await self.memory.retrieve_async(user_input, limit=self.max_context_items)
+            else:
+                # 如果不支持异步，则使用同步方法在异步上下文中执行
+                loop = asyncio.get_event_loop()
+                formatted_memories = await loop.run_in_executor(
+                    None, 
+                    lambda: self.memory.retrieve(user_input, limit=self.max_context_items)
+                )
             
-            # 使用LangMem的记忆管理器检索相关记忆
-            retrieved_memories = await self.memory.retrieve_memories(query, limit=self.max_context_items)
-            
-            # 格式化检索到的记忆
-            formatted_memories = []
-            for retrieved in retrieved_memories:
-                memory = retrieved.memory
-                relevance = retrieved.relevance
-                formatted = f"记忆 (相关度: {relevance:.2f}):\n{memory.content}"
-                if memory.metadata and memory.metadata.get('source'):
-                    formatted += f"\n来源: {memory.metadata.get('source')}"
-                formatted_memories.append(formatted)
-            
+            logger.info(f"检索到 {len(formatted_memories)} 条相关记忆")
             return formatted_memories
         except Exception as e:
             logger.error(f"获取相关记忆失败: {e}")

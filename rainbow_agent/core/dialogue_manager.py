@@ -19,7 +19,8 @@ from datetime import datetime
 from rainbow_agent.ai.openai_service import OpenAIService
 from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
 from rainbow_agent.core.context_builder import ContextBuilder
-from langmem.core.memory_manager import MemoryManager as LangMemManager
+from rainbow_agent.memory.memory import Memory
+from rainbow_agent.memory.surreal_memory import SurrealMemory
 from rainbow_agent.frequency.frequency_integrator import FrequencyIntegrator
 from rainbow_agent.frequency.frequency_sense_core import FrequencySenseCore
 from rainbow_agent.frequency.expression_planner import ExpressionPlanner
@@ -47,14 +48,14 @@ class DialogueManager:
     def __init__(self, 
                  storage: Optional[UnifiedDialogueStorage] = None,
                  ai_service: Optional[OpenAIService] = None,
-                 memory: Optional[LangMemManager] = None,
+                 memory: Optional[Memory] = None,
                  frequency_integrator: Optional[FrequencyIntegrator] = None):
         """初始化对话管理器
         
         Args:
             storage: 统一对话存储实例，如果不提供则创建新实例
             ai_service: AI服务实例，如果不提供则创建新实例
-            memory: LangMem记忆管理器实例，如果不提供则为None
+            memory: 记忆系统实例，如果不提供则为None
             frequency_integrator: 频率集成器实例，如果不提供则创建新实例
         """
         # 初始化组件
