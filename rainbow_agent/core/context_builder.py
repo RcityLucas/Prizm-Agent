@@ -1,7 +1,8 @@
 # rainbow_agent/core/context_builder.py
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Union
 import asyncio
 import json
+import numpy as np
 from datetime import datetime
 
 from ..memory.memory import Memory
@@ -15,20 +16,29 @@ class ContextBuilder:
     上下文构建器，负责构建LLM所需的上下文
     """
     
-    def __init__(self, memory: Memory, max_context_items: int = 10, max_history_turns: int = 10):
+    def __init__(self, memory: Memory, max_context_items: int = 10, max_history_turns: int = 10, 
+                 use_vector_search: bool = False, vector_weight: float = 0.7):
         """
         初始化上下文构建器
         
         Args:
-            memory: LangMem记忆管理器
+            memory: 记忆管理器
             max_context_items: 最大上下文项数量
             max_history_turns: 最大历史轮次数量
+            use_vector_search: 是否使用向量检索
+            vector_weight: 向量相似度的权重 (0-1)，越高越重视向量相似度
         """
         self.memory = memory
         self.max_context_items = max_context_items
         self.max_history_turns = max_history_turns
+        self.use_vector_search = use_vector_search
+        self.vector_weight = vector_weight
         
-    async def build_async(self, user_input: str, session_id: str, user_id: str, input_type: str = "text") -> Dict[str, Any]:
+        # 向量化模型
+        self.embedding_model = None
+        
+    async def build_async(self, user_input: str, session_id: str, user_id: str, 
+                         input_type: str = "text", query_vector: Optional[List[float]] = None) -> Dict[str, Any]:
         """
         异步构建上下文
         
@@ -37,13 +47,14 @@ class ContextBuilder:
             session_id: 会话ID
             user_id: 用户ID
             input_type: 输入类型
+            query_vector: 可选的查询向量，如果提供则使用向量检索
             
         Returns:
             构建好的上下文字典
         """
         # 并行获取相关记忆、对话历史和用户信息
         tasks = [
-            self._get_relevant_memories_async(user_input),
+            self._get_relevant_memories_async(user_input, query_vector),
             self._get_conversation_history_async(session_id),
             self._get_user_info_async(user_id)
         ]
@@ -71,19 +82,30 @@ class ContextBuilder:
         logger.info(f"上下文构建完成，包含 {len(relevant_memories)} 条相关记忆，{len(conversation_history)} 轮对话历史")
         return context
         
-    def build(self, user_input: str, input_type: str = "text") -> Dict[str, Any]:
+    def build(self, user_input: str, input_type: str = "text", query_vector: Optional[List[float]] = None) -> Dict[str, Any]:
         """
         构建上下文（同步版本，向后兼容）
         
         Args:
             user_input: 用户输入
             input_type: 输入类型
+            query_vector: 可选的查询向量，如果提供则使用向量检索
             
         Returns:
             构建好的上下文字典
         """
         # 获取相关记忆 (同步方式)
-        formatted_memories = self.memory.retrieve(user_input, limit=self.max_context_items)
+        if self.use_vector_search and query_vector:
+            if hasattr(self.memory, 'retrieve_hybrid'):
+                formatted_memories = self.memory.retrieve_hybrid(user_input, query_vector, 
+                                                              limit=self.max_context_items, 
+                                                              vector_weight=self.vector_weight)
+            elif hasattr(self.memory, 'retrieve_by_vector'):
+                formatted_memories = self.memory.retrieve_by_vector(query_vector, limit=self.max_context_items)
+            else:
+                formatted_memories = self.memory.retrieve(user_input, limit=self.max_context_items)
+        else:
+            formatted_memories = self.memory.retrieve(user_input, limit=self.max_context_items)
         
         # 构建上下文字典
         context = {
@@ -130,12 +152,13 @@ class ContextBuilder:
         logger.info(f"上下文更新，添加了工具 '{tool_info['tool_name']}' 的结果")
         return updated_context
     
-    async def _get_relevant_memories_async(self, user_input: str) -> List[str]:
+    async def _get_relevant_memories_async(self, user_input: str, query_vector: Optional[List[float]] = None) -> List[str]:
         """
         异步获取相关记忆
         
         Args:
             user_input: 用户输入
+            query_vector: 可选的查询向量，如果提供则使用向量检索
             
         Returns:
             相关记忆列表
@@ -255,6 +278,37 @@ class ContextBuilder:
             return "established"
         else:
             return "close"
+    
+    def get_embedding(self, text: str) -> Optional[List[float]]:
+        """
+        获取文本的向量表示
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            文本的向量表示，如果模型未加载则返回None
+        """
+        try:
+            if self.embedding_model is None:
+                # 延迟加载向量化模型
+                try:
+                    from sentence_transformers import SentenceTransformer
+                    self.embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                    logger.info("向量化模型加载成功")
+                except ImportError:
+                    logger.warning("无法加载 sentence_transformers 库，请安装: pip install sentence-transformers")
+                    return None
+                except Exception as e:
+                    logger.error(f"加载向量化模型失败: {e}")
+                    return None
+            
+            # 生成向量表示
+            embedding = self.embedding_model.encode(text)
+            return embedding.tolist()
+        except Exception as e:
+            logger.error(f"生成文本向量表示失败: {e}")
+            return None
     
     def _format_as_messages(self, user_input: str, memories: List[str], 
                            conversation_history: List[Dict[str, Any]] = None,

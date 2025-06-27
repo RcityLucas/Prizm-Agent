@@ -49,7 +49,9 @@ class DialogueManager:
                  storage: Optional[UnifiedDialogueStorage] = None,
                  ai_service: Optional[OpenAIService] = None,
                  memory: Optional[Memory] = None,
-                 frequency_integrator: Optional[FrequencyIntegrator] = None):
+                 frequency_integrator: Optional[FrequencyIntegrator] = None,
+                 use_vector_search: bool = False,
+                 vector_weight: float = 0.7):
         """初始化对话管理器
         
         Args:
@@ -64,8 +66,12 @@ class DialogueManager:
         self.memory = memory
         
         # 初始化上下文构建器
-        # 确保使用LangMem记忆管理器初始化上下文构建器
-        self.context_builder = ContextBuilder(memory=self.memory) if self.memory else None
+        # 使用内部记忆系统初始化上下文构建器
+        self.use_vector_search = use_vector_search
+        self.vector_weight = vector_weight
+        self.context_builder = ContextBuilder(memory=self.memory, 
+                                          use_vector_search=use_vector_search,
+                                          vector_weight=vector_weight) if self.memory else None
         
         # 初始化频率感知系统
         if frequency_integrator:
@@ -163,7 +169,8 @@ class DialogueManager:
                            user_id: str, 
                            content: str,
                            input_type: str = "text",
-                           metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                           metadata: Optional[Dict[str, Any]] = None,
+                           query_vector: Optional[List[float]] = None) -> Dict[str, Any]:
         """处理用户输入并生成响应
         
         Args:
@@ -172,6 +179,7 @@ class DialogueManager:
             content: 用户输入内容
             input_type: 输入类型，如text、image等
             metadata: 附加元数据
+            query_vector: 查询向量
             
         Returns:
             处理结果，包含AI响应
@@ -330,6 +338,34 @@ class DialogueManager:
             }
             logger.warning(f"使用后备轮次（数据库错误）: {fallback_turn['id']}")
             return fallback_turn
+        
+        # 保存到记忆系统
+        if self.memory and role == "human":
+            try:
+                # 构建记忆内容
+                memory_content = content
+                memory_metadata = {
+                    "session_id": session_id,
+                    "role": role,
+                    "timestamp": datetime.now().isoformat(),
+                    "type": "dialogue_turn"
+                }
+                
+                # 生成或使用提供的向量嵌入
+                vector = embedding
+                if self.use_vector_search and not vector and self.context_builder and hasattr(self.context_builder, 'get_embedding'):
+                    vector = self.context_builder.get_embedding(content)
+                
+                # 异步保存记忆（带向量）
+                if hasattr(self.memory, 'save_async'):
+                    await self.memory.save_async(memory_content, metadata=memory_metadata, vector=vector)
+                else:
+                    # 如果没有异步方法，则使用同步方法
+                    self.memory.save(memory_content, metadata=memory_metadata, vector=vector)
+                    
+                logger.debug(f"已保存对话轮次到记忆系统: {session_id}, {role} {'(带向量嵌入)' if vector else ''}")
+            except Exception as e:
+                logger.error(f"保存对话轮次到记忆系统失败: {e}")
     
     async def _process_by_dialogue_type(self,
                                       dialogue_type: str,
@@ -395,15 +431,24 @@ class DialogueManager:
             (响应内容, 响应元数据)
         """
         try:
-            # 使用上下文构建器构建上下文（如果可用）
+            # 如果有上下文构建器，构建上下文
+            context = None
             if self.context_builder:
-                context = await self.context_builder.build_async(
-                    user_input=content,
-                    session_id=session_id,
-                    user_id=user_id,
-                    input_type=metadata.get("input_type", "text") if metadata else "text"
-                )
-                messages = context["messages"]
+                try:
+                    # 如果没有提供查询向量，尝试生成
+                    if self.use_vector_search and not metadata.get("query_vector") and hasattr(self.context_builder, 'get_embedding'):
+                        query_vector = self.context_builder.get_embedding(content)
+                        
+                    context = await self.context_builder.build_async(
+                        user_input=content,
+                        session_id=session_id,
+                        user_id=user_id,
+                        input_type=metadata.get("input_type", "text") if metadata else "text",
+                        query_vector=metadata.get("query_vector", query_vector) if metadata else query_vector
+                    )
+                    logger.debug(f"已为会话 {session_id} 构建上下文 {'(使用向量检索)' if metadata.get('query_vector') else ''}")
+                except Exception as e:
+                    logger.error(f"构建上下文失败: {e}")
                 
                 # 记录频率信息（如果频率集成器可用）
                 if self.frequency_integrator:
@@ -437,6 +482,36 @@ class DialogueManager:
                     session_id=session_id
                 )
                 response_metadata["frequency_data"] = frequency_data
+            
+            # 保存AI回复到记忆系统
+            if self.memory:
+                try:
+                    # 构建记忆内容
+                    memory_content = f"用户: {content}\n\nAI助手: {response}"
+                    memory_metadata = {
+                        "session_id": session_id,
+                        "user_id": user_id,
+                        "timestamp": datetime.now().isoformat(),
+                        "type": "dialogue_interaction"
+                    }
+                    
+                    # 生成向量嵌入
+                    vector = None
+                    if self.use_vector_search and self.context_builder and hasattr(self.context_builder, 'get_embedding'):
+                        vector = self.context_builder.get_embedding(memory_content)
+                    
+                    # 异步保存记忆（带向量）
+                    if hasattr(self.memory, 'save_async'):
+                        await self.memory.save_async(memory_content, metadata=memory_metadata, vector=vector)
+                    else:
+                        # 如果没有异步方法，则使用同步方法
+                        self.memory.save(memory_content, metadata=memory_metadata, vector=vector)
+                        
+                    logger.debug(f"已保存对话交互到记忆系统: {session_id} {'(带向量嵌入)' if vector else ''}")
+                except Exception as e:
+                    logger.error(f"保存对话交互到记忆系统失败: {e}")
+            else:
+                logger.debug("频率集成器或内存组件不可用，跳过更新用户交互计数")
             
             return response, response_metadata
         except Exception as e:

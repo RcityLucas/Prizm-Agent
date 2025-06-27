@@ -5,6 +5,7 @@ SurrealDB记忆系统
 """
 from typing import List, Dict, Any, Optional
 import json
+import numpy as np
 from datetime import datetime
 import asyncio
 
@@ -69,20 +70,22 @@ class SurrealMemory(Memory):
             self.using_fallback = True
             logger.info("已切换到SimpleMemory备用存储")
     
-    def save(self, user_input: str, assistant_response: str, session_id: str = "default") -> None:
+    def save(self, user_input: str, assistant_response: str, vector: Optional[List[float]] = None, session_id: str = "default") -> None:
         """
         保存对话记录到记忆系统
         
         Args:
             user_input: 用户输入
             assistant_response: 助手回复
+            vector: 可选的向量表示，用于向量检索
             session_id: 会话ID
         """
         timestamp = datetime.now().isoformat()
         memory_item = {
             "timestamp": timestamp,
             "user_input": user_input,
-            "assistant_response": assistant_response
+            "assistant_response": assistant_response,
+            "vector": vector if vector is not None else []
         }
         
         try:
@@ -167,20 +170,21 @@ class SurrealMemory(Memory):
         except Exception as e:
             logger.error(f"清除记忆失败: {e}")
     
-    async def save_async(self, user_input: str, assistant_response: str, session_id: str = "default") -> None:
+    async def save_async(self, user_input: str, assistant_response: str, vector: Optional[List[float]] = None, session_id: str = "default") -> None:
         """
         异步保存对话记录到记忆系统
         
         Args:
             user_input: 用户输入
             assistant_response: 助手回复
+            vector: 可选的向量表示，用于向量检索
             session_id: 会话ID
         """
         # 创建一个新的事件循环来运行同步方法
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None, 
-            lambda: self.save(user_input, assistant_response, session_id)
+            lambda: self.save(user_input, assistant_response, vector, session_id)
         )
     
     async def retrieve_async(self, query: str, limit: int = 5, session_id: str = "default") -> List[str]:
@@ -200,4 +204,216 @@ class SurrealMemory(Memory):
         return await loop.run_in_executor(
             None, 
             lambda: self.retrieve(query, limit, session_id)
+        )
+        
+    def retrieve_by_vector(self, query_vector: List[float], limit: int = 5, session_id: str = "default") -> List[str]:
+        """
+        使用向量相似度从记忆系统中检索相关记忆
+        
+        Args:
+            query_vector: 查询向量
+            limit: 返回结果数量限制
+            session_id: 会话ID
+            
+        Returns:
+            相关记忆列表
+        """
+        try:
+            if self.using_fallback:
+                # 使用备用内存存储检索
+                return self.fallback_memory.retrieve_by_vector(query_vector, limit)
+            
+            # 获取所有记忆
+            raw_memories = self.storage.get(session_id, 100)  # 获取较多的记忆以便计算相似度
+            
+            # 过滤出带有向量的记忆
+            memories_with_vectors = [m for m in raw_memories if m.get('vector') and len(m['vector']) > 0]
+            
+            if not memories_with_vectors:
+                logger.warning(f"会话 {session_id} 中没有找到带有向量的记忆")
+                return []
+                
+            # 计算余弦相似度
+            similarities = []
+            query_vector_np = np.array(query_vector)
+            
+            for memory in memories_with_vectors:
+                memory_vector = np.array(memory['vector'])
+                # 余弦相似度计算
+                similarity = np.dot(query_vector_np, memory_vector) / (
+                    np.linalg.norm(query_vector_np) * np.linalg.norm(memory_vector)
+                ) if np.linalg.norm(memory_vector) > 0 else 0
+                
+                similarities.append((memory, similarity))
+            
+            # 按相似度降序排序
+            similarities.sort(key=lambda x: x[1], reverse=True)
+            
+            # 取前 limit 个记忆
+            top_memories = [item[0] for item in similarities[:limit]]
+            
+            # 格式化返回的记忆
+            formatted_memories = []
+            for memory in top_memories:
+                # 检查记忆格式是否符合预期
+                if "user_input" in memory and "assistant_response" in memory:
+                    formatted = (
+                        f"用户: {memory['user_input']}\n"
+                        f"助手: {memory['assistant_response']}"
+                    )
+                    formatted_memories.append(formatted)
+            
+            logger.info(f"从会话 {session_id} 检索到 {len(formatted_memories)} 条向量相关记忆")
+            return formatted_memories
+        except Exception as e:
+            logger.error(f"检索向量记忆失败: {e}")
+            # 如果SurrealDB检索失败，尝试使用备用存储
+            if not self.using_fallback:
+                logger.warning("切换到备用内存存储")
+                if self.fallback_memory is None:
+                    self.fallback_memory = SimpleMemory(max_items=1000)
+                self.using_fallback = True
+                return self.fallback_memory.retrieve_by_vector(query_vector, limit)
+            return []
+    
+    async def retrieve_by_vector_async(self, query_vector: List[float], limit: int = 5, session_id: str = "default") -> List[str]:
+        """
+        异步使用向量相似度从记忆系统中检索相关记忆
+        
+        Args:
+            query_vector: 查询向量
+            limit: 返回结果数量限制
+            session_id: 会话ID
+            
+        Returns:
+            相关记忆列表
+        """
+        # 创建一个新的事件循环来运行同步方法
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, 
+            lambda: self.retrieve_by_vector(query_vector, limit, session_id)
+        )
+    
+    def retrieve_hybrid(self, query: str, query_vector: Optional[List[float]] = None, 
+                       limit: int = 5, vector_weight: float = 0.5, session_id: str = "default") -> List[str]:
+        """
+        混合检索方法，结合关键词和向量相似度
+        
+        Args:
+            query: 查询文本
+            query_vector: 查询向量，如果为None则仅使用关键词检索
+            limit: 返回结果数量限制
+            vector_weight: 向量相似度的权重 (0-1)，越高越重视向量相似度
+            session_id: 会话ID
+            
+        Returns:
+            相关记忆列表
+        """
+        try:
+            if self.using_fallback:
+                # 使用备用内存存储检索
+                return self.fallback_memory.retrieve_hybrid(query, query_vector, limit, vector_weight)
+            
+            # 如果没有提供向量，直接使用关键词检索
+            if query_vector is None or len(query_vector) == 0:
+                return self.retrieve(query, limit, session_id)
+                
+            # 获取所有记忆
+            raw_memories = self.storage.get(session_id, 100)  # 获取较多的记忆以便计算相似度
+            
+            if not raw_memories:
+                logger.warning(f"会话 {session_id} 中没有找到记忆")
+                return []
+            
+            # 关键词相关度计算 (使用现有的search方法)
+            keyword_matches = self.storage.search(session_id, query, 100)
+            keyword_scores = {}
+            for i, memory in enumerate(keyword_matches):
+                # 根据排序位置计算分数，越靠前分数越高
+                score = 1.0 - (i / len(keyword_matches)) if keyword_matches else 0.0
+                memory_id = memory.get('id', str(i))
+                keyword_scores[memory_id] = score
+            
+            # 向量相似度计算
+            vector_scores = {}
+            memories_with_vectors = [m for m in raw_memories if m.get('vector') and len(m['vector']) > 0]
+            
+            if memories_with_vectors and query_vector:
+                query_vector_np = np.array(query_vector)
+                
+                for memory in memories_with_vectors:
+                    memory_vector = np.array(memory['vector'])
+                    memory_id = memory.get('id', str(id(memory)))
+                    
+                    # 余弦相似度计算
+                    similarity = np.dot(query_vector_np, memory_vector) / (
+                        np.linalg.norm(query_vector_np) * np.linalg.norm(memory_vector)
+                    ) if np.linalg.norm(memory_vector) > 0 else 0
+                    
+                    vector_scores[memory_id] = similarity
+            
+            # 组合分数
+            combined_scores = []
+            for memory in raw_memories:
+                memory_id = memory.get('id', str(id(memory)))
+                keyword_score = keyword_scores.get(memory_id, 0.0)
+                vector_score = vector_scores.get(memory_id, 0.0)
+                
+                # 计算组合分数
+                combined_score = (1 - vector_weight) * keyword_score + vector_weight * vector_score
+                combined_scores.append((memory, combined_score))
+            
+            # 按组合分数降序排序
+            combined_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            # 取前 limit 个记忆
+            top_memories = [item[0] for item in combined_scores[:limit]]
+            
+            # 格式化返回的记忆
+            formatted_memories = []
+            for memory in top_memories:
+                # 检查记忆格式是否符合预期
+                if "user_input" in memory and "assistant_response" in memory:
+                    formatted = (
+                        f"用户: {memory['user_input']}\n"
+                        f"助手: {memory['assistant_response']}"
+                    )
+                    formatted_memories.append(formatted)
+            
+            logger.info(f"从会话 {session_id} 检索到 {len(formatted_memories)} 条混合相关记忆")
+            return formatted_memories
+        except Exception as e:
+            logger.error(f"混合检索记忆失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            # 如果SurrealDB检索失败，尝试使用备用存储
+            if not self.using_fallback:
+                logger.warning("切换到备用内存存储")
+                if self.fallback_memory is None:
+                    self.fallback_memory = SimpleMemory(max_items=1000)
+                self.using_fallback = True
+                return self.fallback_memory.retrieve_hybrid(query, query_vector, limit, vector_weight)
+            return []
+    
+    async def retrieve_hybrid_async(self, query: str, query_vector: Optional[List[float]] = None, 
+                                 limit: int = 5, vector_weight: float = 0.5, session_id: str = "default") -> List[str]:
+        """
+        异步混合检索方法
+        
+        Args:
+            query: 查询文本
+            query_vector: 查询向量
+            limit: 返回结果数量限制
+            vector_weight: 向量相似度的权重
+            session_id: 会话ID
+            
+        Returns:
+            相关记忆列表
+        """
+        # 创建一个新的事件循环来运行同步方法
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, 
+            lambda: self.retrieve_hybrid(query, query_vector, limit, vector_weight, session_id)
         )

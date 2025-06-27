@@ -4,6 +4,7 @@
 Unified SurrealDB API Server (更新版)
 
 使用统一的配置系统和新的统一存储系统进行对话管理和代理交互。
+支持OAuth登录和用户认证。
 """
 import os
 import sys
@@ -24,8 +25,9 @@ root_dir = str(pathlib.Path(__file__).absolute().parent)
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, redirect, url_for
 from flask_cors import CORS
+from flask_login import current_user, login_required
 
 # 导入中央配置系统
 from rainbow_agent.config.settings import get_settings
@@ -56,11 +58,20 @@ class CustomJSONEncoder(JSONEncoder):
             # 如果无法序列化，则转换为字符串
             return str(obj)
 
+# 导入应用模块
+from rainbow_agent.app import app as rainbow_app
+
 # Create Flask app
 app = Flask(__name__, static_folder='static')
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 app.json_encoder = CustomJSONEncoder  # 使用自定义JSON编码器
 CORS(app)  # Enable CORS for frontend cross-origin requests
+
+# 从rainbow_app复制配置
+app.config.update(rainbow_app.config)
+
+# 设置密钥
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_testing')
 
 # Global variables
 storage = None
@@ -130,13 +141,19 @@ def serve_static(path):
 
 @app.route('/')
 def home():
-    return send_from_directory('static', 'index.html')
+    # 如果用户已登录，重定向到聊天页面
+    if current_user.is_authenticated:
+        return redirect(url_for('chat'))
+    # 否则重定向到登录页面
+    return redirect(url_for('pages.login'))
 
 @app.route('/enhanced')
+@login_required
 def enhanced_interface():
     return send_from_directory('static', 'enhanced_index.html')
 
 @app.route('/chat')
+@login_required
 def chat():
     return send_from_directory('static', 'rainbow_demo.html')
 
@@ -381,13 +398,26 @@ def before_request():
     except Exception as e:
         logger.error(f"Failed to initialize storage before request: {e}")
 
+# 注册rainbow_app的蓝图到主应用
+from rainbow_agent.api.unified_routes import api
+from rainbow_agent.auth.routes import auth_api
+from rainbow_agent.ui.page_routes import pages
+
+app.register_blueprint(api)
+app.register_blueprint(auth_api)
+app.register_blueprint(pages)
+
 if __name__ == '__main__':
     try:
-        logger.info("Starting Unified SurrealDB API Server...")
+        logger.info("Starting Unified SurrealDB API Server with OAuth support...")
         
         # Initialize storage system
         init_storage()
         init_dialogue_system()
+        
+        # 初始化认证系统
+        from rainbow_agent.api.auth_routes import init_auth_components
+        init_auth_components(app)
         
         logger.info("Unified API Server initialized successfully")
         

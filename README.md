@@ -148,14 +148,23 @@ python surreal_api_server.py
 
 | 端点 | 方法 | 描述 |
 |------|------|------|
-| `/api/dialogue/tools` | GET | 获取可用工具列表 |
+| `/api/dialogue/tools` | GET | 获取可用工具列表 | 无 | 系统中可用工具列表，每个工具包含名称、描述、参数规范和版本信息 |
 
 ##### 系统API
 
-| 端点 | 方法 | 描述 |
-|------|------|------|
-| `/api/system/status` | GET | 获取系统状态信息 |
-| `/api/dialogue/types` | GET | 获取支持的对话类型 |
+| 端点 | 方法 | 描述 | 输入 | 输出 |
+|------|------|------|------|------|
+| `/api/system/status` | GET | 获取系统状态信息 | 无 | 系统状态信息，包含版本、运行时间、存储状态、模型状态等 |
+| `/api/dialogue/types` | GET | 获取支持的对话类型 | 无 | 系统支持的所有对话类型及其描述 |
+
+##### 频率感知系统API
+
+| 端点 | 方法 | 描述 | 输入 | 输出 |
+|------|------|------|------|------|
+| `/api/frequency/expressions` | GET | 获取待处理的主动表达 | 查询参数：<br>- `userId`：用户ID（必填） | 系统生成的待处理主动表达列表 |
+| `/api/frequency/settings` | GET | 获取频率感知系统设置 | 查询参数：<br>- `userId`：用户ID（必填） | 用户的频率感知系统设置 |
+| `/api/frequency/settings` | POST | 更新频率感知系统设置 | 请求体：<br>- `userId`：用户ID（必填）<br>- `enabled`：是否启用（可选）<br>- `expressionFrequency`：表达频率（可选）<br>- `relationshipStage`：关系阶段（可选）<br>- `expressionTypes`：表达类型列表（可选） | 更新后的频率感知系统设置 |
+| `/api/frequency/trigger` | POST | 触发主动表达 | 请求体：<br>- `userId`：用户ID（必填）<br>- `sessionId`：会话ID（必填）<br>- `expressionType`：表达类型（可选） | 触发生成的主动表达内容 |
 
 ##### 频率感知系统API
 

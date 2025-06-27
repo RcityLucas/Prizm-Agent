@@ -79,10 +79,18 @@ class HTTPSurrealClient:
             url = f"{self.http_url}/sql"
             logger.info(f"Executing SQL via HTTP: {sql}")
             
+            # Ensure we include all necessary headers including namespace and database
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'NS': self.namespace,
+                'DB': self.database
+            }
+            
             response = self.session.post(
                 url, 
                 data=sql,
-                headers={'Content-Type': 'application/x-www-form-urlencoded'}
+                headers=headers
             )
             
             if response.status_code != 200:

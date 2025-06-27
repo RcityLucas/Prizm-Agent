@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prizm Agent - 登录</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #333;
+        }
+        .login-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .logo {
+            margin-bottom: 30px;
+        }
+        .logo img {
+            max-width: 150px;
+            height: auto;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .login-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .login-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .login-button img {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+        }
+        .google-login {
+            background-color: #ffffff;
+            color: #757575;
+            border: 1px solid #ddd;
+        }
+        .google-login:hover {
+            background-color: #f5f5f5;
+        }
+        .github-login {
+            background-color: #24292e;
+            color: white;
+            border: 1px solid #24292e;
+        }
+        .github-login:hover {
+            background-color: #2f363d;
+        }
+        .divider {
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            text-align: center;
+            color: #777;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #ddd;
+        }
+        .divider::before {
+            margin-right: 10px;
+        }
+        .divider::after {
+            margin-left: 10px;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #777;
+        }
+        #status-message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <!-- 替换为您的logo -->
+            <h2>Prizm Agent</h2>
+        </div>
+        <h1>登录您的账户</h1>
+        
+        <div class="login-buttons">
+            <a href="/api/auth/login/google" class="login-button google-login">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google Logo">
+                使用Google账号登录
+            </a>
+            <a href="/api/auth/login/github" class="login-button github-login">
+                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub Logo">
+                使用GitHub账号登录
+            </a>
+        </div>
+        
+        <div class="divider">或</div>
+        
+        <div id="status-message"></div>
+        
+        <div class="footer">
+            <p>登录即表示您同意我们的服务条款和隐私政策</p>
+        </div>
+    </div>
+
+    <script>
+        // 检查URL参数中是否有错误信息
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            const statusMessage = document.getElementById('status-message');
+            
+            if (error) {
+                statusMessage.textContent = decodeURIComponent(error);
+                statusMessage.classList.add('error');
+                statusMessage.style.display = 'block';
+            }
+            
+            // 检查登录状态
+            checkLoginStatus();
+        };
+        
+        // 检查登录状态
+        function checkLoginStatus() {
+            fetch('/api/auth/check')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.authenticated) {
+                        // 已登录，重定向到主页
+                        window.location.href = '/';
+                    }
+                })
+                .catch(error => {
+                    console.error('检查登录状态失败:', error);
+                });
+        }
+    </script>
+</body>
+</html>
