@@ -19,6 +19,7 @@ from werkzeug.utils import secure_filename
 from rainbow_agent.core.dialogue_manager import DialogueManager, DIALOGUE_TYPES
 from rainbow_agent.api.unified_dialogue_processor import UnifiedDialogueProcessor
 from rainbow_agent.storage.unified_session_manager import UnifiedSessionManager
+from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
 
 # Create aliases for backward compatibility
 DialogueProcessor = UnifiedDialogueProcessor
@@ -72,9 +73,6 @@ def init_api_components():
     
     if not _initialized:
         logger.info("初始化API组件...")
-        
-        # 初始化会话管理器
-        session_manager = SessionManager()
         
         # 初始化记忆系统
         try:
