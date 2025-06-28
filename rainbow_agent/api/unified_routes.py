@@ -9,10 +9,11 @@ import uuid
 import json
 import logging
 import threading
-from typing import Dict, Any, List, Optional, Union
+import functools
+from typing import Dict, Any, List, Optional, Union, Callable
 from datetime import datetime
 
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, Response
 from werkzeug.utils import secure_filename
 
 from rainbow_agent.core.dialogue_manager import DialogueManager, DIALOGUE_TYPES
@@ -42,6 +43,28 @@ multi_modal_manager = None
 
 # 初始化标志
 _initialized = False
+
+# 通用错误处理函数
+def handle_api_error(e: Exception, status_code: int = 500) -> Response:
+    """通用API错误处理函数"""
+
+    logger.error(f"API错误: {str(e)}")
+
+    return jsonify({
+        "success": False,
+        "error": str(e)
+    }), status_code
+
+
+# 确保组件已初始化的装饰器
+def ensure_initialized(f: Callable) -> Callable:
+    """确保 API 组件已初始化的装饰器"""
+
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        init_api_components()
+        return f(*args, **kwargs)
+    return decorated
 
 def init_api_components():
     """初始化API组件"""
@@ -86,10 +109,9 @@ def init_api_components():
 
 # 会话管理API
 @api.route('/dialogue/sessions', methods=['GET'])
+@ensure_initialized
 def get_sessions():
     """获取会话列表"""
-    init_api_components()
-    
     try:
         # 解析请求参数
         user_id = request.args.get('userId')
@@ -108,22 +130,12 @@ def get_sessions():
             "total": len(sessions)
         })
     except Exception as e:
-        logger.error(f"获取会话列表失败: {e}")
-        import traceback
-        error_traceback = traceback.format_exc()
-        logger.error(error_traceback)
-        
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": error_traceback
-        }), 500
+        return handle_api_error(e)
 
 @api.route('/dialogue/sessions', methods=['POST'])
+@ensure_initialized
 def create_session():
     """创建新会话"""
-    init_api_components()
-    
     try:
         # 解析请求数据
         data = request.json
@@ -152,22 +164,12 @@ def create_session():
             "dialogueType": session["dialogue_type"]
         }), 201
     except Exception as e:
-        logger.error(f"创建会话失败: {e}")
-        import traceback
-        error_traceback = traceback.format_exc()
-        logger.error(error_traceback)
-        
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": error_traceback
-        }), 500
+        return handle_api_error(e)
 
 @api.route('/dialogue/sessions/<session_id>', methods=['GET'])
+@ensure_initialized
 def get_session(session_id):
     """获取特定会话"""
-    init_api_components()
-    
     try:
         # 获取会话
         session = session_manager.get_session(session_id)
@@ -184,17 +186,12 @@ def get_session(session_id):
             "session": session
         })
     except Exception as e:
-        logger.error(f"获取会话失败: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return handle_api_error(e)
 
 @api.route('/dialogue/sessions/<session_id>', methods=['PUT'])
+@ensure_initialized
 def update_session(session_id):
     """更新会话"""
-    init_api_components()
-    
     try:
         # 解析请求数据
         data = request.json
@@ -214,17 +211,12 @@ def update_session(session_id):
             "session": updated_session
         })
     except Exception as e:
-        logger.error(f"更新会话失败: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return handle_api_error(e)
 
 @api.route('/dialogue/sessions/<session_id>', methods=['DELETE'])
+@ensure_initialized
 def delete_session(session_id):
     """删除会话"""
-    init_api_components()
-    
     try:
         # 删除会话
         success = session_manager.delete_session(session_id)
@@ -240,34 +232,24 @@ def delete_session(session_id):
             "message": f"会话 {session_id} 已删除"
         })
     except Exception as e:
-        logger.error(f"删除会话失败: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return handle_api_error(e)
 
 @api.route('/dialogue/sessions/<session_id>/turns', methods=['GET'])
+@ensure_initialized
 def get_turns(session_id):
     """获取会话轮次"""
-    init_api_components()
-    
     try:
         # 获取轮次
         response, status_code = dialogue_processor.get_turns(session_id)
         return jsonify(response), status_code
     except Exception as e:
-        logger.error(f"获取轮次失败: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return handle_api_error(e)
 
 # 对话处理API
 @api.route('/dialogue/input', methods=['POST'])
+@ensure_initialized
 def process_input():
     """处理用户输入"""
-    init_api_components()
-    
     try:
         # 解析请求数据
         data = request.json
@@ -310,6 +292,7 @@ def process_input():
         
         return jsonify(response), status_code
     except Exception as e:
+        # 保留详细的错误信息，因为这是核心功能
         logger.error(f"处理输入失败: {e}")
         import traceback
         error_traceback = traceback.format_exc()
@@ -328,10 +311,9 @@ def process_input():
 
 # 多模态API
 @api.route('/dialogue/upload/image', methods=['POST'])
+@ensure_initialized
 def upload_image():
     """上传图像"""
-    init_api_components()
-    
     try:
         # 检查是否有文件
         if 'image' not in request.files:
@@ -699,15 +681,10 @@ def get_frequency_settings():
         })
     except Exception as e:
         logger.error(f"获取频率感知系统设置失败: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
 @api.route('/frequency/settings', methods=['POST'])
+@ensure_initialized
 def update_frequency_settings():
     """更新频率感知系统设置"""
-    init_api_components()
     
     try:
         # 解析请求数据
@@ -745,9 +722,9 @@ def update_frequency_settings():
         }), 500
 
 @api.route('/frequency/trigger', methods=['POST'])
+@ensure_initialized
 def trigger_expression():
     """触发主动表达"""
-    init_api_components()
     
     try:
         # 解析请求数据

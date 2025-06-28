@@ -123,14 +123,8 @@ class UserStorage(abc.ABC):
         Returns:
             用户对象，如果不存在则返回None
         """
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        return loop.run_until_complete(self.get_user(user_id))
+        from rainbow_agent.utils.async_helpers import run_async
+        return run_async(self.get_user, user_id)
     
     def get_user_by_email_sync(self, email: str) -> Optional[User]:
         """
@@ -142,14 +136,8 @@ class UserStorage(abc.ABC):
         Returns:
             用户对象，如果不存在则返回None
         """
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        return loop.run_until_complete(self.get_user_by_email(email))
+        from rainbow_agent.utils.async_helpers import run_async
+        return run_async(self.get_user_by_email, email)
     
     def get_user_by_provider_sync(self, provider: str, provider_id: str) -> Optional[User]:
         """
@@ -162,342 +150,9 @@ class UserStorage(abc.ABC):
         Returns:
             用户对象，如果不存在则返回None
         """
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        return loop.run_until_complete(self.get_user_by_provider(provider, provider_id))
+        from rainbow_agent.utils.async_helpers import run_async
+        return run_async(self.get_user_by_provider, provider, provider_id)
 
-
-class FileUserStorage(UserStorage):
-    """文件用户存储实现"""
-    
-    def __init__(self, storage_dir: str = None):
-        """
-        初始化文件用户存储
-        
-        Args:
-            storage_dir: 存储目录，默认为'user_data'
-        """
-        self.storage_dir = storage_dir or 'user_data'
-        os.makedirs(self.storage_dir, exist_ok=True)
-        logger.info(f"文件用户存储初始化完成，存储目录: {self.storage_dir}")
-    
-    def _get_user_path(self, user_id: str) -> str:
-        """
-        获取用户文件路径
-        
-        Args:
-            user_id: 用户ID
-            
-        Returns:
-            用户文件路径
-        """
-        return os.path.join(self.storage_dir, f"{user_id}.json")
-    
-    def _save_user(self, user: User) -> bool:
-        """
-        保存用户到文件
-        
-        Args:
-            user: 用户对象
-            
-        Returns:
-            是否保存成功
-        """
-        try:
-            user_path = self._get_user_path(user.id)
-            with open(user_path, 'w', encoding='utf-8') as f:
-                json.dump(user.to_dict(), f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            logger.error(f"保存用户失败: {e}")
-            return False
-    
-    def _load_all_users(self) -> List[User]:
-        """
-        加载所有用户
-        
-        Returns:
-            用户列表
-        """
-        users = []
-        try:
-            for filename in os.listdir(self.storage_dir):
-                if filename.endswith('.json'):
-                    try:
-                        with open(os.path.join(self.storage_dir, filename), 'r', encoding='utf-8') as f:
-                            user_data = json.load(f)
-                            users.append(User.from_dict(user_data))
-                    except Exception as e:
-                        logger.error(f"加载用户文件失败: {filename}, {e}")
-        except Exception as e:
-            logger.error(f"加载所有用户失败: {e}")
-        return users
-    
-    async def get_user(self, user_id: str) -> Optional[User]:
-        """
-        获取用户
-        
-        Args:
-            user_id: 用户ID
-            
-        Returns:
-            用户对象，如果不存在则返回None
-        """
-        try:
-            user_path = self._get_user_path(user_id)
-            if not os.path.exists(user_path):
-                return None
-            
-            with open(user_path, 'r', encoding='utf-8') as f:
-                user_data = json.load(f)
-                return User.from_dict(user_data)
-        except Exception as e:
-            logger.error(f"获取用户失败: {e}")
-            return None
-    
-    async def get_user_by_email(self, email: str) -> Optional[User]:
-        """
-        通过邮箱获取用户
-        
-        Args:
-            email: 用户邮箱
-            
-        Returns:
-            用户对象，如果不存在则返回None
-        """
-        try:
-            users = self._load_all_users()
-            for user in users:
-                if user.email == email:
-                    return user
-            return None
-        except Exception as e:
-            logger.error(f"通过邮箱获取用户失败: {e}")
-            return None
-    
-    async def get_user_by_provider(self, provider: str, provider_id: str) -> Optional[User]:
-        """
-        通过认证提供商和提供商用户ID获取用户
-        
-        Args:
-            provider: 认证提供商
-            provider_id: 提供商用户ID
-            
-        Returns:
-            用户对象，如果不存在则返回None
-        """
-        try:
-            users = self._load_all_users()
-            for user in users:
-                if user.provider == provider and user.provider_id == provider_id:
-                    return user
-            return None
-        except Exception as e:
-            logger.error(f"通过提供商获取用户失败: {e}")
-            return None
-    
-    async def create_user(self, user: User) -> User:
-        """
-        创建用户
-        
-        Args:
-            user: 用户对象
-            
-        Returns:
-            创建的用户对象
-        """
-        try:
-            # 确保用户有ID
-            if not user.id:
-                user.id = str(uuid.uuid4())
-            
-            # 保存用户
-            success = self._save_user(user)
-            if success:
-                logger.info(f"用户创建成功: {user.id}")
-            else:
-                logger.error(f"用户创建失败: {user.id}")
-            
-            return user
-        except Exception as e:
-            logger.error(f"创建用户失败: {e}")
-            return user
-    
-    async def update_user(self, user: User) -> User:
-        """
-        更新用户
-        
-        Args:
-            user: 用户对象
-            
-        Returns:
-            更新后的用户对象
-        """
-        try:
-            # 保存用户
-            success = self._save_user(user)
-            if success:
-                logger.info(f"用户更新成功: {user.id}")
-            else:
-                logger.error(f"用户更新失败: {user.id}")
-            
-            return user
-        except Exception as e:
-            logger.error(f"更新用户失败: {e}")
-            return user
-    
-    async def delete_user(self, user_id: str) -> bool:
-        """
-        删除用户
-        
-        Args:
-            user_id: 用户ID
-            
-        Returns:
-            是否删除成功
-        """
-        try:
-            user_path = self._get_user_path(user_id)
-            if not os.path.exists(user_path):
-                return False
-            
-            os.remove(user_path)
-            logger.info(f"用户删除成功: {user_id}")
-            return True
-        except Exception as e:
-            logger.error(f"删除用户失败: {e}")
-            return False
-    
-    async def list_users(self, limit: int = 100, offset: int = 0) -> List[User]:
-        """
-        列出用户
-        
-        Args:
-            limit: 限制数量
-            offset: 偏移量
-            
-        Returns:
-            用户列表
-        """
-        try:
-            # 加载所有用户
-            users = self._load_all_users()
-            
-            # 应用分页
-            start = offset
-            end = offset + limit
-            paginated_users = users[start:end] if start < len(users) else []
-            
-            return paginated_users
-        except Exception as e:
-            logger.error(f"列出用户失败: {e}")
-            return []
-            
-    def create_user_sync(self, user: User) -> User:
-        """
-        同步创建用户
-        
-        Args:
-            user: 用户对象
-            
-        Returns:
-            创建的用户对象
-        """
-        try:
-            # 确保用户有ID
-            if not user.id:
-                user.id = str(uuid.uuid4())
-            
-            # 保存用户
-            success = self._save_user(user)
-            if success:
-                logger.info(f"用户创建成功: {user.id}")
-            else:
-                logger.error(f"用户创建失败: {user.id}")
-            
-            return user
-        except Exception as e:
-            logger.error(f"创建用户失败: {e}")
-            return user
-            
-    def update_user_sync(self, user: User) -> User:
-        """
-        同步更新用户
-        
-        Args:
-            user: 用户对象
-            
-        Returns:
-            更新后的用户对象
-        """
-        try:
-            # 保存用户
-            success = self._save_user(user)
-            if success:
-                logger.info(f"用户更新成功: {user.id}")
-            else:
-                logger.error(f"用户更新失败: {user.id}")
-            
-            return user
-        except Exception as e:
-            logger.error(f"更新用户失败: {e}")
-            return user
-            
-    def delete_user_sync(self, user_id: str) -> bool:
-        """
-        同步删除用户
-        
-        Args:
-            user_id: 用户ID
-            
-        Returns:
-            是否删除成功
-        """
-        try:
-            # 获取用户文件路径
-            user_path = self._get_user_path(user_id)
-            
-            # 如果文件存在，删除它
-            if os.path.exists(user_path):
-                os.remove(user_path)
-                logger.info(f"用户删除成功: {user_id}")
-                return True
-            else:
-                logger.warning(f"用户不存在: {user_id}")
-                return False
-        except Exception as e:
-            logger.error(f"删除用户失败: {e}")
-            return False
-            
-    def list_users_sync(self, limit: int = 100, offset: int = 0) -> List[User]:
-        """
-        同步列出用户
-        
-        Args:
-            limit: 限制数量
-            offset: 偏移量
-            
-        Returns:
-            用户列表
-        """
-        try:
-            # 加载所有用户
-            users = self._load_all_users()
-            
-            # 应用分页
-            start = offset
-            end = offset + limit
-            paginated_users = users[start:end] if start < len(users) else []
-            
-            return paginated_users
-        except Exception as e:
-            logger.error(f"列出用户失败: {e}")
-            return []
 
 
 class SurrealUserStorage(UserStorage):
@@ -1383,14 +1038,8 @@ class SurrealUserStorage(UserStorage):
         Returns:
             更新后的用户对象
         """
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        return loop.run_until_complete(self.update_user(user))
+        from rainbow_agent.utils.async_helpers import run_async
+        return run_async(self.update_user, user)
         
     def delete_user_sync(self, user_id: str) -> bool:
         """
@@ -1402,14 +1051,8 @@ class SurrealUserStorage(UserStorage):
         Returns:
             是否删除成功
         """
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        return loop.run_until_complete(self.delete_user(user_id))
+        from rainbow_agent.utils.async_helpers import run_async
+        return run_async(self.delete_user, user_id)
         
     def list_users_sync(self, limit: int = 100, offset: int = 0) -> List[User]:
         """
@@ -1422,11 +1065,5 @@ class SurrealUserStorage(UserStorage):
         Returns:
             用户列表
         """
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        return loop.run_until_complete(self.list_users(limit, offset))
+        from rainbow_agent.utils.async_helpers import run_async
+        return run_async(self.list_users, limit, offset)

@@ -1,11 +1,7 @@
-"""
-认证路由
-
-提供认证相关的API路由，包括登录、注销和用户信息。
-"""
 import os
 import json
-from typing import Dict, Any, Optional
+import secrets
+from typing import Dict, Any, Optional, Tuple
 from functools import wraps
 
 from flask import Blueprint, request, jsonify, redirect, url_for, session, current_app
@@ -13,131 +9,91 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from werkzeug.exceptions import Unauthorized
 
 from rainbow_agent.auth.models import User
-from rainbow_agent.auth.oauth import OAuthService
-from rainbow_agent.auth.storage import UserStorage
 from rainbow_agent.utils.logger import get_logger
+# 导入api/auth_routes.py中的全局变量和初始化函数
+from rainbow_agent.api.auth_routes import oauth_service, user_storage, login_manager, init_auth_components
 
-# 配置日志
+
 logger = get_logger(__name__)
 
-# 创建Blueprint
+
 auth_api = Blueprint('auth', __name__, url_prefix='/api/auth')
 
-# 全局变量
-oauth_service = None
-user_storage = None
-login_manager = None
-
-# 初始化标志
-_is_initialized = False
-
-def init_auth(app, storage: UserStorage):
-    """
-    初始化认证模块
-    
-    Args:
-        app: Flask应用
-        storage: 用户存储
-    """
-    global oauth_service, user_storage, login_manager, _is_initialized
-    
-    # 设置用户存储
-    user_storage = storage
-    
-    # 初始化OAuth服务
-    oauth_service = OAuthService(app, user_storage)
-    
-    # 初始化LoginManager
-    login_manager = LoginManager()
-    login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'
-    
-    # 注册用户加载函数
-    @login_manager.user_loader
-    def load_user(user_id):
-        return user_storage.get_user_sync(user_id)
-    
-    # 设置初始化标志
-    _is_initialized = True
-    
-    logger.info("认证模块初始化完成")
-
-def api_login_required(f):
-    """API登录要求装饰器"""
+def require_auth(f):
+    """需要认证装饰器"""
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated:
-            return jsonify({
+            raise Unauthorized({
                 "success": False,
                 "error": "未授权",
                 "message": "请先登录"
-            }), 401
+            })
         return f(*args, **kwargs)
     return decorated
 
-@auth_api.route('/login', methods=['GET'])
-def login():
-    """登录页面"""
-    return jsonify({
-        "success": True,
-        "message": "请选择登录方式",
-        "providers": ["google", "github"]
-    })
 
-@auth_api.route('/login/<provider>', methods=['GET'])
-def oauth_login(provider):
-    """OAuth登录"""
-    global oauth_service, _is_initialized
-    
-    # 检查是否初始化
-    if not _is_initialized or not oauth_service:
-        # 如果没有初始化，尝试初始化
-        try:
-            from rainbow_agent.api.auth_routes import oauth_service as api_oauth_service
-            oauth_service = api_oauth_service
-            logger.info("从 API 模块获取 OAuth 服务")
-        except Exception as e:
-            logger.error(f"OAuth服务未初始化: {e}")
-            return jsonify({
-                "success": False,
-                "error": "OAuth服务未初始化",
-                "message": "系统配置错误，请联系管理员"
-            }), 500
-    
-    if provider not in ['google', 'github']:
-        return jsonify({
-            "success": False,
-            "error": f"不支持的登录方式: {provider}",
-            "message": f"不支持的登录方式: {provider}"
-        }), 400
-    
-    # 获取OAuth客户端
+def ensure_initialized(f):
+    """确保服务已初始化的装饰器"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        # 使用api/auth_routes.py中的初始化状态
+        from rainbow_agent.api.auth_routes import _auth_components_initialized
+        
+        # 检查是否初始化
+        if not _auth_components_initialized or not oauth_service:
+            # 如果没有初始化，尝试初始化
+            try:
+                # 尝试初始化认证组件
+                init_auth_components(current_app)
+                logger.info("认证组件已初始化")
+            except Exception as e:
+                logger.error(f"OAuth服务初始化失败: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": "OAuth服务未初始化",
+                    "message": "系统配置错误，请联系管理员"
+                }), 500
+        
+        return f(*args, **kwargs)
+    return decorated
+
+
+def get_oauth_client(provider: str):
+    """获取OAuth客户端"""
     try:
         client = oauth_service.get_oauth_client(provider)
         if not client:
             logger.warning(f"未配置 {provider} 登录凭证")
-            return jsonify({
+            return None, jsonify({
                 "success": False,
                 "error": f"未配置 {provider} 登录凭证",
                 "message": f"请在环境变量中设置 {provider.upper()}_CLIENT_ID 和 {provider.upper()}_CLIENT_SECRET"
             }), 500
+        return client, None
     except Exception as e:
         logger.error(f"获取 {provider} OAuth 客户端失败: {e}")
-        return jsonify({
+        return None, jsonify({
             "success": False,
             "error": f"获取 {provider} OAuth 客户端失败",
-            "message": f"请检查环境变量配置和日志以获取更多信息"
+            "message": "请检查环境变量配置和日志以获取更多信息"
         }), 500
+
+def generic_oauth_login(provider: str):
+    """通用OAuth登录处理函数"""
+    client, error_response = get_oauth_client(provider)
+    if error_response:
+        return error_response
     
-    # 获取重定向URI
-    redirect_uri = oauth_service.get_redirect_uri(provider)
+    # 获取回调URL
+    redirect_uri = url_for(f'auth.{provider}_callback', _external=True)
     
     # 保存下一个URL
-    next_url = request.args.get('next') or url_for('pages.index')
-    session['next_url'] = next_url
+    next_url = request.args.get('next')
+    if next_url:
+        session['next_url'] = next_url
     
-    # 生成状态并存储到会话
-    import secrets
+    # 生成状态并保存到会话
     state = secrets.token_urlsafe(16)
     session['oauth_state'] = state
     # 强制保存会话
@@ -146,187 +102,135 @@ def oauth_login(provider):
     # 重定向到授权页面
     return client.authorize_redirect(redirect_uri, state=state)
 
+
+@auth_api.route('/login/google', methods=['GET'])
+@ensure_initialized
+def google_login():
+    """Google登录"""
+    return generic_oauth_login('google')
+
+def generic_oauth_callback(provider: str):
+    """通用OAuth回调处理函数"""
+    client, error_response = get_oauth_client(provider)
+    if error_response:
+        return error_response
+        
+    # 验证状态
+    expected_state = session.pop('oauth_state', None)
+    received_state = request.args.get('state')
+    
+    if not expected_state or expected_state != received_state:
+        logger.error(f"OAuth状态验证失败: expected={expected_state}, received={received_state}")
+        return jsonify({
+            "success": False,
+            "error": "CSRF验证失败",
+            "message": "登录请求安全验证失败，请重试"
+        }), 400
+    
+    # 获取令牌
+    token = client.authorize_access_token()
+    
+    # 处理回调
+    user, error = oauth_service.handle_oauth_callback_sync(provider, token)
+    
+    if error or not user:
+        return jsonify({
+            "success": False,
+            "error": error or "登录失败",
+            "message": error or "登录失败"
+        }), 500
+    
+    # 登录用户
+    login_user(user)
+    
+    # 直接重定向到主页
+    next_url = session.pop('next_url', None) or '/'
+    logger.info(f"OAuth登录成功，重定向到: {next_url}")
+    return redirect(next_url)
+
+
 @auth_api.route('/callback/google', methods=['GET'])
+@ensure_initialized
 def google_callback():
     """Google回调"""
-    global oauth_service, _is_initialized
-    
-    # 检查是否初始化
-    if not _is_initialized or not oauth_service:
-        # 如果没有初始化，尝试初始化
-        try:
-            from rainbow_agent.api.auth_routes import oauth_service as api_oauth_service
-            oauth_service = api_oauth_service
-            logger.info("从 API 模块获取 OAuth 服务")
-        except Exception as e:
-            logger.error(f"OAuth服务未初始化: {e}")
-            return jsonify({
-                "success": False,
-                "error": "OAuth服务未初始化",
-                "message": "系统配置错误，请联系管理员"
-            }), 500
-    
-    # 获取OAuth客户端
-    try:
-        client = oauth_service.get_oauth_client('google')
-        if not client:
-            logger.warning("未配置 Google 登录凭证")
-            return jsonify({
-                "success": False,
-                "error": "未配置 Google 登录凭证",
-                "message": "请在环境变量中设置 GOOGLE_CLIENT_ID 和 GOOGLE_CLIENT_SECRET"
-            }), 500
-    except Exception as e:
-        logger.error(f"获取 Google OAuth 客户端失败: {e}")
-        return jsonify({
-            "success": False,
-            "error": "获取 Google OAuth 客户端失败",
-            "message": "请检查环境变量配置和日志以获取更多信息"
-        }), 500
-        
-    # 验证状态
-    expected_state = session.pop('oauth_state', None)
-    received_state = request.args.get('state')
-    
-    if not expected_state or expected_state != received_state:
-        logger.error(f"OAuth状态验证失败: expected={expected_state}, received={received_state}")
-        return jsonify({
-            "success": False,
-            "error": "CSRF验证失败",
-            "message": "登录请求安全验证失败，请重试"
-        }), 400
-    
-    # 获取令牌
-    token = client.authorize_access_token()
-    
-    # 处理回调
-    user, error = oauth_service.handle_oauth_callback_sync('google', token)
-    
-    if error or not user:
-        return jsonify({
-            "success": False,
-            "error": error or "登录失败",
-            "message": error or "登录失败"
-        }), 500
-    
-    # 登录用户
-    login_user(user)
-    
-    # 直接重定向到用户资料页面
-    next_url = session.pop('next_url', None) or url_for('pages.profile')
-    logger.info(f"OAuth登录成功，重定向到: {next_url}")
-    return redirect(next_url)
+    return generic_oauth_callback('google')
 
 @auth_api.route('/callback/github', methods=['GET'])
+@ensure_initialized
 def github_callback():
     """GitHub回调"""
-    global oauth_service, _is_initialized
-    
-    # 检查是否初始化
-    if not _is_initialized or not oauth_service:
-        # 如果没有初始化，尝试初始化
-        try:
-            from rainbow_agent.api.auth_routes import oauth_service as api_oauth_service
-            oauth_service = api_oauth_service
-            logger.info("从 API 模块获取 OAuth 服务")
-        except Exception as e:
-            logger.error(f"OAuth服务未初始化: {e}")
-            return jsonify({
-                "success": False,
-                "error": "OAuth服务未初始化",
-                "message": "系统配置错误，请联系管理员"
-            }), 500
-    
-    # 获取OAuth客户端
-    try:
-        client = oauth_service.get_oauth_client('github')
-        if not client:
-            logger.warning("未配置 GitHub 登录凭证")
-            return jsonify({
-                "success": False,
-                "error": "未配置 GitHub 登录凭证",
-                "message": "请在环境变量中设置 GITHUB_CLIENT_ID 和 GITHUB_CLIENT_SECRET"
-            }), 500
-    except Exception as e:
-        logger.error(f"获取 GitHub OAuth 客户端失败: {e}")
-        return jsonify({
-            "success": False,
-            "error": "获取 GitHub OAuth 客户端失败",
-            "message": "请检查环境变量配置和日志以获取更多信息"
-        }), 500
-        
-    # 验证状态
-    expected_state = session.pop('oauth_state', None)
-    received_state = request.args.get('state')
-    
-    if not expected_state or expected_state != received_state:
-        logger.error(f"OAuth状态验证失败: expected={expected_state}, received={received_state}")
-        return jsonify({
-            "success": False,
-            "error": "CSRF验证失败",
-            "message": "登录请求安全验证失败，请重试"
-        }), 400
-    
-    # 获取令牌
-    token = client.authorize_access_token()
-    
-    # 处理回调
-    user, error = oauth_service.handle_oauth_callback_sync('github', token)
-    
-    if error or not user:
-        return jsonify({
-            "success": False,
-            "error": error or "登录失败",
-            "message": error or "登录失败"
-        }), 500
-    
-    # 登录用户
-    login_user(user)
-    
-    # 直接重定向到用户资料页面
-    next_url = session.pop('next_url', None) or url_for('pages.profile')
-    logger.info(f"OAuth登录成功，重定向到: {next_url}")
-    return redirect(next_url)
+    return generic_oauth_callback('github')
 
-@auth_api.route('/logout', methods=['GET', 'POST'])
-@login_required
+@auth_api.route('/login/github', methods=['GET'])
+@ensure_initialized
+def github_login():
+    """GitHub登录"""
+    return generic_oauth_login('github')
+
+@auth_api.route('/logout', methods=['GET'])
+@ensure_initialized
 def logout():
-    """注销"""
+    """退出登录"""
     logout_user()
     return jsonify({
         "success": True,
-        "message": "注销成功"
+        "message": "已退出登录"
     })
 
 @auth_api.route('/user', methods=['GET'])
-@api_login_required
-def get_user_info():
-    """获取用户信息"""
+@require_auth
+def get_current_user():
+    """获取当前用户信息"""
+    # @require_auth 装饰器已经确保用户已登录
     return jsonify({
         "success": True,
-        "data": current_user.to_dict(),
-        "user": current_user.to_dict(),
-        "message": "获取用户信息成功"
+        "data": current_user.to_dict()
     })
 
-@auth_api.route('/check', methods=['GET'])
-def check_auth():
-    """检查认证状态"""
-    if current_user.is_authenticated:
+@auth_api.route('/user', methods=['PUT'])
+@require_auth
+@ensure_initialized
+def update_user():
+    """更新用户信息"""
+    global user_storage
+    
+    # 获取请求数据
+    data = request.get_json()
+    if not data:
+        return jsonify({
+            "success": False,
+            "error": "无效的请求数据",
+            "message": "请提供有效的JSON数据"
+        }), 400
+    
+    # 更新用户信息
+    try:
+        # 获取当前用户
+        user = user_storage.get_user_sync(current_user.id)
+        if not user:
+            return jsonify({
+                "success": False,
+                "error": "用户不存在",
+                "message": "无法找到当前用户"
+            }), 404
+        
+        # 更新用户信息
+        for key, value in data.items():
+            if hasattr(user, key) and key not in ['id', 'provider', 'provider_id', 'token', 'token_expiry']:
+                setattr(user, key, value)
+        
+        # 保存用户信息
+        user = user_storage.update_user_sync(user)
+        
         return jsonify({
             "success": True,
-            "authenticated": True,
-            "user": current_user.to_dict(),
-            "message": "已登录"
+            "message": "用户信息已更新",
+            "data": user.to_dict()
         })
-    else:
+    except Exception as e:
+        logger.error(f"更新用户信息失败: {e}")
         return jsonify({
-            "success": True,
-            "authenticated": False,
-            "message": "未登录"
-        })
-
-def register_auth_routes(app):
-    """注册认证路由到Flask应用"""
-    app.register_blueprint(auth_api)
-    logger.info("认证路由已注册")
+            "success": False,
+            "error": "更新用户信息失败",
+            "message": str(e)
+        }), 500

@@ -15,6 +15,7 @@ import asyncio
 from datetime import datetime
 from dotenv import load_dotenv
 from json import JSONEncoder
+from functools import wraps
 
 # Load environment variables from .env file
 load_dotenv()
@@ -131,8 +132,31 @@ def init_dialogue_system():
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    logger.error(f"Unhandled exception: {e}")
-    return jsonify({"error": "Internal server error"}), 500
+    logger.error(f"Exception: {e}")
+    return jsonify({"error": str(e)}), 500
+
+def handle_api_error(e):
+    """统一处理API错误的函数"""
+    logger.error(f"API error: {e}")
+    import traceback
+    error_traceback = traceback.format_exc()
+    logger.error(error_traceback)
+    
+    return jsonify({
+        "success": False,
+        "error": str(e)
+    }), 500
+
+def ensure_initialized(f):
+    """确保在调用路由函数前初始化存储系统"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        try:
+            init_storage()
+            return f(*args, **kwargs)
+        except Exception as e:
+            return handle_api_error(e)
+    return decorated_function
 
 # Static file routes
 @app.route('/static/<path:path>')
@@ -141,11 +165,8 @@ def serve_static(path):
 
 @app.route('/')
 def home():
-    # 如果用户已登录，重定向到聊天页面
-    if current_user.is_authenticated:
-        return redirect(url_for('chat'))
-    # 否则重定向到登录页面
-    return redirect(url_for('pages.login'))
+    # 直接展示主页内容，不再重定向
+    return send_from_directory('static', 'index.html')
 
 @app.route('/enhanced')
 @login_required
@@ -164,198 +185,154 @@ def favicon():
 # API Routes
 
 @app.route('/api/dialogue/sessions', methods=['GET'])
+@ensure_initialized
 def get_dialogue_sessions():
     """Get dialogue sessions for a user"""
-    try:
-        init_storage()
-        
-        user_id = request.args.get('user_id', 'default_user')
-        limit = int(request.args.get('limit', 50))
-        offset = int(request.args.get('offset', 0))
-        
-        logger.info(f"Getting sessions for user: {user_id}, limit: {limit}, offset: {offset}")
-        
-        # Get sessions using unified storage
-        sessions = storage.get_user_sessions(user_id, limit, offset)
-        
-        logger.info(f"Retrieved {len(sessions)} sessions")
-        return jsonify({
-            "success": True,
-            "sessions": sessions,
-            "total": len(sessions)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting sessions: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+    user_id = request.args.get('user_id', 'default_user')
+    limit = int(request.args.get('limit', 50))
+    offset = int(request.args.get('offset', 0))
+    
+    logger.info(f"Getting sessions for user: {user_id}, limit: {limit}, offset: {offset}")
+    
+    # Get sessions using unified storage
+    sessions = storage.get_user_sessions(user_id, limit, offset)
+    
+    logger.info(f"Retrieved {len(sessions)} sessions")
+    return jsonify({
+        "success": True,
+        "sessions": sessions,
+        "total": len(sessions)
+    })
 
 @app.route('/api/dialogue/sessions', methods=['POST'])
+@ensure_initialized
 def create_dialogue_session():
     """Create a new dialogue session"""
-    try:
-        init_storage()
-        
-        data = request.get_json()
-        user_id = data.get('user_id', 'default_user')
-        title = data.get('title', '')
-        dialogue_type = data.get('dialogue_type', DIALOGUE_TYPES["HUMAN_AI_PRIVATE"])
-        
-        logger.info(f"Creating session for user: {user_id}, title: {title}, type: {dialogue_type}")
-        
-        # Create session using unified storage
-        session = storage.create_session(
-            user_id=user_id,
-            title=title,
-            metadata={
-                "dialogue_type": dialogue_type,
-                "created_via": "api"
-            }
-        )
-        
-        if session:
-            logger.info(f"Session created successfully: {session['id']}")
-            return jsonify({
-                "success": True,
-                "session": session
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "error": "Failed to create session"
-            }), 500
-            
-    except Exception as e:
-        logger.error(f"Error creating session: {e}")
+    data = request.get_json()
+    user_id = data.get('user_id', 'default_user')
+    title = data.get('title', '')
+    dialogue_type = data.get('dialogue_type', DIALOGUE_TYPES["HUMAN_AI_PRIVATE"])
+    
+    logger.info(f"Creating session for user: {user_id}, title: {title}, type: {dialogue_type}")
+    
+    # Create session using unified storage
+    session = storage.create_session(
+        user_id=user_id,
+        title=title,
+        metadata={
+            "dialogue_type": dialogue_type,
+            "created_via": "api"
+        }
+    )
+    
+    if session:
+        logger.info(f"Session created successfully: {session['id']}")
+        return jsonify({
+            "success": True,
+            "session": session
+        })
+    else:
         return jsonify({
             "success": False,
-            "error": str(e)
+            "error": "Failed to create session"
         }), 500
 
 @app.route('/api/test', methods=['POST'])
+@ensure_initialized
 def test_endpoint():
     """Test endpoint for debugging"""
-    try:
-        data = request.get_json()
-        return jsonify({
-            "success": True,
-            "message": "Test endpoint working",
-            "received": data
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+    data = request.get_json()
+    return jsonify({
+        "success": True,
+        "message": "Test endpoint working",
+        "received": data
+    })
 
 @app.route('/api/dialogue/input', methods=['POST'])
+@ensure_initialized
 def process_dialogue_input():
     """Process dialogue input and generate response"""
+    # 确保对话系统已初始化
+    init_dialogue_system()
+    
+    data = request.get_json()
+    user_input = data.get('input', '')
+    user_id = data.get('user_id', 'default_user')
+    session_id = data.get('session_id')
+    input_type = data.get('input_type', 'text')
+    
+    logger.info(f"Processing input for user: {user_id}, session: {session_id}, input: {user_input[:50]}...")
+    
+    # Debug: Check if dialogue_processor is properly initialized
+    logger.info(f"Dialogue processor type: {type(dialogue_processor)}")
+    logger.info(f"Dialogue processor storage type: {type(dialogue_processor.storage) if dialogue_processor else 'None'}")
+    
+    # Process input using unified dialogue processor (sync)
     try:
-        init_dialogue_system()
-        
-        data = request.get_json()
-        user_input = data.get('input', '')
-        user_id = data.get('user_id', 'default_user')
-        session_id = data.get('session_id')
-        input_type = data.get('input_type', 'text')
-        
-        logger.info(f"Processing input for user: {user_id}, session: {session_id}, input: {user_input[:50]}...")
-        
-        # Debug: Check if dialogue_processor is properly initialized
-        logger.info(f"Dialogue processor type: {type(dialogue_processor)}")
-        logger.info(f"Dialogue processor storage type: {type(dialogue_processor.storage) if dialogue_processor else 'None'}")
-        
-        # Process input using unified dialogue processor (sync)
-        try:
-            result = dialogue_processor.process_input_sync(
-                user_input=user_input,
-                user_id=user_id,
-                session_id=session_id,
-                input_type=input_type,
-                context=data.get('context', {})
-            )
-        except Exception as proc_error:
-            logger.error(f"Dialogue processor error: {proc_error}")
-            # Create fallback response
-            result = {
-                "id": str(uuid.uuid4()),
-                "input": user_input,
-                "response": "抱歉，处理您的请求时遇到了技术问题，请稍后再试。",
-                "sessionId": session_id or "fallback_session",
-                "timestamp": datetime.now().isoformat(),
-                "error": f"Processing error: {str(proc_error)}"
-            }
-        
-        logger.info(f"Input processed successfully, response length: {len(result.get('response', ''))}")
-        return jsonify({
-            "success": True,
-            "result": result
-        })
-        
-    except Exception as e:
-        logger.error(f"Error processing dialogue input: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        result = dialogue_processor.process_input_sync(
+            user_input=user_input,
+            user_id=user_id,
+            session_id=session_id,
+            input_type=input_type,
+            context=data.get('context', {})
+        )
+    except Exception as proc_error:
+        logger.error(f"Dialogue processor error: {proc_error}")
+        # Create fallback response
+        result = {
+            "id": str(uuid.uuid4()),
+            "input": user_input,
+            "response": "抱歉，处理您的请求时遇到了技术问题，请稍后再试。",
+            "sessionId": session_id or "fallback_session",
+            "timestamp": datetime.now().isoformat(),
+            "error": f"Processing error: {str(proc_error)}"
+        }
+    
+    logger.info(f"Input processed successfully, response length: {len(result.get('response', ''))}")
+    return jsonify({
+        "success": True,
+        "result": result
+    })
 
 @app.route('/api/dialogue/sessions/<session_id>', methods=['GET'])
+@ensure_initialized
 def get_dialogue_session(session_id):
     """Get a specific dialogue session with its turns"""
-    try:
-        init_storage()
-        
-        logger.info(f"Getting session: {session_id}")
-        
-        # Get session with turns using unified storage
-        session_with_turns = storage.get_session_with_turns(session_id)
-        
-        if session_with_turns:
-            logger.info(f"Session retrieved with {len(session_with_turns.get('turns', []))} turns")
-            return jsonify({
-                "success": True,
-                "session": session_with_turns
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "error": "Session not found"
-            }), 404
-            
-    except Exception as e:
-        logger.error(f"Error getting session: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/dialogue/sessions/<session_id>/turns', methods=['GET'])
-def get_dialogue_turns(session_id):
-    """Get turns for a specific session"""
-    try:
-        init_storage()
-        
-        limit = int(request.args.get('limit', 100))
-        offset = int(request.args.get('offset', 0))
-        
-        logger.info(f"Getting turns for session: {session_id}, limit: {limit}, offset: {offset}")
-        
-        # Get turns using unified storage
-        turns = storage.get_turns(session_id, limit, offset)
-        
-        logger.info(f"Retrieved {len(turns)} turns")
+    logger.info(f"Getting session: {session_id}")
+    
+    # Get session with turns using unified storage
+    session_with_turns = storage.get_session_with_turns(session_id)
+    
+    if session_with_turns:
+        logger.info(f"Session retrieved with {len(session_with_turns.get('turns', []))} turns")
         return jsonify({
             "success": True,
-            "turns": turns,
-            "total": len(turns)
+            "session": session_with_turns
         })
-        
-    except Exception as e:
-        logger.error(f"Error getting turns: {e}")
+    else:
         return jsonify({
             "success": False,
-            "error": str(e)
-        }), 500
+            "error": "Session not found"
+        }), 404
+
+@app.route('/api/dialogue/sessions/<session_id>/turns', methods=['GET'])
+@ensure_initialized
+def get_dialogue_turns(session_id):
+    """Get turns for a specific session"""
+    limit = int(request.args.get('limit', 100))
+    offset = int(request.args.get('offset', 0))
+    
+    logger.info(f"Getting turns for session: {session_id}, limit: {limit}, offset: {offset}")
+    
+    # Get turns using unified storage
+    turns = storage.get_turns(session_id, limit, offset)
+    
+    logger.info(f"Retrieved {len(turns)} turns")
+    return jsonify({
+        "success": True,
+        "turns": turns,
+        "total": len(turns)
+    })
 
 @app.route('/api/dialogue/types', methods=['GET'])
 def get_dialogue_types():
@@ -366,37 +343,20 @@ def get_dialogue_types():
     })
 
 @app.route('/api/system/status', methods=['GET'])
+@ensure_initialized
 def get_system_status():
     """Get system status"""
-    try:
-        init_storage()
-        
-        # Get storage health
-        storage_health = storage.health_check()
-        
-        return jsonify({
-            "success": True,
-            "status": {
-                "storage": storage_health,
-                "system": "unified",
-                "timestamp": datetime.now().isoformat()
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting system status: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.before_request
-def before_request():
-    """Initialize systems before each request"""
-    try:
-        init_storage()
-    except Exception as e:
-        logger.error(f"Failed to initialize storage before request: {e}")
+    # Get storage health
+    storage_health = storage.health_check()
+    
+    return jsonify({
+        "success": True,
+        "status": {
+            "storage": storage_health,
+            "system": "unified",
+            "timestamp": datetime.now().isoformat()
+        }
+    })
 
 # 注册rainbow_app的蓝图到主应用
 from rainbow_agent.api.unified_routes import api
