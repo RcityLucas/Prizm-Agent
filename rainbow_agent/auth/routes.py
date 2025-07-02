@@ -9,15 +9,54 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from werkzeug.exceptions import Unauthorized
 
 from rainbow_agent.auth.models import User
+from rainbow_agent.auth.oauth import OAuthService
+from rainbow_agent.auth.storage import UserStorage
 from rainbow_agent.utils.logger import get_logger
-# 导入api/auth_routes.py中的全局变量和初始化函数
-from rainbow_agent.api.auth_routes import oauth_service, user_storage, login_manager, init_auth_components
 
 
 logger = get_logger(__name__)
 
 
 auth_api = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+
+oauth_service = None
+user_storage = None
+login_manager = None
+
+
+_is_initialized = False
+
+def init_auth(app, storage: UserStorage):
+    """
+    初始化认证组件
+    
+    Args:
+        app: Flask应用
+        storage: 用户存储
+    """
+    global oauth_service, user_storage, login_manager, _is_initialized
+    
+    # 设置用户存储
+    user_storage = storage
+    
+    # 初始化OAuth服务
+    oauth_service = OAuthService(app, user_storage)
+    
+    # 初始化LoginManager
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    
+    # 注册用户加载函数
+    @login_manager.user_loader
+    def load_user(user_id):
+        return user_storage.get_user_sync(user_id)
+    
+    # 标记为已初始化
+    _is_initialized = True
+    
+    logger.info("认证组件初始化完成")
 
 def require_auth(f):
     """需要认证装饰器"""
@@ -37,18 +76,17 @@ def ensure_initialized(f):
     """确保服务已初始化的装饰器"""
     @wraps(f)
     def decorated(*args, **kwargs):
-        # 使用api/auth_routes.py中的初始化状态
-        from rainbow_agent.api.auth_routes import _auth_components_initialized
+        global oauth_service, _is_initialized
         
         # 检查是否初始化
-        if not _auth_components_initialized or not oauth_service:
+        if not _is_initialized or not oauth_service:
             # 如果没有初始化，尝试初始化
             try:
-                # 尝试初始化认证组件
-                init_auth_components(current_app)
-                logger.info("认证组件已初始化")
+                from rainbow_agent.api.auth_routes import oauth_service as api_oauth_service
+                oauth_service = api_oauth_service
+                logger.info("从 API 模块获取 OAuth 服务")
             except Exception as e:
-                logger.error(f"OAuth服务初始化失败: {e}")
+                logger.error(f"OAuth服务未初始化: {e}")
                 return jsonify({
                     "success": False,
                     "error": "OAuth服务未初始化",
