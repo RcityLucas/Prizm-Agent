@@ -26,6 +26,7 @@ Prizm Agent是一个功能丰富的AI代理框架，专为构建复杂的智能�
 - **代理自主决策**：自动决定何时使用工具解决问题
 - **分层记忆系统**：短期、工作和长期记忆的智能管理
 - **协作功能**：支持多代理协作和人机交互场景
+- **用户认证系统**：支持Google和GitHub OAuth登录，安全管理用户数据和会话
 
 ## 安装方法
 
@@ -78,6 +79,13 @@ cp .env.example .env
 - `SURREAL_DATABASE`: SurrealDB 数据库名称 (默认: rainbow)
 - `SURREAL_USERNAME`: SurrealDB 用户名 (默认: root)
 - `SURREAL_PASSWORD`: SurrealDB 密码 (默认: root)
+
+用户认证相关环境变量:
+- `GOOGLE_CLIENT_ID`: Google OAuth 客户端 ID
+- `GOOGLE_CLIENT_SECRET`: Google OAuth 客户端密钥
+- `GITHUB_CLIENT_ID`: GitHub OAuth 客户端 ID
+- `GITHUB_CLIENT_SECRET`: GitHub OAuth 客户端密钥
+- `SECRET_KEY`: Flask 会话密钥，用于加密会话数据
 
 ## 使用方法
 
@@ -156,6 +164,18 @@ python surreal_api_server.py
 |------|------|------|------|------|
 | `/api/system/status` | GET | 获取系统状态信息 | 无 | 系统状态信息，包含版本、运行时间、存储状态、模型状态等 |
 | `/api/dialogue/types` | GET | 获取支持的对话类型 | 无 | 系统支持的所有对话类型及其描述 |
+
+##### 认证API
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
+| `/api/auth/login/google` | GET | Google OAuth登录入口，重定向到Google认证页面 |
+| `/api/auth/login/github` | GET | GitHub OAuth登录入口，重定向到GitHub认证页面 |
+| `/api/auth/callback/google` | GET | Google OAuth回调地址，处理认证结果 |
+| `/api/auth/callback/github` | GET | GitHub OAuth回调地址，处理认证结果 |
+| `/api/auth/logout` | GET | 退出登录 |
+| `/api/auth/user` | GET | 获取当前登录用户信息 |
+| `/api/auth/user` | PUT | 更新当前用户信息 |
 
 ##### 频率感知系统API
 

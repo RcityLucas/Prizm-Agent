@@ -380,12 +380,119 @@ class UnifiedSurrealClient:
             True if successful, False otherwise
         """
         try:
-            sql = f"DELETE FROM {table} WHERE id = '{record_id}';"
+            # 准备不同格式的记录ID进行尝试
+            original_id = record_id
+            prefixed_id = f"{table}:{record_id}" if not record_id.startswith(f"{table}:") else record_id
+            raw_id = record_id.split(":")[-1] if ":" in record_id else record_id
             
-            result = self.execute_sql(sql)
+            logger.info(f"Attempting to delete record with multiple ID formats:")
+            logger.info(f"  - Original ID: {original_id}")
+            logger.info(f"  - Prefixed ID: {prefixed_id}")
+            logger.info(f"  - Raw ID: {raw_id}")
             
-            logger.info(f"Record deleted successfully from {table}: {record_id}")
-            return True
+            # 列出所有会话记录，查找匹配的ID
+            list_sql = f"SELECT * FROM {table} LIMIT 100;"
+            logger.info(f"[LIST] Executing SQL: {list_sql}")
+            all_records = self.execute_sql(list_sql)
+            logger.info(f"Found {len(all_records) if all_records else 0} records in {table}")
+            
+            # 查找匹配的记录
+            matching_records = []
+            
+            if all_records:
+                for record in all_records:
+                    # 检查嵌套ID结构
+                    nested_id = record.get('id', {})
+                    if isinstance(nested_id, dict):
+                        # 处理嵌套ID结构：{'table_name': 'sessions', 'id': 'xxxx'}
+                        record_raw_id = nested_id.get('id', '')
+                        if record_raw_id == raw_id or raw_id in record_raw_id:
+                            logger.info(f"Found matching record with nested ID: {record}")
+                            matching_records.append(record)
+                    elif isinstance(nested_id, str):
+                        # 处理字符串ID
+                        if raw_id in nested_id:
+                            logger.info(f"Found matching record with string ID: {record}")
+                            matching_records.append(record)
+            
+            if not matching_records:
+                logger.warning(f"No matching records found in {table} for ID {record_id}")
+                return False
+            
+            logger.info(f"Found {len(matching_records)} matching records")
+            
+            # 尝试删除所有匹配的记录
+            success = False
+            for record in matching_records:
+                # 获取记录的完整ID
+                nested_id = record.get('id', {})
+                
+                if isinstance(nested_id, dict):
+                    # 处理嵌套ID结构
+                    record_table = nested_id.get('table_name', table)
+                    record_id_value = nested_id.get('id', '')
+                    
+                    # 尝试使用嵌套ID结构进行删除
+                    delete_sql1 = f"DELETE FROM {record_table} WHERE id.id = '{record_id_value}';"
+                    logger.info(f"[DELETE NESTED ID] Executing SQL: {delete_sql1}")
+                    self.execute_sql(delete_sql1)
+                    
+                    # 尝试使用完整对象进行删除
+                    delete_sql2 = f"DELETE FROM {record_table} WHERE id = {{\"table_name\": \"{record_table}\", \"id\": \"{record_id_value}\"}};"
+                    logger.info(f"[DELETE OBJECT ID] Executing SQL: {delete_sql2}")
+                    try:
+                        self.execute_sql(delete_sql2)
+                    except Exception as e:
+                        logger.warning(f"Object ID deletion failed (expected): {e}")
+                    
+                    # 尝试使用记录的完整ID进行删除
+                    full_id = f"{record_table}:{record_id_value}"
+                    delete_sql3 = f"DELETE {full_id};"
+                    logger.info(f"[DELETE FULL ID] Executing SQL: {delete_sql3}")
+                    self.execute_sql(delete_sql3)
+                    
+                elif isinstance(nested_id, str):
+                    # 处理字符串ID
+                    delete_sql = f"DELETE FROM {table} WHERE id = '{nested_id}';"
+                    logger.info(f"[DELETE STRING ID] Executing SQL: {delete_sql}")
+                    self.execute_sql(delete_sql)
+                    
+                    # 直接删除
+                    delete_sql2 = f"DELETE {nested_id};"
+                    logger.info(f"[DELETE DIRECT] Executing SQL: {delete_sql2}")
+                    self.execute_sql(delete_sql2)
+                
+                # 验证删除结果
+                if isinstance(nested_id, dict):
+                    record_id_value = nested_id.get('id', '')
+                    verify_sql = f"SELECT * FROM {table} WHERE id.id = '{record_id_value}';"
+                elif isinstance(nested_id, str):
+                    verify_sql = f"SELECT * FROM {table} WHERE id = '{nested_id}';"
+                else:
+                    continue
+                    
+                logger.info(f"[VERIFY] Executing SQL: {verify_sql}")
+                verify_result = self.execute_sql(verify_sql)
+                
+                if not verify_result or len(verify_result) == 0:
+                    logger.info(f"Successfully deleted record: {record}")
+                    success = True
+                else:
+                    logger.warning(f"Failed to delete record: {record}")
+            
+            # 最后再次验证是否还有匹配的记录
+            final_verify_sql = f"SELECT * FROM {table} WHERE id.id = '{raw_id}';"
+            logger.info(f"[FINAL VERIFY] Executing SQL: {final_verify_sql}")
+            final_result = self.execute_sql(final_verify_sql)
+            
+            if final_result and len(final_result) > 0:
+                logger.warning(f"Records still exist after deletion attempts: {final_result}")
+                success = False
+            else:
+                logger.info(f"No matching records found after deletion")
+                success = True
+            
+            return success
             
         except Exception as e:
             logger.error(f"Delete record failed: {e}")

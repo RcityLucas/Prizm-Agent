@@ -217,30 +217,32 @@ class HTTPSurrealClient:
             return None
     
     def delete_record(self, table: str, record_id: str) -> bool:
-        """
-        Delete a record using HTTP DELETE.
-        
-        Args:
-            table: Table name
-            record_id: Record ID to delete
-            
-        Returns:
-            True if successful, False otherwise
-        """
         try:
-            url = f"{self.http_url}/key/{table}/{record_id}"
-            logger.info(f"Deleting record via HTTP: {table}:{record_id}")
+            # 先检查记录是否存在
+            check_sql = f"SELECT * FROM {table} WHERE id = '{record_id}';"
+            check_result = self.execute_sql(check_sql)
             
-            response = self.session.delete(url)
-            
-            if response.status_code != 200:
-                logger.error(f"HTTP delete record failed: {response.status_code}, {response.text}")
+            if not check_result or len(check_result) == 0:
+                logger.warning(f"Record not found in {table}: {record_id}")
                 return False
-                
-            return True
+            
+            # 执行删除
+            delete_sql = f"DELETE FROM {table} WHERE id = '{record_id}';"
+            self.execute_sql(delete_sql)
+            
+            # 验证删除结果
+            verify_sql = f"SELECT * FROM {table} WHERE id = '{record_id}';"
+            verify_result = self.execute_sql(verify_sql)
+            
+            if not verify_result or len(verify_result) == 0:
+                logger.info(f"Record deleted successfully from {table}: {record_id}")
+                return True
+            else:
+                logger.error(f"Failed to delete record from {table}: {record_id}")
+                return False
             
         except Exception as e:
-            logger.error(f"HTTP delete record error: {e}")
+            logger.error(f"Delete record failed: {e}")
             return False
     
     def ensure_table_exists(self, table: str) -> bool:

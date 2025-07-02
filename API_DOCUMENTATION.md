@@ -1,9 +1,15 @@
 # Prizm Agent API 文档
 
-本文档详细描述了Prizm Agent框架提供的所有API端点，包括请求参数、响应格式和示例。
+本文档详细描述了Prizm Agent框架提供的所有API端点，包括请求参数、响应格式和示例。本文档专为开发人员设计，提供了详细的集成指南和代码示例。
 
 ## 目录
 
+- [认证API](#认证api)
+  - [OAuth登录](#oauth登录)
+  - [OAuth回调](#oauth回调)
+  - [获取当前用户信息](#获取当前用户信息)
+  - [更新用户信息](#更新用户信息)
+  - [用户登出](#用户登出)
 - [会话管理API](#会话管理api)
   - [获取会话列表](#获取会话列表)
   - [创建新会话](#创建新会话)
@@ -27,6 +33,218 @@
   - [获取频率感知系统设置](#获取频率感知系统设置)
   - [更新频率感知系统设置](#更新频率感知系统设置)
   - [触发主动表达](#触发主动表达)
+- [前端集成指南](#前端集成指南)
+  - [认证集成](#认证集成)
+  - [对话管理集成](#对话管理集成)
+  - [错误处理最佳实践](#错误处理最佳实践)
+
+## 认证API
+
+### OAuth登录
+
+将用户重定向到OAuth提供商（Google或GitHub）的授权页面进行登录。
+
+**请求**
+
+```
+GET /api/auth/login/google
+GET /api/auth/login/github
+```
+
+**查询参数**
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| redirect_uri | string | 否 | 登录成功后的重定向URL，默认为应用首页 |
+| state | string | 否 | 用于防止CSRF攻击的状态参数，会在回调时原样返回 |
+
+**响应**
+
+此端点不直接返回响应，而是将用户重定向到OAuth提供商的授权页面。
+
+**错误响应**
+
+```json
+{
+  "success": false,
+  "error": "无法启动OAuth流程的原因"
+}
+```
+
+### OAuth回调
+
+OAuth提供商授权后的回调处理端点。
+
+**请求**
+
+```
+GET /api/auth/callback/google
+GET /api/auth/callback/github
+```
+
+**查询参数**
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| code | string | 是 | OAuth提供商返回的授权码 |
+| state | string | 是 | 之前发送的状态参数，用于验证请求合法性 |
+
+**响应**
+
+此端点不直接返回JSON响应，而是在处理完成后将用户重定向到应用页面（通常是首页或之前在state中指定的URL）。
+
+**错误响应**
+
+如果发生错误，用户将被重定向到错误页面，或返回JSON错误：
+
+```json
+{
+  "success": false,
+  "error": "OAuth回调处理失败的原因"
+}
+```
+
+### 获取当前用户信息
+
+获取当前已登录用户的信息。
+
+**请求**
+
+```
+GET /api/auth/user
+```
+
+**响应**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "user_1234567890",
+    "email": "user@example.com",
+    "name": "示例用户",
+    "picture": "https://example.com/profile.jpg",
+    "provider": "google",
+    "roles": ["user"],
+    "created_at": "2023-06-25T10:30:00Z",
+    "last_login": "2023-06-30T15:45:00Z",
+    "ai_personalization": {
+      "preferred_model": "gpt-4",
+      "language": "zh-CN",
+      "interests": ["AI", "编程", "科技"],
+      "conversation_style": "professional"
+    }
+  }
+}
+```
+
+**错误响应**
+
+如果用户未登录：
+
+```json
+{
+  "success": false,
+  "error": "未授权",
+  "status_code": 401
+}
+```
+
+### 更新用户信息
+
+更新当前登录用户的信息。
+
+**请求**
+
+```
+PUT /api/auth/user
+```
+
+**请求体**
+
+```json
+{
+  "name": "新用户名",
+  "ai_personalization": {
+    "preferred_model": "gpt-3.5-turbo",
+    "language": "en-US",
+    "interests": ["机器学习", "自然语言处理"],
+    "conversation_style": "casual"
+  }
+}
+```
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| name | string | 否 | 用户显示名称 |
+| ai_personalization | object | 否 | AI个性化设置 |
+| ai_personalization.preferred_model | string | 否 | 首选AI模型 |
+| ai_personalization.language | string | 否 | 首选语言 |
+| ai_personalization.interests | array | 否 | 用户兴趣标签列表 |
+| ai_personalization.conversation_style | string | 否 | 对话风格偏好 |
+
+**响应**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "user_1234567890",
+    "email": "user@example.com",
+    "name": "新用户名",
+    "picture": "https://example.com/profile.jpg",
+    "provider": "google",
+    "roles": ["user"],
+    "created_at": "2023-06-25T10:30:00Z",
+    "last_login": "2023-06-30T15:45:00Z",
+    "ai_personalization": {
+      "preferred_model": "gpt-3.5-turbo",
+      "language": "en-US",
+      "interests": ["机器学习", "自然语言处理"],
+      "conversation_style": "casual"
+    }
+  },
+  "message": "用户信息更新成功"
+}
+```
+
+**错误响应**
+
+```json
+{
+  "success": false,
+  "error": "更新用户信息失败的原因",
+  "status_code": 400
+}
+```
+
+### 用户登出
+
+登出当前用户并清除会话。
+
+**请求**
+
+```
+GET /api/auth/logout
+```
+
+**响应**
+
+```json
+{
+  "success": true,
+  "message": "用户已成功登出"
+}
+```
+
+**错误响应**
+
+```json
+{
+  "success": false,
+  "error": "登出失败的原因"
+}
+```
 
 ## 会话管理API
 
@@ -1009,5 +1227,353 @@ POST /api/frequency/trigger
 {
   "success": false,
   "error": "触发主动表达失败的原因"
+}
+```
+
+## 前端集成指南
+
+### 认证集成
+
+本节提供了如何在前端应用中集成Prizm Agent认证系统的详细指南。
+
+#### 登录按钮实现
+
+在前端实现登录按钮时，只需创建指向登录端点的链接即可：
+
+```html
+<!-- Google 登录按钮 -->
+<a href="/api/auth/login/google" class="login-btn google-btn">
+  <img src="/static/images/google-icon.svg" alt="Google图标">
+  使用 Google 账号登录
+</a>
+
+<!-- GitHub 登录按钮 -->
+<a href="/api/auth/login/github" class="login-btn github-btn">
+  <img src="/static/images/github-icon.svg" alt="GitHub图标">
+  使用 GitHub 账号登录
+</a>
+```
+
+可以添加状态参数以跟踪登录来源或返回路径：
+
+```javascript
+// 生成登录URL并包含状态参数
+ function generateLoginUrl(provider, redirectPath) {
+  const state = JSON.stringify({
+    redirectPath: redirectPath || window.location.pathname,
+    timestamp: Date.now()
+  });
+  
+  // 将状态参数进行 Base64 编码
+  const encodedState = btoa(state);
+  
+  return `/api/auth/login/${provider}?state=${encodeURIComponent(encodedState)}`;
+}
+
+// 使用示例
+document.getElementById('google-login').href = generateLoginUrl('google', '/dashboard');
+document.getElementById('github-login').href = generateLoginUrl('github', '/profile');
+```
+
+#### 用户状态检查
+
+在应用加载时，检查用户是否已登录：
+
+```javascript
+// 检查用户登录状态
+async function checkAuthStatus() {
+  try {
+    const response = await fetch('/api/auth/user', {
+      credentials: 'include' // 重要：包含 cookies
+    });
+    
+    if (response.ok) {
+      const userData = await response.json();
+      // 用户已登录，更新 UI
+      updateUIForLoggedInUser(userData.data);
+      return userData.data;
+    } else {
+      // 用户未登录，显示登录选项
+      showLoginOptions();
+      return null;
+    }
+  } catch (error) {
+    console.error('检查认证状态时出错:', error);
+    showLoginOptions();
+    return null;
+  }
+}
+
+// 页面加载时检查登录状态
+document.addEventListener('DOMContentLoaded', checkAuthStatus);
+```
+
+#### 更新用户信息
+
+允许用户更新个人信息或 AI 个性化设置：
+
+```javascript
+// 更新用户信息
+async function updateUserProfile(userData) {
+  try {
+    const response = await fetch('/api/auth/user', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify(userData)
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      showSuccessMessage('用户信息更新成功');
+      return result.data;
+    } else {
+      const errorData = await response.json();
+      showErrorMessage(`更新失败: ${errorData.error || '未知错误'}`);
+      return null;
+    }
+  } catch (error) {
+    console.error('更新用户信息时出错:', error);
+    showErrorMessage('更新用户信息时出错');
+    return null;
+  }
+}
+
+// 示例用法
+document.getElementById('profile-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const userData = {
+    name: document.getElementById('user-name').value,
+    ai_personalization: {
+      preferred_model: document.getElementById('preferred-model').value,
+      language: document.getElementById('language').value,
+      interests: document.getElementById('interests').value.split(',')
+        .map(item => item.trim())
+        .filter(item => item.length > 0),
+      conversation_style: document.getElementById('conversation-style').value
+    }
+  };
+  
+  const updatedUser = await updateUserProfile(userData);
+  if (updatedUser) {
+    // 更新成功，刷新界面
+    updateUIWithUserData(updatedUser);
+  }
+});
+```
+
+#### 用户登出
+
+实现用户登出功能：
+
+```javascript
+// 用户登出
+async function logoutUser() {
+  try {
+    const response = await fetch('/api/auth/logout', {
+      credentials: 'include'
+    });
+    
+    if (response.ok) {
+      // 清除前端用户数据
+      clearUserData();
+      // 重定向到登录页面或首页
+      window.location.href = '/';
+    } else {
+      console.error('登出失败');
+      showErrorMessage('登出失败，请重试');
+    }
+  } catch (error) {
+    console.error('登出时出错:', error);
+    showErrorMessage('登出时出错');
+  }
+}
+
+// 添加到登出按钮
+document.getElementById('logout-button').addEventListener('click', logoutUser);
+```
+
+### 对话管理集成
+
+本节提供了如何在前端应用中集成Prizm Agent对话管理功能的详细指南。
+
+#### 获取对话列表
+
+获取用户的对话列表并显示在界面上：
+
+```javascript
+// 获取用户对话列表
+async function fetchUserSessions(userId, limit = 10, offset = 0) {
+  try {
+    const response = await fetch(`/api/dialogue/sessions?userId=${userId}&limit=${limit}&offset=${offset}`, {
+      credentials: 'include'
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      return result.data.sessions;
+    } else {
+      console.error('获取对话列表失败');
+      return [];
+    }
+  } catch (error) {
+    console.error('获取对话列表时出错:', error);
+    return [];
+  }
+}
+
+// 在界面上显示对话列表
+async function displayUserSessions(userId) {
+  const sessions = await fetchUserSessions(userId);
+  const sessionList = document.getElementById('session-list');
+  
+  sessionList.innerHTML = '';
+  
+  if (sessions.length === 0) {
+    sessionList.innerHTML = '<div class="empty-state">没有找到对话记录</div>';
+    return;
+  }
+  
+  sessions.forEach(session => {
+    const sessionItem = document.createElement('div');
+    sessionItem.className = 'session-item';
+    sessionItem.dataset.id = session.id;
+    
+    const date = new Date(session.updated_at);
+    const formattedDate = date.toLocaleDateString('zh-CN', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    sessionItem.innerHTML = `
+      <div class="session-title">${session.title}</div>
+      <div class="session-meta">
+        <span class="session-date">${formattedDate}</span>
+        <span class="session-count">${session.turn_count} 条消息</span>
+      </div>
+    `;
+    
+    sessionItem.addEventListener('click', () => loadSession(session.id));
+    sessionList.appendChild(sessionItem);
+  });
+}
+```
+
+#### 创建新对话
+
+创建新的对话会话：
+
+```javascript
+// 创建新对话
+async function createNewSession(userId, title = null) {
+  try {
+    const response = await fetch('/api/dialogue/sessions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        userId: userId,
+        title: title || '新对话',
+        dialogueType: 'HUMAN_AI_PRIVATE'
+      })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      return result.data.session;
+    } else {
+      const errorData = await response.json();
+      showErrorMessage(`创建对话失败: ${errorData.error || '未知错误'}`);
+      return null;
+    }
+  } catch (error) {
+    console.error('创建对话时出错:', error);
+    showErrorMessage('创建对话时出错');
+    return null;
+  }
+}
+
+// 创建新对话并加载
+document.getElementById('new-session-btn').addEventListener('click', async () => {
+  const userId = getCurrentUserId(); // 从当前用户上下文获取
+  const session = await createNewSession(userId);
+  
+  if (session) {
+    // 重新加载对话列表
+    await displayUserSessions(userId);
+    // 加载新创建的对话
+    loadSession(session.id);
+  }
+});
+```
+
+#### 加载对话内容
+
+加载特定对话的消息内容：
+
+```javascript
+// 加载对话内容
+async function loadSession(sessionId) {
+  try {
+    // 首先获取对话轮次
+    const response = await fetch(`/api/dialogue/sessions/${sessionId}/turns`, {
+      credentials: 'include'
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      const session = result.data.session;
+      const turns = result.data.turns;
+      
+      // 更新当前对话信息
+      document.getElementById('current-session-title').textContent = session.title;
+      document.getElementById('chat-container').dataset.sessionId = sessionId;
+      
+      // 清除当前消息列表
+      const messageContainer = document.getElementById('message-container');
+      messageContainer.innerHTML = '';
+      
+      // 添加消息到界面
+      turns.forEach(turn => {
+        const messageElement = document.createElement('div');
+        messageElement.className = `message ${turn.role === 'user' ? 'user-message' : 'assistant-message'}`;
+        messageElement.innerHTML = `
+          <div class="message-content">${formatMessageContent(turn.content)}</div>
+          <div class="message-time">${new Date(turn.created_at).toLocaleTimeString()}</div>
+        `;
+        messageContainer.appendChild(messageElement);
+      });
+      
+      // 滚动到最新消息
+      messageContainer.scrollTop = messageContainer.scrollHeight;
+      
+      // 更新活跃对话状态
+      updateActiveSessionUI(sessionId);
+      
+      return true;
+    } else {
+      showErrorMessage('加载对话内容失败');
+      return false;
+    }
+  } catch (error) {
+    console.error('加载对话内容时出错:', error);
+    showErrorMessage('加载对话内容时出错');
+    return false;
+  }
+}
+
+// 格式化消息内容（支持Markdown等）
+function formatMessageContent(content) {
+  // 这里可以使用Markdown解析库如marked.js来处理内容
+  // 简单示例：将换行符转换为<br>
+  return content.replace(/\n/g, '<br>');
 }
 ```

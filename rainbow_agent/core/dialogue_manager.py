@@ -78,15 +78,25 @@ class DialogueManager:
             self.frequency_integrator = frequency_integrator
         elif self.memory:
             # 如果有记忆系统但没有提供频率集成器，则创建一个新的
-            frequency_sense_core = FrequencySenseCore(memory=self.memory)
+            frequency_sense_core = FrequencySenseCore(config={"memory": self.memory})
             expression_planner = ExpressionPlanner(memory=self.memory)
-            expression_generator = ExpressionGenerator(ai_service=self.ai_service)
+            expression_generator = ExpressionGenerator(config={"ai_service": self.ai_service})
             expression_dispatcher = ExpressionDispatcher()
+            # 创建输出回调函数
+            async def output_callback(content, metadata):
+                # 这里可以根据需要处理输出
+                # 例如将输出发送到对话系统
+                return True
+                
             self.frequency_integrator = FrequencyIntegrator(
-                frequency_sense_core=frequency_sense_core,
-                expression_planner=expression_planner,
-                expression_generator=expression_generator,
-                expression_dispatcher=expression_dispatcher
+                memory=self.memory,
+                output_callback=output_callback,
+                config={
+                    "frequency_sense_core_config": {"memory": self.memory},
+                    "expression_planner_config": {},
+                    "expression_generator_config": {"ai_service": self.ai_service},
+                    "expression_dispatcher_config": {}
+                }
             )
         else:
             self.frequency_integrator = None
