@@ -10,7 +10,8 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "Bash(pkill:*)",
-      "Bash(true)"
+      "Bash(true)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }
