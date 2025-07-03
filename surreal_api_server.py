@@ -257,9 +257,14 @@ def process_dialogue_input():
     
     data = request.get_json()
     user_input = data.get('input', '')
-    user_id = data.get('user_id', 'default_user')
-    session_id = data.get('session_id')
-    input_type = data.get('input_type', 'text')
+    
+    # Handle both snake_case and camelCase parameter names for compatibility
+    user_id = data.get('user_id') or data.get('userId', 'default_user')
+    session_id = data.get('session_id') or data.get('sessionId')
+    input_type = data.get('input_type') or data.get('inputType', 'text')
+    
+    # Log the session_id to help debug session ID mismatches
+    logger.info(f"Using session ID from request: {session_id}")
     
     logger.info(f"Processing input for user: {user_id}, session: {session_id}, input: {user_input[:50]}...")
     

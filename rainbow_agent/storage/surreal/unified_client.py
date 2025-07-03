@@ -11,6 +11,7 @@ from surrealdb import Surreal
 from contextlib import contextmanager
 from datetime import datetime
 import uuid
+import asyncio
 from .http_client import HTTPSurrealClient
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,37 @@ class UnifiedSurrealClient:
         except Exception as e:
             logger.error(f"创建SurrealDB持久连接失败: {e}")
             self.persistent_db = None
+            
+    @contextmanager
+    def get_async_connection(self):
+        """
+        Get a SurrealDB connection for async operations using context manager.
+        
+        This is similar to get_connection but for async usage.
+        """
+        db = None
+        try:
+            logger.info(f"Connecting to SurrealDB asynchronously at {self.ws_url}")
+            db = Surreal(self.ws_url)
+            logger.info(f"Signing in asynchronously with username: {self.username}")
+            db.signin({"username": self.username, "password": self.password})
+            logger.info(f"Using namespace: {self.namespace}, database: {self.database}")
+            db.use(self.namespace, self.database)
+            logger.info("SurrealDB async connection established successfully")
+            yield db
+        except Exception as e:
+            logger.error(f"Async database connection error: {e}, type: {type(e)}")
+            # Print more details about the error
+            import traceback
+            logger.error(f"Async connection error details: {traceback.format_exc()}")
+            raise
+        finally:
+            if db:
+                try:
+                    db.close()
+                    logger.info("SurrealDB async connection closed")
+                except Exception as close_error:
+                    logger.error(f"Failed to close async SurrealDB connection: {close_error}")
     
     @contextmanager
     def get_connection(self):
@@ -128,7 +160,7 @@ class UnifiedSurrealClient:
                 # 优先使用持久连接执行查询
                 if self.persistent_db:
                     try:
-                        logger.info(f"使用持久连接执行SQL: {sql}")
+                        logger.debug(f"使用持久连接执行SQL: {sql}")
                         result = self.persistent_db.query(sql)
                         
                         if not result:
@@ -151,7 +183,7 @@ class UnifiedSurrealClient:
                 
                 # 如果持久连接不可用或执行失败，使用临时连接
                 with self.get_connection() as db:
-                    logger.info(f"使用临时连接执行SQL: {sql}")
+                    logger.debug(f"使用临时连接执行SQL: {sql}")
                     result = db.query(sql)
                     
                     if not result:
@@ -368,6 +400,56 @@ class UnifiedSurrealClient:
             logger.error(f"Update record failed: {e}")
             return None
     
+    async def execute_sql_async(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Execute SQL query asynchronously.
+        
+        Args:
+            sql: SQL query to execute
+            params: Optional parameters (not used in current implementation)
+            
+        Returns:
+            List of records or empty list on failure
+        """
+        logger.debug(f"使用持久连接执行SQL: {sql}")
+        try:
+            # 使用持久连接执行SQL (sync for now, will be wrapped in async executor)
+            if self.persistent_db is None:
+                self._init_persistent_connection()
+                if self.persistent_db is None:
+                    logger.error("持久连接不可用，无法执行异步SQL查询")
+                    return []
+            
+            # Execute query in a separate thread to not block the async event loop
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: self.persistent_db.query(sql))
+            
+            # Extract result data
+            if not result:
+                logger.warning(f"SQL查询返回空结果: {sql}")
+                return []
+                
+            # Try to extract records from the result
+            if hasattr(result, 'result'):
+                records = result.result
+            elif isinstance(result, list):
+                records = result
+            else:
+                logger.warning(f"SQL查询结果格式异常: {type(result)}")
+                return []
+                
+            # Convert SurrealDB objects to serializable Python types
+            serializable_records = self._make_serializable(records)
+            
+            logger.debug(f"异步SQL执行成功，返回结果数: {len(serializable_records)}")
+            return serializable_records
+            
+        except Exception as e:
+            logger.error(f"执行异步SQL查询失败: {sql}, 错误: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            return []
+            
     def delete_record(self, table: str, record_id: str) -> bool:
         """
         Delete a record using SQL DELETE.

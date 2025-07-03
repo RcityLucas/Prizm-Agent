@@ -7,7 +7,7 @@ eliminating complex fallback logic and HTTP endpoint mixing.
 
 import logging
 import uuid
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 
 from .surreal.unified_client import UnifiedSurrealClient
@@ -106,11 +106,11 @@ class UnifiedTurnManager:
             logger.error(f"Failed to ensure table structure: {e}")
     
     def create_turn(self, 
-                   session_id: str, 
-                   role: str, 
-                   content: str, 
-                   embedding: Optional[List[float]] = None,
-                   metadata: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+               session_id: str, 
+               role: str, 
+               content: str, 
+               embedding: Optional[List[float]] = None,
+               metadata: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """
         Create a new turn synchronously.
         
@@ -125,25 +125,40 @@ class UnifiedTurnManager:
             Created turn data or None on failure
         """
         try:
-            # Create turn model
+            # Ensure session_id is always treated as a simple string to prevent transformation in TurnModel
+            original_session_id = session_id
+            session_id_str = str(session_id) if session_id is not None else None
+            
+            logger.info(f"Creating turn for session - Original ID: {original_session_id}, Type: {type(original_session_id)}")
+            logger.info(f"Using simplified string session_id: {session_id_str}")
+            
+            # Create turn model with stringified session_id
             turn_model = TurnModel(
-                session_id=session_id,
+                session_id=session_id_str,  # Use the string version directly
                 role=role,
                 content=content,
                 embedding=embedding,
                 metadata=metadata or {}
             )
             
+            # Log the session_id that actually got set in the model
+            logger.info(f"Turn model created with session_id: {turn_model.session_id}")
+            
             # Convert to dictionary
             turn_data = turn_model.to_dict()
             
-            logger.info(f"Creating turn: {turn_model.id} for session: {session_id}")
+            # Ensure the session_id in the dictionary is correct
+            if turn_data['session_id'] != session_id_str:
+                logger.warning(f"Session ID mismatch detected! Dictionary has {turn_data['session_id']} but should be {session_id_str}")
+                turn_data['session_id'] = session_id_str
+            
+            logger.info(f"Creating turn: {turn_model.id} for session: {turn_data['session_id']}")
             
             # Create record using unified client
             result = self.client.create_record("turns", turn_data)
             
             if result:
-                logger.info(f"Turn created successfully: {turn_model.id}")
+                logger.info(f"Turn created successfully: {turn_model.id} with session_id: {result.get('session_id')}")
                 return result
             else:
                 logger.error(f"Failed to create turn: {turn_model.id}")
@@ -175,67 +190,173 @@ class UnifiedTurnManager:
         Returns:
             Created turn data or None on failure
         """
-        # For now, use the synchronous method
-        # In the future, we can implement true async using asyncio.to_thread
-        return self.create_turn(session_id, role, content, embedding, metadata)
+        # Ensure session_id is always a string before calling the sync method
+        # This helps prevent session_id mismatches when session_id is processed as an object
+        if session_id is not None:
+            session_id_str = str(session_id)
+            logger.info(f"Async turn creation - Original ID: {session_id}, Using string ID: {session_id_str}")
+            return self.create_turn(session_id_str, role, content, embedding, metadata)
+        else:
+            logger.warning("Async turn creation called with None session_id")
+            return None
     
     def get_turns(self, 
-                 session_id: str, 
+                 session_id: Union[str, Dict[str, Any]], 
                  limit: int = 100, 
                  offset: int = 0) -> List[Dict[str, Any]]:
         """
         Get turns for a session.
         
         Args:
-            session_id: Session ID to get turns for
+            session_id: Session ID to get turns for (can be string or dict with 'id' key)
             limit: Maximum number of turns to return
             offset: Number of turns to skip
             
         Returns:
-            List of turn records
+            List of turn records or empty list if session not found/invalid
         """
+        if not session_id:
+            logger.warning("Empty session_id provided to get_turns")
+            return []
+            
         try:
-            # 处理session_id可能是字典的情况
-            actual_session_id = session_id
-            if isinstance(session_id, dict) and 'id' in session_id:
-                actual_session_id = session_id['id']
-                logger.info(f"Extracted session_id from dictionary: {actual_session_id}")
+            # Handle case where session_id is a dictionary
+            actual_session_id = str(session_id['id'] if isinstance(session_id, dict) and 'id' in session_id else session_id)
             
-            condition = f"session_id = '{actual_session_id}'"
+            if not actual_session_id:
+                logger.warning("Could not extract valid session_id from input")
+                return []
+                
+            logger.info(f"Getting turns for session_id: {actual_session_id}")
             
-            # 获取记录并按created_at字段排序
-            result = self.client.get_records("turns", condition, limit, offset)
+            # First, verify the session exists
+            session_query = f"SELECT * FROM sessions WHERE id = '{actual_session_id}';"
+            logger.debug(f"Verifying session exists with query: {session_query}")
+            session_result = self.client.execute_sql(session_query)
             
-            # 确保按照创建时间排序
-            if result:
-                result.sort(key=lambda x: x.get('created_at', ''))
-                logger.info(f"Retrieved and sorted {len(result)} turns for session: {actual_session_id}")
-            else:
-                logger.info(f"Retrieved {len(result)} turns for session: {actual_session_id}")
+            if not session_result or not isinstance(session_result, list) or len(session_result) == 0:
+                logger.warning(f"Session not found: {actual_session_id}")
+                return []
+                
+            logger.debug(f"Session found: {session_result[0].get('id')}")
             
-            return result
+            # Get turns for the session
+            query = f"SELECT * FROM turns WHERE session_id = '{actual_session_id}' ORDER BY created_at ASC LIMIT {limit} START {offset};"
+            logger.debug(f"Executing turns query: {query}")
+            
+            # Execute the query directly
+            result = self.client.execute_sql(query)
+            
+            # Log raw result for debugging
+            logger.debug(f"Raw query result: {result}")
+            
+            # Process and validate the result
+            if not result or not isinstance(result, list):
+                logger.warning(f"Unexpected result format when getting turns for session {actual_session_id}")
+                return []
+                
+            # Filter out any non-dict items and ensure they have required fields
+            valid_turns = []
+            for turn in result:
+                if not isinstance(turn, dict):
+                    logger.warning(f"Skipping invalid turn (not a dict): {turn}")
+                    continue
+                    
+                # Ensure required fields exist
+                if 'id' not in turn or 'session_id' not in turn:
+                    logger.warning(f"Skipping turn missing required fields: {turn}")
+                    continue
+                    
+                valid_turns.append(turn)
+            
+            # Sort by created_at if it exists
+            valid_turns.sort(key=lambda x: x.get('created_at', ''))
+            
+            logger.info(f"Retrieved {len(valid_turns)} valid turns for session: {actual_session_id}")
+            return valid_turns
             
         except Exception as e:
-            logger.error(f"Failed to get turns for session {session_id}: {e}")
+            logger.error(f"Error getting turns for session {session_id}: {str(e)}", exc_info=True)
             return []
     
     async def get_turns_async(self, 
-                             session_id: str, 
+                             session_id: Union[str, Dict[str, Any]], 
                              limit: int = 100, 
                              offset: int = 0) -> List[Dict[str, Any]]:
         """
         Get turns for a session asynchronously.
         
         Args:
-            session_id: Session ID to get turns for
+            session_id: Session ID to get turns for (can be string or dict with 'id' key)
             limit: Maximum number of turns to return
             offset: Number of turns to skip
             
         Returns:
-            List of turn records
+            List of turn records or empty list if session not found/invalid
         """
-        # For now, use the synchronous method
-        return self.get_turns(session_id, limit, offset)
+        if not session_id:
+            logger.warning("Empty session_id provided to get_turns_async")
+            return []
+            
+        try:
+            # Handle case where session_id is a dictionary
+            actual_session_id = str(session_id['id'] if isinstance(session_id, dict) and 'id' in session_id else session_id)
+            
+            if not actual_session_id:
+                logger.warning("Could not extract valid session_id from input in async call")
+                return []
+                
+            logger.debug(f"Getting turns asynchronously for session_id: {actual_session_id}")
+            
+            # First, verify the session exists asynchronously
+            session_query = f"SELECT * FROM sessions WHERE id = '{actual_session_id}';"
+            logger.debug(f"Verifying session exists with async query: {session_query}")
+            session_result = await self.client.execute_sql_async(session_query)
+            
+            if not session_result or not isinstance(session_result, list) or len(session_result) == 0:
+                logger.warning(f"Session not found (async): {actual_session_id}")
+                return []
+                
+            logger.debug(f"Session found (async): {session_result[0].get('id')}")
+            
+            # Get turns for the session
+            query = f"SELECT * FROM turns WHERE session_id = '{actual_session_id}' ORDER BY created_at ASC LIMIT {limit} START {offset};"
+            logger.debug(f"Executing async turns query: {query}")
+            
+            # Execute the query directly
+            result = await self.client.execute_sql_async(query)
+            
+            # Log raw result for debugging
+            logger.debug(f"Raw async query result: {result}")
+            
+            # Process and validate the result
+            if not result or not isinstance(result, list):
+                logger.warning(f"Unexpected result format when getting turns asynchronously for session {actual_session_id}")
+                return []
+                
+            # Filter out any non-dict items and ensure they have required fields
+            valid_turns = []
+            for turn in result:
+                if not isinstance(turn, dict):
+                    logger.warning(f"Skipping invalid turn in async result (not a dict): {turn}")
+                    continue
+                    
+                # Ensure required fields exist
+                if 'id' not in turn or 'session_id' not in turn:
+                    logger.warning(f"Skipping turn in async result missing required fields: {turn}")
+                    continue
+                    
+                valid_turns.append(turn)
+            
+            # Sort by created_at if it exists
+            valid_turns.sort(key=lambda x: x.get('created_at', ''))
+            
+            logger.info(f"Retrieved {len(valid_turns)} valid turns asynchronously for session: {actual_session_id}")
+            return valid_turns
+            
+        except Exception as e:
+            logger.error(f"Error getting turns asynchronously for session {session_id}: {str(e)}", exc_info=True)
+            return []
     
     def get_turn(self, turn_id: str) -> Optional[Dict[str, Any]]:
         """

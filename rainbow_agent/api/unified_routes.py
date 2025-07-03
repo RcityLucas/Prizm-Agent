@@ -238,8 +238,9 @@ def get_turns(session_id):
     """获取会话轮次"""
     try:
         # 获取轮次
-        response, status_code = dialogue_processor.get_turns(session_id)
-        return jsonify(response), status_code
+        import asyncio
+        response = asyncio.run(dialogue_processor.get_session_history(session_id))
+        return jsonify(response), 200
     except Exception as e:
         return handle_api_error(e)
 
