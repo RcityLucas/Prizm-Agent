@@ -329,17 +329,37 @@ class UnifiedDialogueStorage:
                              limit: int = 100, 
                              offset: int = 0) -> List[Dict[str, Any]]:
         """Get turns for a session asynchronously."""
-        if self.db_available:
-            try:
-                result = await self.turn_manager.get_turns_async(session_id, limit, offset)
-                if result is not None:  # Allow empty list as valid result
-                    return result
-            except Exception as e:
-                logger.warning(f"SurrealDB get turns async error, falling back to memory: {e}")
-                self.db_available = False
+        db_used = False
+        db_result = None
+        db_error = None
         
-        # Use memory storage fallback
-        return self.memory_storage.get_turns(session_id, limit, offset)
+        # First try using database (don't check self.db_available to allow retry even after previous failure)
+        try:
+            logger.debug(f"Attempting to get turns from database for session_id: {session_id}")
+            db_result = await self.turn_manager.get_turns_async(session_id, limit, offset)
+            if db_result is not None:  # Allow empty list as valid result
+                logger.info(f"Successfully retrieved {len(db_result)} turns from database for session: {session_id}")
+                # DB access is working, ensure flag is set to True
+                self.db_available = True
+                db_used = True
+                return db_result
+        except Exception as e:
+            db_error = str(e)
+            logger.warning(f"SurrealDB get turns async error: {e}")
+            # Don't set self.db_available = False here to avoid permanently disabling DB
+        
+        # Only if database access failed, use memory storage fallback
+        if not db_used:
+            logger.warning(f"Using memory storage fallback for session: {session_id} (DB error: {db_error})")
+            memory_turns = self.memory_storage.get_turns(session_id, limit, offset)
+            
+            # Ensure strict session_id matching in memory fallback
+            filtered_turns = [turn for turn in memory_turns if turn.get('session_id') == session_id]
+            
+            if len(filtered_turns) != len(memory_turns):
+                logger.warning(f"Memory storage returned turns from other sessions! Filtered {len(memory_turns)-len(filtered_turns)} invalid turns.")
+            
+            return filtered_turns
     
     def update_turn(self, 
                    turn_id: str, 

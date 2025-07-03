@@ -230,29 +230,49 @@ class UnifiedTurnManager:
             logger.info(f"Getting turns for session_id: {actual_session_id}")
             
             # First, verify the session exists
-            session_query = f"SELECT * FROM sessions WHERE id = '{actual_session_id}';"
+            # Try both with and without the 'sessions:' prefix to handle different ID formats
+            raw_session_id = actual_session_id.replace('sessions:', '') if actual_session_id.startswith('sessions:') else actual_session_id
+            prefixed_session_id = f"sessions:{raw_session_id}" if not actual_session_id.startswith('sessions:') else actual_session_id
+            
+            session_query = f"SELECT * FROM sessions WHERE id = '{raw_session_id}' OR id = '{prefixed_session_id}';"
             logger.debug(f"Verifying session exists with query: {session_query}")
             session_result = self.client.execute_sql(session_query)
             
             if not session_result or not isinstance(session_result, list) or len(session_result) == 0:
-                logger.warning(f"Session not found: {actual_session_id}")
-                return []
+                logger.warning(f"Session not found with either ID format: {raw_session_id} or {prefixed_session_id}")
+                # Continue anyway since we know the session exists - the problem is just with ID format
+                logger.info(f"Attempting to retrieve turns despite session verification failure")
                 
-            logger.debug(f"Session found: {session_result[0].get('id')}")
+            if session_result and isinstance(session_result, list) and len(session_result) > 0:
+                logger.debug(f"Session found: {session_result[0].get('id')}")
             
-            # Get turns for the session
-            query = f"SELECT * FROM turns WHERE session_id = '{actual_session_id}' ORDER BY created_at ASC LIMIT {limit} START {offset};"
-            logger.debug(f"Executing turns query: {query}")
+            # Get turns for the session - first try with raw session_id
+            query = f"SELECT * FROM turns WHERE session_id = '{raw_session_id}' ORDER BY created_at ASC LIMIT {limit} START {offset};"
+            logger.debug(f"Executing turns query with raw session_id: {query}")
+            logger.info(f"Searching for turns with session_id: '{raw_session_id}'")
             
             # Execute the query directly
             result = self.client.execute_sql(query)
             
+            # If no results, try with prefixed version
+            if not result or not isinstance(result, list) or len(result) == 0:
+                logger.info(f"No turns found with raw session_id, trying with prefixed session_id: '{prefixed_session_id}'")
+                query = f"SELECT * FROM turns WHERE session_id = '{prefixed_session_id}' ORDER BY created_at ASC LIMIT {limit} START {offset};"
+                result = self.client.execute_sql(query)
+            
             # Log raw result for debugging
             logger.debug(f"Raw query result: {result}")
             
-            # Process and validate the result
-            if not result or not isinstance(result, list):
-                logger.warning(f"Unexpected result format when getting turns for session {actual_session_id}")
+            # Get a sample turn to understand what's in the database (for debugging)
+            if not result or not isinstance(result, list) or len(result) == 0:
+                debug_query = "SELECT * FROM turns LIMIT 1;"
+                debug_result = self.client.execute_sql(debug_query)
+                if debug_result and isinstance(debug_result, list) and len(debug_result) > 0:
+                    logger.info(f"DEBUG: Sample turn record format: {debug_result[0]}")
+                    if 'session_id' in debug_result[0]:
+                        logger.info(f"DEBUG: Sample session_id type: {type(debug_result[0]['session_id'])}, value: {debug_result[0]['session_id']}")
+                
+                logger.warning(f"No turns found for session: {actual_session_id}")
                 return []
                 
             # Filter out any non-dict items and ensure they have required fields
