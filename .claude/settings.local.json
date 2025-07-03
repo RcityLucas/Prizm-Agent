@@ -11,7 +11,9 @@
       "Bash(grep:*)",
       "Bash(pkill:*)",
       "Bash(true)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }
