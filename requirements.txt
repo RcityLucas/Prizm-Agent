@@ -8,6 +8,9 @@ python-dotenv>=1.0.0
 httpx>=0.25.0
 tenacity>=8.2.0
 
+# AI and LangChain
+langchain-core>=0.1.0
+
 # API and Web servers
 fastapi>=0.95.0,<0.100.0
 uvicorn>=0.23.0
