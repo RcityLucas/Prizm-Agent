@@ -117,12 +117,12 @@ class UnifiedTurnManager:
         """
         # Skip non-dict items
         if not isinstance(turn, dict):
-            logger.warning(f"Invalid turn (not a dict): {turn}")
+            logger.debug(f"Invalid turn (not a dict)")
             return None
         
         # Skip items that are actually sessions, not turns
         if 'status' in turn and 'title' in turn and 'user_id' in turn and 'session_id' not in turn:
-            logger.warning(f"Session record incorrectly returned as turn: {turn}")
+            logger.debug(f"Skipping session record")
             return None
             
         # Ensure required turn fields exist
@@ -130,7 +130,7 @@ class UnifiedTurnManager:
         missing_fields = [field for field in required_fields if field not in turn]
         
         if missing_fields:
-            logger.warning(f"Turn missing required fields {missing_fields}: {turn}")
+            logger.debug(f"Turn missing required fields {missing_fields}")
             return None
         
         # Check if this is a turn with a corrected session_id (from swapped session ID recovery)
@@ -143,12 +143,11 @@ class UnifiedTurnManager:
         if turn_session_id != raw_session_id and turn_session_id != prefixed_session_id:
             # Check if we have a known mapping for this turn's session ID
             if turn_session_id in self._session_id_mapping and self._session_id_mapping[turn_session_id] in [raw_session_id, prefixed_session_id]:
-                logger.info(f"Correcting turn with mapped session_id: {turn_session_id} -> {raw_session_id}")
                 turn['original_session_id'] = turn_session_id
                 turn['session_id'] = raw_session_id
                 return turn
             else:
-                logger.warning(f"Turn with mismatched session_id: {turn_session_id} (expected {raw_session_id} or {prefixed_session_id})")
+                logger.debug(f"Turn with mismatched session_id: {turn_session_id}")
                 return None
             
         return turn
@@ -332,7 +331,7 @@ class UnifiedTurnManager:
             if cache_key in self._turns_cache:
                 cache_entry = self._turns_cache[cache_key]
                 if current_time - cache_entry['timestamp'] < self._cache_timeout:
-                    logger.info(f"Retrieved {len(cache_entry['turns'])} turns from cache for session: {raw_session_id}")
+                    logger.debug(f"Retrieved {len(cache_entry['turns'])} turns from cache for session: {raw_session_id}")
                     return cache_entry['turns']
             
             # Verify session exists
@@ -340,8 +339,7 @@ class UnifiedTurnManager:
             session_result = self.client.execute_sql(session_query)
             
             if not session_result or not isinstance(session_result, list) or len(session_result) == 0:
-                logger.warning(f"Session not found with either ID format: {raw_session_id} or {prefixed_session_id}")
-                logger.info("Attempting to retrieve turns despite session verification failure")
+                logger.debug(f"Session not found, attempting to retrieve turns anyway")
             else:
                 logger.debug(f"Session verified: {session_result[0].get('id')}")
             
@@ -405,14 +403,14 @@ class UnifiedTurnManager:
             
             # If still no results, try a direct query for all turns and filter client-side
             if not result or not isinstance(result, list) or len(result) == 0:
-                logger.info("Trying to fetch all turns and filter client-side")
                 query = f"SELECT * FROM turns LIMIT 100;"
                 all_turns = self.client.execute_sql(query)
                 
                 if all_turns and isinstance(all_turns, list):
                     # Filter turns by session_id client-side
                     result = [turn for turn in all_turns if turn.get('session_id') in [raw_session_id, prefixed_session_id]]
-                    logger.info(f"Client-side filtering found {len(result)} turns from {len(all_turns)} total turns")
+                    if result:
+                        logger.debug(f"Client-side filtering found {len(result)} turns from {len(all_turns)} total turns")
                     
                     # If no turns found, check for swapped session IDs
                     if not result or len(result) == 0:
@@ -425,7 +423,7 @@ class UnifiedTurnManager:
                             result = [turn for turn in all_turns if turn.get('session_id') == mapped_session_id]
                             
                             if result and len(result) > 0:
-                                logger.warning(f"Found {len(result)} turns using mapped session ID {mapped_session_id}")
+                                logger.info(f"Using mapped session ID {mapped_session_id} for {raw_session_id}")
                                 
                                 # Override session_id in the turns to match the requested session_id
                                 for turn in result:
@@ -450,7 +448,7 @@ class UnifiedTurnManager:
                                     max_count = count
                             
                             if most_common_session_id and max_count >= 2:  # At least 2 turns with this session ID
-                                logger.warning(f"Detected potential session ID mismatch: requested={raw_session_id}, found={most_common_session_id}")
+                                logger.info(f"Detected session ID mismatch: {raw_session_id} -> {most_common_session_id}")
                                 
                                 # Store this mapping for future use
                                 self._session_id_mapping[raw_session_id] = most_common_session_id
@@ -459,16 +457,14 @@ class UnifiedTurnManager:
                                 result = [turn for turn in all_turns if turn.get('session_id') == most_common_session_id]
                                 
                                 if result and len(result) > 0:
-                                    logger.warning(f"Found {len(result)} turns with session ID {most_common_session_id}")
-                                    
                                     # Override session_id in the turns to match the requested session_id
                                     for turn in result:
                                         turn['original_session_id'] = turn['session_id']
                                         turn['session_id'] = raw_session_id
             
-            # If still no results, log the issue and return empty list
+            # If still no results, return empty list
             if not result or not isinstance(result, list) or len(result) == 0:
-                logger.warning(f"No turns found for session: raw={raw_session_id}, prefixed={prefixed_session_id}")
+                logger.debug(f"No turns found for session: {raw_session_id}")
                 return []
             
             # Filter out invalid turns and ensure they match the requested session_id
@@ -498,7 +494,7 @@ class UnifiedTurnManager:
                     'timestamp': time.time()
                 }
             
-            logger.info(f"Retrieved {len(valid_turns)} valid turns for session: raw={raw_session_id}, prefixed={prefixed_session_id}")
+            logger.info(f"Retrieved {len(valid_turns)} turns for session: {raw_session_id}")
             return valid_turns
             
         except Exception as e:
@@ -518,9 +514,6 @@ class UnifiedTurnManager:
         
         for key in expired_keys:
             del self._turns_cache[key]
-            
-        if expired_keys:
-            logger.debug(f"Cleaned up {len(expired_keys)} expired cache entries")
 
     
     async def get_turns_async(self, 
