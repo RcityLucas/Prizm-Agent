@@ -31,8 +31,23 @@ def create_app():
                 static_folder='ui/static',
                 template_folder='ui/templates')
     
-    # 启用CORS
-    CORS(app)
+    # 启用CORS，明确允许temp-prizm-front.vercel.app域名
+    CORS(app, resources={r"/*": {"origins": ["https://temp-prizm-front.vercel.app", "*"], 
+                               "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                               "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Origin", "Accept", "x-internal-api-request"],
+                               "expose_headers": ["Content-Length", "X-JSON"],
+                               "supports_credentials": True,
+                               "max_age": 86400}})
+    
+    # 添加一个中间件来手动设置CORS头部，确保它们被正确应用
+    @app.after_request
+    def after_request(response):
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Origin,Accept,x-internal-api-request')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+
     
     # 注册认证路由
     register_auth_routes(app)
