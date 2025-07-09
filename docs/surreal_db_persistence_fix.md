@@ -162,7 +162,7 @@ def ensure_table_exists(self, table: str) -> bool:
 ## 环境配置
 
 - SurrealDB连接信息:
-  - URL: `ws://192.168.101.249:8000/rpc`（或localhost）
+  - URL: `ws://localhost:8000/rpc`（或localhost）
   - 命名空间: `rainbow`
   - 数据库: `test`
   - 用户名: `root`

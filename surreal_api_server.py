@@ -66,7 +66,12 @@ from rainbow_agent.app import app as rainbow_app
 app = Flask(__name__, static_folder='static')
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 app.json_encoder = CustomJSONEncoder  # 使用自定义JSON编码器
-CORS(app)  # Enable CORS for frontend cross-origin requests
+# 启用CORS - 配置支持认证的跨域请求
+CORS(app, 
+     supports_credentials=True,
+     origins=['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'])
 
 # 从rainbow_app复制配置
 app.config.update(rainbow_app.config)
@@ -363,11 +368,26 @@ def get_system_status():
         }
     })
 
-# 注册rainbow_app的蓝图到主应用
+# 导入需要的模块
 from rainbow_agent.api.unified_routes import api
 from rainbow_agent.auth.routes import auth_api
 from rainbow_agent.ui.page_routes import pages
+from rainbow_agent.api.auth_routes import init_auth_components
 
+# 初始化存储系统
+init_storage()
+init_dialogue_system()
+
+# 初始化认证系统 - 在注册蓝图之前初始化
+try:
+    # 强制重新初始化认证组件，确保LoginManager被正确初始化
+    init_auth_components(app, force=True)
+    logger.info("认证组件初始化成功")
+except Exception as e:
+    logger.error(f"认证组件初始化失败: {e}")
+    raise
+
+# 注册rainbow_app的蓝图到主应用
 app.register_blueprint(api)
 app.register_blueprint(auth_api)
 app.register_blueprint(pages)
@@ -375,14 +395,6 @@ app.register_blueprint(pages)
 if __name__ == '__main__':
     try:
         logger.info("Starting Unified SurrealDB API Server with OAuth support...")
-        
-        # Initialize storage system
-        init_storage()
-        init_dialogue_system()
-        
-        # 初始化认证系统
-        from rainbow_agent.api.auth_routes import init_auth_components
-        init_auth_components(app)
         
         logger.info("Unified API Server initialized successfully")
         

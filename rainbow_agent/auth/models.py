@@ -102,7 +102,10 @@ class User(UserMixin):
     
     def get_id(self) -> str:
         """获取用户ID，用于Flask-Login"""
-        return self.id
+        # 确保返回字符串格式的ID
+        if isinstance(self.id, dict):
+            return str(self.id.get('id', self.id))
+        return str(self.id)
     
     @property
     def is_active(self) -> bool:
@@ -138,8 +141,13 @@ class User(UserMixin):
         Returns:
             用户字典
         """
+        # 确保ID是字符串格式
+        user_id = self.id
+        if isinstance(user_id, dict):
+            user_id = str(user_id.get('id', user_id))
+        
         return {
-            "id": self.id,
+            "id": str(user_id),  # 确保ID是字符串
             "email": self.email,
             "name": self.name,
             "avatar_url": self.avatar_url,
@@ -182,6 +190,21 @@ class User(UserMixin):
         Returns:
             用户对象
         """
+        # 处理SurrealDB RecordID格式
+        if isinstance(data.get('id'), dict):
+            id_obj = data['id']
+            # 处理各种可能的ID格式
+            if 'id' in id_obj:
+                data['id'] = str(id_obj['id'])
+            elif 'record_id' in id_obj:
+                data['id'] = str(id_obj['record_id'])
+            else:
+                # 如果没有明确的ID字段，转换整个对象为字符串
+                data['id'] = str(id_obj)
+        elif data.get('id') is not None:
+            # 确保ID是字符串格式
+            data['id'] = str(data['id'])
+        
         # 处理日期时间字段
         if isinstance(data.get('created_at'), str):
             data['created_at'] = datetime.fromisoformat(data['created_at'])

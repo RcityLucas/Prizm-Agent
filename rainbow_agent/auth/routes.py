@@ -118,13 +118,14 @@ def get_oauth_client(provider: str):
         }), 500
 
 def generic_oauth_login(provider: str):
-    """通用OAuth登录处理函数"""
+    """通用OAuth登录处理函数 - 返回授权URL给前端"""
     client, error_response = get_oauth_client(provider)
     if error_response:
         return error_response
     
-    # 获取回调URL
-    redirect_uri = url_for(f'auth.{provider}_callback', _external=True)
+    # 获取回调URL - 指向前端回调页面
+    frontend_base_url = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:3000')
+    redirect_uri = f"{frontend_base_url}/auth/callback/{provider}"
     
     # 保存下一个URL
     next_url = request.args.get('next')
@@ -137,8 +138,53 @@ def generic_oauth_login(provider: str):
     # 强制保存会话
     session.modified = True
     
-    # 重定向到授权页面
-    return client.authorize_redirect(redirect_uri, state=state)
+    # 生成授权URL
+    try:
+        from urllib.parse import urlencode
+        
+        if provider == 'google':
+            # Google OAuth2 授权URL
+            params = {
+                'client_id': client.client_id,
+                'redirect_uri': redirect_uri,
+                'scope': 'openid email profile',
+                'response_type': 'code',
+                'state': state
+            }
+            auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+        elif provider == 'github':
+            # GitHub OAuth2 授权URL
+            params = {
+                'client_id': client.client_id,
+                'redirect_uri': redirect_uri,
+                'scope': 'user:email',
+                'state': state
+            }
+            auth_url = f"https://github.com/login/oauth/authorize?{urlencode(params)}"
+        else:
+            return jsonify({
+                "success": False,
+                "error": f"不支持的OAuth提供商: {provider}",
+                "message": f"不支持的OAuth提供商: {provider}"
+            }), 400
+    except Exception as e:
+        logger.error(f"生成{provider}授权URL失败: {e}")
+        return jsonify({
+            "success": False,
+            "error": f"生成{provider}授权URL失败",
+            "message": f"生成授权URL时发生错误: {str(e)}"
+        }), 500
+    
+    # 返回JSON响应而非重定向
+    return jsonify({
+        "success": True,
+        "message": f"获取{provider}授权URL成功",
+        "data": {
+            "auth_url": auth_url,
+            "provider": provider,
+            "state": state
+        }
+    })
 
 
 @auth_api.route('/login/google', methods=['GET'])
@@ -148,7 +194,7 @@ def google_login():
     return generic_oauth_login('google')
 
 def generic_oauth_callback(provider: str):
-    """通用OAuth回调处理函数"""
+    """通用OAuth回调处理函数 - 返回JSON响应"""
     client, error_response = get_oauth_client(provider)
     if error_response:
         return error_response
@@ -166,7 +212,15 @@ def generic_oauth_callback(provider: str):
         }), 400
     
     # 获取令牌
-    token = client.authorize_access_token()
+    try:
+        token = client.authorize_access_token()
+    except Exception as e:
+        logger.error(f"获取OAuth令牌失败: {e}")
+        return jsonify({
+            "success": False,
+            "error": "获取令牌失败",
+            "message": "OAuth授权失败，请重试"
+        }), 400
     
     # 处理回调
     user, error = oauth_service.handle_oauth_callback_sync(provider, token)
@@ -181,10 +235,20 @@ def generic_oauth_callback(provider: str):
     # 登录用户
     login_user(user)
     
-    # 直接重定向到主页
+    # 获取下一个URL
     next_url = session.pop('next_url', None) or '/'
-    logger.info(f"OAuth登录成功，重定向到: {next_url}")
-    return redirect(next_url)
+    logger.info(f"OAuth登录成功，用户ID: {user.id}")
+    
+    # 返回JSON响应
+    return jsonify({
+        "success": True,
+        "message": f"{provider}登录成功",
+        "data": {
+            "user": user.to_dict(),
+            "redirect_url": next_url,
+            "provider": provider
+        }
+    })
 
 
 @auth_api.route('/callback/google', methods=['GET'])
@@ -205,15 +269,43 @@ def github_login():
     """GitHub登录"""
     return generic_oauth_login('github')
 
-@auth_api.route('/logout', methods=['GET'])
+@auth_api.route('/logout', methods=['POST'])
 @ensure_initialized
 def logout():
     """退出登录"""
+    was_authenticated = current_user.is_authenticated
     logout_user()
+    
     return jsonify({
         "success": True,
-        "message": "已退出登录"
+        "message": "已退出登录" if was_authenticated else "已退出登录",
+        "data": {
+            "authenticated": False,
+            "user": None
+        }
     })
+
+@auth_api.route('/status', methods=['GET'])
+def get_auth_status():
+    """检查登录状态"""
+    if current_user.is_authenticated:
+        return jsonify({
+            "success": True,
+            "message": "已登录",
+            "data": {
+                "authenticated": True,
+                "user": current_user.to_dict()
+            }
+        })
+    else:
+        return jsonify({
+            "success": True,
+            "message": "未登录",
+            "data": {
+                "authenticated": False,
+                "user": None
+            }
+        })
 
 @auth_api.route('/user', methods=['GET'])
 @require_auth
@@ -222,7 +314,10 @@ def get_current_user():
     # @require_auth 装饰器已经确保用户已登录
     return jsonify({
         "success": True,
-        "data": current_user.to_dict()
+        "message": "获取用户信息成功",
+        "data": {
+            "user": current_user.to_dict()
+        }
     })
 
 @auth_api.route('/user', methods=['PUT'])

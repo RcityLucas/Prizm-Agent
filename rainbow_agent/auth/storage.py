@@ -640,37 +640,42 @@ class SurrealUserStorage(UserStorage):
                     if 'id' in user_id:
                         user_id = user_id['id']
             
-            # 确保ID格式正确 (添加表名前缀如果需要)
-            if ':' not in str(user_id):
-                formatted_id = f"{self.table}:{user_id}"
+            # 使用SurrealDB的RecordID查询方式
+            # 先尝试使用原始ID
+            logger.info(f"查询用户ID: {user_id}")
+            
+            # 方法1: 使用Record ID方式查询
+            if ':' in str(user_id):
+                # 如果ID中包含冒号，直接使用
+                record_id = user_id
             else:
-                formatted_id = user_id
+                # 如果没有表名前缀，添加它
+                record_id = f"{self.table}:{user_id}"
             
-            # 直接获取用户记录
-            result = self.db.execute_sql(f"SELECT * FROM {self.table} WHERE id = '{formatted_id}'")
+            # 方法1: 尝试直接使用Record ID
+            try:
+                result = self.db.execute_sql(f"SELECT * FROM `{record_id}`")
+                logger.info(f"直接RecordID查询结果: {result}")
+                if result and len(result) > 0:
+                    if isinstance(result[0], list) and len(result[0]) > 0:
+                        user_data = result[0][0]
+                        return User.from_dict(user_data)
+                    elif isinstance(result[0], dict):
+                        return User.from_dict(result[0])
+            except Exception as e:
+                logger.warning(f"直接RecordID查询失败: {e}")
             
-            logger.info(f"get_user 查询结果: {result}")
+            # 方法2: 使用WHERE条件查询（提取UUID部分）
+            uuid_part = user_id.split(':')[-1] if ':' in str(user_id) else user_id
+            result = self.db.execute_sql(f"SELECT * FROM {self.table} WHERE string::split(string::lowercase(id), ':')[1] = '{uuid_part}'")
+            
+            logger.info(f"UUID部分查询结果: {result}")
             if result and len(result) > 0:
                 if isinstance(result[0], list) and len(result[0]) > 0:
                     user_data = result[0][0]
-                else:
-                    user_data = result[0]
-                return User.from_dict(user_data)
-            
-            # 如果直接获取失败，尝试使用不带表名的ID查询
-            query = f"SELECT * FROM {self.table} WHERE id = '{user_id}';"
-        
-            # 执行查询
-            result = self.db.execute_sql(query)
-            logger.info(f"get_user 替代查询结果: {result}")
-        
-            # 处理结果
-            if result and len(result) > 0:
-                if isinstance(result[0], list) and len(result[0]) > 0:
-                    user_data = result[0][0]
-                else:
-                    user_data = result[0]
-                return User.from_dict(user_data)
+                    return User.from_dict(user_data)
+                elif isinstance(result[0], dict):
+                    return User.from_dict(result[0])
             
             # 如果仍然失败，尝试获取所有用户并手动过滤
             try:

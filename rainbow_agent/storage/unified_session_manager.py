@@ -208,15 +208,67 @@ class UnifiedSessionManager:
             List of session records
         """
         try:
-            condition = f"user_id = '{user_id}'"
+            # 验证用户ID
+            if not user_id:
+                logger.error("用户ID为空，无法获取会话")
+                return []
+                
+            logger.info(f"正在获取用户 {user_id} 的会话，限制 {limit}，偏移 {offset}")
             
-            result = self.client.get_records("sessions", condition, limit, offset)
+            # 直接构建并执行SQL查询，不使用get_records方法
+            # 使用参数化查询以避免SQL注入
+            safe_user_id = str(user_id).replace("'", "\\'")  # 转义单引号
             
-            logger.info(f"Retrieved {len(result)} sessions for user: {user_id}")
+            # 构建SQL查询
+            sql = f"""SELECT * 
+                   FROM sessions 
+                   WHERE user_id = '{safe_user_id}' 
+                   LIMIT {limit}"""
+            
+            if offset > 0:
+                sql += f" START {offset}"
+                
+            sql += ";"  # 添加结束分号
+            
+            logger.info(f"执行SQL查询: {sql}")
+            
+            # 直接执行SQL查询
+            result = self.client.execute_sql(sql)
+            
+            # 记录查询结果
+            result_count = len(result)
+            logger.info(f"查询返回 {result_count} 条会话记录")
+            
+            # 检查结果并记录详细信息
+            if result_count == 0:
+                logger.warning(f"未找到用户 {user_id} 的会话记录")
+                
+                # 尝试查询所有会话以进行调试
+                all_sessions_sql = "SELECT id, user_id FROM sessions LIMIT 5;"
+                logger.info(f"尝试查询所有会话: {all_sessions_sql}")
+                all_sessions = self.client.execute_sql(all_sessions_sql)
+                
+                if all_sessions:
+                    logger.info(f"数据库中存在 {len(all_sessions)} 条会话记录，样本: {all_sessions[:2]}")
+                else:
+                    logger.warning("数据库中没有会话记录")
+            else:
+                # 记录前几条记录的详细信息
+                for i, session in enumerate(result[:3]):
+                    session_id = session.get('id', 'unknown')
+                    session_user_id = session.get('user_id', 'missing')
+                    logger.info(f"会话 {i+1}: ID={session_id}, user_id={session_user_id}")
+                    
+                    # 验证user_id是否匹配
+                    if str(session_user_id) != str(user_id):
+                        logger.warning(f"会话 {session_id} 的user_id ({session_user_id}) 与请求的user_id ({user_id}) 不匹配!")
+            
             return result
             
         except Exception as e:
-            logger.error(f"Failed to get sessions for user {user_id}: {e}")
+            logger.error(f"获取用户 {user_id} 的会话时出错: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []
     
     async def get_user_sessions_async(self, 

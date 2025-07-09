@@ -150,6 +150,15 @@ class UnifiedSurrealClient:
         Returns:
             List of records or empty list on failure
         """
+        # 记录详细的查询信息，包括查询类型和条件
+        if "WHERE" in sql:
+            logger.info(f"执行带条件的SQL查询: {sql}")
+            # 提取WHERE条件部分进行单独记录
+            where_clause = sql.split("WHERE")[1].split("LIMIT")[0].strip()
+            logger.info(f"WHERE条件: {where_clause}")
+        else:
+            logger.info(f"执行无条件的SQL查询: {sql}")
+            
         # 最多重试3次
         max_retries = 3
         retry_count = 0
@@ -169,6 +178,32 @@ class UnifiedSurrealClient:
                         
                         # 转换SurrealDB对象为可序列化的Python类型
                         serializable_result = self._make_serializable(result)
+                        
+                        # 记录查询结果的详细信息
+                        result_count = len(serializable_result)
+                        logger.info(f"SQL查询成功返回 {result_count} 条记录")
+                        
+                        # 如果结果包含记录，记录第一条记录的关键字段用于调试
+                        if result_count > 0:
+                            sample_record = serializable_result[0]
+                            # 检查记录类型，确保它是一个字典
+                            if isinstance(sample_record, dict):
+                                # 记录记录的ID和user_id字段（如果存在）
+                                record_id = sample_record.get('id', 'unknown')
+                                user_id = sample_record.get('user_id', 'not_present')
+                                logger.info(f"样本记录 - ID: {record_id}, user_id: {user_id}")
+                                
+                                # 如果是带WHERE条件的查询，验证结果是否符合条件
+                                if "WHERE" in sql and "user_id" in sql:
+                                    logger.info(f"验证查询结果是否符合user_id条件")
+                                    for i, record in enumerate(serializable_result[:5]):  # 只检查前5条记录
+                                        if isinstance(record, dict):
+                                            record_user_id = record.get('user_id', 'not_present')
+                                            logger.info(f"记录 {i+1} - user_id: {record_user_id}")
+                            else:
+                                # 如果不是字典，记录实际类型
+                                logger.info(f"样本记录不是字典，而是 {type(sample_record).__name__}: {sample_record}")
+                        
                         return serializable_result
                     except Exception as e:
                         if "Cannot operate on a closed database" in str(e):
@@ -192,6 +227,24 @@ class UnifiedSurrealClient:
                     
                     # 转换SurrealDB对象为可序列化的Python类型
                     serializable_result = self._make_serializable(result)
+                    
+                    # 记录查询结果的详细信息
+                    result_count = len(serializable_result)
+                    logger.info(f"SQL查询(临时连接)成功返回 {result_count} 条记录")
+                    
+                    # 如果结果包含记录，记录第一条记录的关键字段用于调试
+                    if result_count > 0:
+                        sample_record = serializable_result[0]
+                        # 检查记录类型，确保它是一个字典
+                        if isinstance(sample_record, dict):
+                            # 记录记录的ID和user_id字段（如果存在）
+                            record_id = sample_record.get('id', 'unknown')
+                            user_id = sample_record.get('user_id', 'not_present')
+                            logger.info(f"样本记录(临时连接) - ID: {record_id}, user_id: {user_id}")
+                        else:
+                            # 如果不是字典，记录实际类型
+                            logger.info(f"样本记录(临时连接)不是字典，而是 {type(sample_record).__name__}: {sample_record}")
+                    
                     return serializable_result
                     
             except Exception as e:
@@ -206,6 +259,7 @@ class UnifiedSurrealClient:
                     logger.warning(f"WebSocket查询失败，尝试HTTP回退: {e}")
                     try:
                         result = self.http_client.execute_sql(sql)
+                        logger.info(f"HTTP回退查询成功返回 {len(result)} 条记录")
                         return result
                     except Exception as http_error:
                         logger.error(f"HTTP回退也失败了: {http_error}")
@@ -335,19 +389,36 @@ class UnifiedSurrealClient:
             List of records
         """
         try:
-            sql = f"SELECT * FROM {table}"
+            # Sanitize table name to prevent SQL injection
+            table = table.strip('`').replace('`', '')
             
-            if condition:
+            # Build the SQL query
+            sql = f"SELECT * FROM `{table}`"
+            
+            # Add WHERE clause if condition is provided
+            if condition and condition.strip():
+                # Log the condition for debugging
+                logger.info(f"Filtering records with condition: {condition}")
                 sql += f" WHERE {condition}"
+            else:
+                logger.info(f"No condition provided, returning all records from {table}")
             
+            # Add LIMIT clause
             sql += f" LIMIT {limit}"
             
+            # Add offset if provided
             if offset > 0:
                 sql += f" START {offset}"
             
             sql += ";"
             
-            return self.execute_sql(sql)
+            # Log the full SQL query for debugging
+            logger.info(f"Executing SQL query: {sql}")
+            
+            # Execute the query
+            result = self.execute_sql(sql)
+            logger.info(f"Query returned {len(result)} records")
+            return result
             
         except Exception as e:
             logger.warning(f"WebSocket get records failed, trying HTTP fallback: {e}")
@@ -641,6 +712,9 @@ class UnifiedSurrealClient:
             return self._make_serializable(data.__dict__)
         else:
             # Return primitive types as is
+            # 记录非标准类型的数据
+            if not isinstance(data, (str, int, float, bool)):
+                logger.debug(f"非标准数据类型: {type(data).__name__}")
             return data
     
     def ensure_table(self, table: str, fields: Dict[str, str]) -> bool:

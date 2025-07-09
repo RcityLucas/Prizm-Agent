@@ -14,7 +14,10 @@ from typing import Dict, Any, List, Optional, Union, Callable
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify, send_file, Response
+from flask_login import current_user
 from werkzeug.utils import secure_filename
+
+from rainbow_agent.auth.routes import require_auth
 
 from rainbow_agent.core.dialogue_manager import DialogueManager, DIALOGUE_TYPES
 from rainbow_agent.api.unified_dialogue_processor import UnifiedDialogueProcessor
@@ -108,26 +111,44 @@ def init_api_components():
 # 会话管理API
 @api.route('/dialogue/sessions', methods=['GET'])
 @ensure_initialized
+@require_auth  # 添加身份验证装饰器
 def get_sessions():
     """获取会话列表"""
     try:
-        # 解析请求参数
-        user_id = request.args.get('userId')
+        # 确保用户已经通过身份验证
+        if not current_user.is_authenticated:
+            logger.warning("User not authenticated when accessing /dialogue/sessions")
+            return jsonify({
+                "success": False,
+                "error": "Authentication required",
+                "message": "You must be logged in to access this resource"
+            }), 401
+        
+        # 使用当前登录用户的 ID，而不是从 URL 参数获取
+        user_id = current_user.id
+        logger.info(f"Fetching sessions for authenticated user: {user_id}")
+        
+        # 获取分页参数
         limit = int(request.args.get('limit', 10))
         offset = int(request.args.get('offset', 0))
+        logger.debug(f"Pagination parameters: limit={limit}, offset={offset}")
         
-        # 获取会话列表
-        sessions = session_manager.get_sessions(user_id, limit, offset)
+        # 获取会话列表，使用 get_user_sessions 方法
+        sessions = session_manager.get_user_sessions(user_id, limit, offset)
+        logger.info(f"Retrieved {len(sessions)} sessions for user {user_id}")
         
         # 为了兼容所有客户端，返回多种格式
-        return jsonify({
+        response_data = {
             "success": True,
             "data": {"sessions": sessions},
             "sessions": sessions,  # 直接提供会话列表，兼容simple_test.html
             "items": sessions,     # 兼容enhanced_index.html
             "total": len(sessions)
-        })
+        }
+        
+        return jsonify(response_data)
     except Exception as e:
+        logger.error(f"Error in get_sessions: {str(e)}")
         return handle_api_error(e)
 
 @api.route('/dialogue/sessions', methods=['POST'])

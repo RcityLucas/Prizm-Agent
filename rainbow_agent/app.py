@@ -31,8 +31,12 @@ def create_app():
                 static_folder='ui/static',
                 template_folder='ui/templates')
     
-    # 启用CORS
-    CORS(app)
+    # 启用CORS - 配置支持认证的跨域请求
+    CORS(app, 
+         supports_credentials=True,
+         origins=['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080'],
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+         allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'])
     
     # 注册认证路由
     register_auth_routes(app)

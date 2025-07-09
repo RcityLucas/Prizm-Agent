@@ -24,17 +24,18 @@ login_manager = None
 # 初始化状态标志
 _auth_components_initialized = False
 
-def init_auth_components(app):
+def init_auth_components(app, force=False):
     """
     初始化认证组件
     
     Args:
         app: Flask应用
+        force: 是否强制重新初始化，即使已经初始化过
     """
     global oauth_service, user_storage, login_manager, _auth_components_initialized
     
     # 检查是否已经初始化
-    if _auth_components_initialized:
+    if _auth_components_initialized and not force:
         logger.info("认证组件已经初始化，跳过重复初始化")
         return
     
