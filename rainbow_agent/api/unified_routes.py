@@ -116,6 +116,7 @@ def get_sessions():
     """获取会话列表"""
     try:
         # 确保用户已经通过身份验证
+        logger.debug(f"Sessions check - current_user: {current_user}, is_authenticated: {current_user.is_authenticated}")
         if not current_user.is_authenticated:
             logger.warning("User not authenticated when accessing /dialogue/sessions")
             return jsonify({

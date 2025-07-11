@@ -652,10 +652,11 @@ class SurrealUserStorage(UserStorage):
                 # 如果没有表名前缀，添加它
                 record_id = f"{self.table}:{user_id}"
             
-            # 方法1: 尝试直接使用Record ID
+            # 方法1: 尝试使用SurrealDB的Record ID语法
             try:
-                result = self.db.execute_sql(f"SELECT * FROM `{record_id}`")
-                logger.info(f"直接RecordID查询结果: {result}")
+                # 使用SurrealDB的Record ID语法: ⟨table:id⟩
+                result = self.db.execute_sql(f"SELECT * FROM ⟨{record_id}⟩")
+                logger.info(f"Record ID语法查询结果: {result}")
                 if result and len(result) > 0:
                     if isinstance(result[0], list) and len(result[0]) > 0:
                         user_data = result[0][0]
@@ -663,11 +664,12 @@ class SurrealUserStorage(UserStorage):
                     elif isinstance(result[0], dict):
                         return User.from_dict(result[0])
             except Exception as e:
-                logger.warning(f"直接RecordID查询失败: {e}")
+                logger.warning(f"Record ID语法查询失败: {e}")
             
-            # 方法2: 使用WHERE条件查询（提取UUID部分）
+            # 方法2: 使用对象ID匹配查询
             uuid_part = user_id.split(':')[-1] if ':' in str(user_id) else user_id
-            result = self.db.execute_sql(f"SELECT * FROM {self.table} WHERE string::split(string::lowercase(id), ':')[1] = '{uuid_part}'")
+            # 查询ID对象中的id字段匹配
+            result = self.db.execute_sql(f"SELECT * FROM {self.table} WHERE id.id = '{uuid_part}'")
             
             logger.info(f"UUID部分查询结果: {result}")
             if result and len(result) > 0:
@@ -690,7 +692,7 @@ class SurrealUserStorage(UserStorage):
                                         if isinstance(user_data['id'], dict) and 'id' in user_data['id'] and user_data['id']['id'] == user_id:
                                             logger.info(f"通过手动过滤ID找到用户: {user_data}")
                                             return User.from_dict(user_data)
-                                        elif user_data['id'] == user_id or user_data['id'] == formatted_id:
+                                        elif user_data['id'] == user_id:
                                             logger.info(f"通过手动过滤ID找到用户: {user_data}")
                                             return User.from_dict(user_data)
                         elif isinstance(user_batch, dict):
@@ -699,7 +701,7 @@ class SurrealUserStorage(UserStorage):
                                 if isinstance(user_batch['id'], dict) and 'id' in user_batch['id'] and user_batch['id']['id'] == user_id:
                                     logger.info(f"通过手动过滤ID找到用户: {user_batch}")
                                     return User.from_dict(user_batch)
-                                elif user_batch['id'] == user_id or user_batch['id'] == formatted_id:
+                                elif user_batch['id'] == user_id:
                                     logger.info(f"通过手动过滤ID找到用户: {user_batch}")
                                     return User.from_dict(user_batch)
             except Exception as all_users_err:
@@ -875,6 +877,8 @@ class SurrealUserStorage(UserStorage):
                 f"DEFINE FIELD id ON {self.table} TYPE string;",
                 f"DEFINE FIELD email ON {self.table} TYPE string;",
                 f"DEFINE FIELD name ON {self.table} TYPE string;",
+                f"DEFINE FIELD username ON {self.table} TYPE string;",
+                f"DEFINE FIELD password_hash ON {self.table} TYPE string;",
                 f"DEFINE FIELD avatar_url ON {self.table} TYPE string;",
                 f"DEFINE FIELD provider ON {self.table} TYPE string;",
                 f"DEFINE FIELD provider_id ON {self.table} TYPE string;",
@@ -957,7 +961,21 @@ class SurrealUserStorage(UserStorage):
                 logger.info(f"设置默认语言: en")
             
             # 检查并设置其他可能为None的字符串字段
-            string_fields = ["name", "email", "avatar_url", "provider", "provider_id"]
+            # 对于email字段，如果为None或空，使用用户ID以避免唯一索引冲突
+            if not user_dict.get("email"):
+                user_dict["email"] = f"user_{user_dict['id']}@local.tmp"  # 使用临时邮箱格式避免冲突
+                logger.info(f"设置临时邮箱: {user_dict['email']}")
+            
+            # 处理provider字段以避免唯一索引冲突
+            if not user_dict.get("provider"):
+                user_dict["provider"] = "local"  # 本地用户使用"local"
+                logger.info(f"设置provider为: local")
+            
+            if not user_dict.get("provider_id"):
+                user_dict["provider_id"] = user_dict['id']  # 使用用户ID作为provider_id
+                logger.info(f"设置provider_id为用户ID: {user_dict['id']}")
+                
+            string_fields = ["name", "avatar_url"]
             for field in string_fields:
                 if user_dict.get(field) is None:
                     user_dict[field] = ""  # 空字符串比None更安全
@@ -1246,8 +1264,8 @@ class SurrealUserStorage(UserStorage):
                 created_user = loop.run_until_complete(self.create_user(user))
                 logger.info(f"用户创建成功: {created_user.id} - {created_user.email}")
                 
-                # 验证用户是否真的被创建
-                verification = loop.run_until_complete(self.db.execute_sql(f"SELECT * FROM {self.table} WHERE id = '{created_user.id}'"))
+                # 验证用户是否真的被创建  
+                verification = self.db.execute_sql(f"SELECT * FROM {self.table} WHERE id = '{created_user.id}'")
                 if verification and len(verification) > 0 and len(verification[0]) > 0:
                     logger.info(f"用户验证成功: {created_user.id} 存在于数据库中")
                     logger.info(f"验证结果: {verification}")
@@ -1281,7 +1299,7 @@ class SurrealUserStorage(UserStorage):
                                     # 尝试替代查询格式
                                     alt_query = f"SELECT * FROM {self.table} WHERE email = '{user.email}';"
                                     logger.info(f"尝试替代邮箱查询: {alt_query}")
-                                    alt_result = loop.run_until_complete(self.db.execute_sql(alt_query))
+                                    alt_result = self.db.execute_sql(alt_query)
                                     logger.info(f"替代邮箱查询结果: {alt_result}")
                                     
                                     if alt_result and len(alt_result) > 0:
@@ -1314,7 +1332,7 @@ class SurrealUserStorage(UserStorage):
                                     # 尝试替代查询格式
                                     alt_query = f"SELECT * FROM {self.table} WHERE provider = '{user.provider}' AND provider_id = '{user.provider_id}';"
                                     logger.info(f"尝试替代提供商查询: {alt_query}")
-                                    alt_result = loop.run_until_complete(self.db.execute_sql(alt_query))
+                                    alt_result = self.db.execute_sql(alt_query)
                                     logger.info(f"替代提供商查询结果: {alt_result}")
                                     
                                     if alt_result and len(alt_result) > 0:
@@ -1333,7 +1351,7 @@ class SurrealUserStorage(UserStorage):
                     try:
                         logger.info("尝试查询所有用户并手动过滤")
                         all_users_query = f"SELECT * FROM {self.table} LIMIT 100"
-                        all_users = loop.run_until_complete(self.db.execute_sql(all_users_query))
+                        all_users = self.db.execute_sql(all_users_query)
                         logger.info(f"查询到 {len(all_users) if all_users else 0} 个用户")
                         
                         if all_users and len(all_users) > 0:
@@ -1427,11 +1445,155 @@ class SurrealUserStorage(UserStorage):
         Returns:
             用户列表
         """
-        import asyncio
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # 直接使用同步SQL查询，避免异步调用问题
+            query = f"SELECT * FROM {self.table} LIMIT {limit}"
+            result = self.db.execute_sql_sync(query)
+            
+            users = []
+            if result:
+                # 处理可能的嵌套结果
+                if isinstance(result, list):
+                    for item in result:
+                        if isinstance(item, list):
+                            for user_data in item:
+                                if isinstance(user_data, dict):
+                                    try:
+                                        # 确保用户数据与 User 类兼容
+                                        user = User(
+                                            id=user_data.get('id'),
+                                            email=user_data.get('email'),
+                                            name=user_data.get('name') or user_data.get('username'),
+                                            provider=user_data.get('provider'),
+                                            provider_id=user_data.get('provider_id'),
+                                            avatar_url=user_data.get('avatar_url'),
+                                            created_at=user_data.get('created_at')
+                                        )
+                                        # 手动设置 username 和 password_hash 属性（如果存在）
+                                        if 'username' in user_data:
+                                            setattr(user, 'username', user_data['username'])
+                                        if 'password_hash' in user_data:
+                                            setattr(user, 'password_hash', user_data['password_hash'])
+                                        users.append(user)
+                                    except Exception as user_err:
+                                        logger.error(f"创建用户对象失败: {user_err}, 数据: {user_data}")
+                        elif isinstance(item, dict):
+                            try:
+                                # 确保用户数据与 User 类兼容
+                                user = User(
+                                    id=item.get('id'),
+                                    email=item.get('email'),
+                                    name=item.get('name') or item.get('username'),
+                                    provider=item.get('provider'),
+                                    provider_id=item.get('provider_id'),
+                                    avatar_url=item.get('avatar_url'),
+                                    created_at=item.get('created_at')
+                                )
+                                # 手动设置 username 和 password_hash 属性（如果存在）
+                                if 'username' in item:
+                                    setattr(user, 'username', item['username'])
+                                if 'password_hash' in item:
+                                    setattr(user, 'password_hash', item['password_hash'])
+                                users.append(user)
+                            except Exception as user_err:
+                                logger.error(f"创建用户对象失败: {user_err}, 数据: {item}")
+            
+            return users
+        except Exception as e:
+            logger.error(f"同步列出用户失败: {e}")
+            return []
+    
+    def get_all_users_sync(self, limit: int = 100, offset: int = 0) -> List[User]:
+        """
+        获取所有用户（同步版本）
         
-        return loop.run_until_complete(self.list_users(limit, offset))
+        Args:
+            limit: 限制数量
+            offset: 偏移量
+            
+        Returns:
+            用户列表
+        """
+        return self.list_users_sync(limit, offset)
+
+    async def list_users(self, limit: int = 100, offset: int = 0) -> List[User]:
+        """
+        异步列出用户
+        
+        Args:
+            limit: 限制数量
+            offset: 偏移量
+            
+        Returns:
+            用户列表
+        """
+        try:
+            # SurrealDB 不支持 OFFSET 语法，只使用 LIMIT
+            query = f"SELECT * FROM {self.table} LIMIT {limit}"
+            result = await self.db.execute_sql(query)
+            
+            users = []
+            if result:
+                # 处理可能的嵌套结果
+                if isinstance(result, list):
+                    for item in result:
+                        if isinstance(item, list):
+                            for user_data in item:
+                                if isinstance(user_data, dict):
+                                    try:
+                                        # 确保用户数据与 User 类兼容
+                                        user = User(
+                                            id=user_data.get('id'),
+                                            email=user_data.get('email'),
+                                            name=user_data.get('name') or user_data.get('username'),
+                                            provider=user_data.get('provider'),
+                                            provider_id=user_data.get('provider_id'),
+                                            avatar_url=user_data.get('avatar_url'),
+                                            created_at=user_data.get('created_at')
+                                        )
+                                        # 手动设置 username 和 password_hash 属性（如果存在）
+                                        if 'username' in user_data:
+                                            setattr(user, 'username', user_data['username'])
+                                        if 'password_hash' in user_data:
+                                            setattr(user, 'password_hash', user_data['password_hash'])
+                                        users.append(user)
+                                    except Exception as user_err:
+                                        logger.error(f"创建用户对象失败: {user_err}, 数据: {user_data}")
+                        elif isinstance(item, dict):
+                            try:
+                                # 确保用户数据与 User 类兼容
+                                user = User(
+                                    id=item.get('id'),
+                                    email=item.get('email'),
+                                    name=item.get('name') or item.get('username'),
+                                    provider=item.get('provider'),
+                                    provider_id=item.get('provider_id'),
+                                    avatar_url=item.get('avatar_url'),
+                                    created_at=item.get('created_at')
+                                )
+                                # 手动设置 username 和 password_hash 属性（如果存在）
+                                if 'username' in item:
+                                    setattr(user, 'username', item['username'])
+                                if 'password_hash' in item:
+                                    setattr(user, 'password_hash', item['password_hash'])
+                                users.append(user)
+                            except Exception as user_err:
+                                logger.error(f"创建用户对象失败: {user_err}, 数据: {item}")
+            
+            return users
+        except Exception as e:
+            logger.error(f"列出用户失败: {e}")
+            return []
+    
+    def get_all_users_sync(self, limit: int = 100, offset: int = 0) -> List[User]:
+        """
+        获取所有用户（同步版本）
+        
+        Args:
+            limit: 限制数量
+            offset: 偏移量
+            
+        Returns:
+            用户列表
+        """
+        return self.list_users_sync(limit, offset)

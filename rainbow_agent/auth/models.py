@@ -99,6 +99,10 @@ class User(UserMixin):
         self.tags = tags or []
         self.timezone = timezone
         self.language = language or "zh-CN"
+        
+        # Additional attributes that might be set externally
+        self.username = None
+        self.password_hash = None
     
     def get_id(self) -> str:
         """获取用户ID，用于Flask-Login"""
@@ -121,6 +125,18 @@ class User(UserMixin):
     def is_anonymous(self) -> bool:
         """用户是否匿名，用于Flask-Login"""
         return False
+    
+    @property
+    def display_name(self) -> str:
+        """获取显示名称"""
+        if hasattr(self, 'username') and self.username:
+            return self.username
+        elif self.name:
+            return self.name
+        elif self.email:
+            return self.email.split('@')[0]
+        else:
+            return f"User {self.id[:8] if self.id else 'Unknown'}"
     
     def has_role(self, role: str) -> bool:
         """
@@ -146,7 +162,7 @@ class User(UserMixin):
         if isinstance(user_id, dict):
             user_id = str(user_id.get('id', user_id))
         
-        return {
+        result = {
             "id": str(user_id),  # 确保ID是字符串
             "email": self.email,
             "name": self.name,
@@ -168,6 +184,14 @@ class User(UserMixin):
             "timezone": self.timezone,
             "language": self.language
         }
+        
+        # Include additional attributes if they exist
+        if hasattr(self, 'username') and self.username is not None:
+            result["username"] = self.username
+        if hasattr(self, 'password_hash') and self.password_hash is not None:
+            result["password_hash"] = self.password_hash
+            
+        return result
     
     def to_json(self) -> str:
         """
@@ -215,7 +239,19 @@ class User(UserMixin):
         if isinstance(data.get('token_expiry'), str):
             data['token_expiry'] = datetime.fromisoformat(data['token_expiry'])
         
-        return cls(**data)
+        # Handle additional attributes not in constructor
+        username = data.pop('username', None)
+        password_hash = data.pop('password_hash', None)
+        
+        user = cls(**data)
+        
+        # Set additional attributes after construction
+        if username is not None:
+            user.username = username
+        if password_hash is not None:
+            user.password_hash = password_hash
+            
+        return user
     
     @classmethod
     def from_json(cls, json_str: str) -> 'User':

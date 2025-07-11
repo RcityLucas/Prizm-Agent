@@ -51,7 +51,17 @@ def init_auth(app, storage: UserStorage):
     # 注册用户加载函数
     @login_manager.user_loader
     def load_user(user_id):
-        return user_storage.get_user_sync(user_id)
+        try:
+            logger.debug(f"Loading user with ID: {user_id} (type: {type(user_id)})")
+            user = user_storage.get_user_sync(user_id)
+            if user:
+                logger.debug(f"Successfully loaded user: {user.username}")
+            else:
+                logger.debug(f"User not found for ID: {user_id}")
+            return user
+        except Exception as e:
+            logger.error(f"Error loading user {user_id}: {e}")
+            return None
     
     # 标记为已初始化
     _is_initialized = True
@@ -63,11 +73,12 @@ def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated:
-            raise Unauthorized({
+            # 直接返回JSON响应，不抛出异常
+            return jsonify({
                 "success": False,
                 "error": "未授权",
                 "message": "请先登录"
-            })
+            }), 401
         return f(*args, **kwargs)
     return decorated
 
@@ -96,6 +107,202 @@ def ensure_initialized(f):
         return f(*args, **kwargs)
     return decorated
 
+
+# 获取用户存储实例
+def get_user_storage():
+    """获取用户存储实例，如果未初始化则尝试初始化"""
+    global user_storage
+    
+    if user_storage is None:
+        try:
+            # 从统一存储系统获取数据库客户端
+            from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
+            from rainbow_agent.api.auth_routes import user_storage as api_user_storage
+            
+            # 尝试从API模块获取
+            if api_user_storage is not None:
+                user_storage = api_user_storage
+                logger.info("从API模块获取用户存储实例")
+            else:
+                # 创建新的用户存储实例
+                storage_instance = UnifiedDialogueStorage()
+                
+                # 检查数据库可用性
+                if not storage_instance or not storage_instance.shared_client:
+                    raise Exception("无法获取SurrealDB客户端，请检查SurrealDB是否正在运行")
+                
+                # 初始化SurrealDB用户存储
+                from rainbow_agent.auth.storage import SurrealUserStorage
+                user_storage = SurrealUserStorage(db_client=storage_instance.shared_client)
+                logger.info("创建新的SurrealDB用户存储实例")
+        except Exception as e:
+            logger.error(f"获取用户存储实例失败: {e}")
+            raise e
+    
+    return user_storage
+
+# 用户名密码认证端点
+@auth_api.route('/register', methods=['POST'])
+def register():
+    """用户注册端点"""
+    try:
+        # 获取请求数据
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "无效的请求数据",
+                "message": "请提供用户名和密码"
+            }), 400
+        
+        username = data.get('username')
+        password = data.get('password')
+        
+        # 验证数据
+        if not username or not password:
+            return jsonify({
+                "success": False,
+                "error": "缺少必要参数",
+                "message": "用户名和密码不能为空"
+            }), 400
+        
+        # 获取用户存储实例
+        storage = get_user_storage()
+        
+        # 检查用户是否已存在
+        existing_users = storage.get_all_users_sync()
+        for user in existing_users:
+            if user.username == username:
+                return jsonify({
+                    "success": False,
+                    "error": "用户已存在",
+                    "message": "该用户名已被注册"
+                }), 409
+        
+        # 创建新用户
+        import bcrypt
+        import uuid
+        
+        # 生成密码哈希
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # 创建用户对象
+        new_user = User(
+            id=str(uuid.uuid4()),
+            name=username,  # 使用 name 而不是 username
+            email=None,  # 可选邮箱
+            provider=None,  # 本地认证
+            provider_id=None,
+            avatar_url=None
+        )
+        # 手动设置 username 和 password_hash 属性
+        setattr(new_user, 'username', username)
+        setattr(new_user, 'password_hash', password_hash)
+        
+        # 保存用户
+        saved_user = user_storage.create_user_sync(new_user)
+        
+        if not saved_user or not saved_user.id:
+            return jsonify({
+                "success": False,
+                "error": "用户创建失败",
+                "message": "服务器内部错误，请稍后再试"
+            }), 500
+        
+        # 返回成功响应
+        return jsonify({
+            "success": True,
+            "message": "用户注册成功",
+            "user": {
+                "id": saved_user.id,
+                "username": saved_user.username,
+                "display_name": saved_user.display_name
+            }
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"用户注册失败: {e}")
+        return jsonify({
+            "success": False,
+            "error": "注册失败",
+            "message": "服务器内部错误，请稍后再试"
+        }), 500
+
+@auth_api.route('/login', methods=['POST'])
+def login():
+    """用户登录端点"""
+    try:
+        # 获取请求数据
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "无效的请求数据",
+                "message": "请提供用户名和密码"
+            }), 400
+        
+        username = data.get('username')
+        password = data.get('password')
+        
+        # 验证数据
+        if not username or not password:
+            return jsonify({
+                "success": False,
+                "error": "缺少必要参数",
+                "message": "用户名和密码不能为空"
+            }), 400
+        
+        # 获取用户存储实例
+        storage = get_user_storage()
+        
+        # 查找用户
+        users = storage.get_all_users_sync()
+        logger.info(f"找到 {len(users)} 个用户")
+        found_user = None
+        
+        for user in users:
+            logger.info(f"检查用户: username={getattr(user, 'username', None)}, name={user.name}, email={user.email}")
+            if hasattr(user, 'username') and user.username == username:
+                found_user = user
+                break
+        
+        if not found_user:
+            return jsonify({
+                "success": False,
+                "error": "用户不存在",
+                "message": "用户名或密码错误"
+            }), 401
+        
+        # 验证密码
+        import bcrypt
+        if not found_user.password_hash or not bcrypt.checkpw(password.encode('utf-8'), found_user.password_hash.encode('utf-8')):
+            return jsonify({
+                "success": False,
+                "error": "密码错误",
+                "message": "用户名或密码错误"
+            }), 401
+        
+        # 登录用户
+        login_user(found_user)
+        
+        # 返回成功响应
+        return jsonify({
+            "success": True,
+            "message": "登录成功",
+            "user": {
+                "id": found_user.id,
+                "username": found_user.username,
+                "display_name": found_user.display_name
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"用户登录失败: {e}")
+        return jsonify({
+            "success": False,
+            "error": "登录失败",
+            "message": "服务器内部错误，请稍后再试"
+        }), 500
 
 def get_oauth_client(provider: str):
     """获取OAuth客户端"""
@@ -287,7 +494,49 @@ def logout():
 
 @auth_api.route('/status', methods=['GET'])
 def get_auth_status():
-    """检查登录状态"""
+    """检查登录状态 - 修改为允许通过用户ID直接获取用户信息"""
+    # 检查是否有用户ID参数
+    user_id = request.args.get('user_id')
+    
+    # 如果有用户ID，直接获取用户信息
+    if user_id:
+        logger.debug(f"Status check with user_id: {user_id}")
+        try:
+            # 获取用户存储实例
+            storage = get_user_storage()
+            user = storage.get_user_sync(user_id)
+            
+            if user:
+                return jsonify({
+                    "success": True,
+                    "message": "获取用户信息成功",
+                    "data": {
+                        "authenticated": True,
+                        "user": user.to_dict()
+                    }
+                })
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": "用户不存在",
+                    "data": {
+                        "authenticated": False,
+                        "user": None
+                    }
+                })
+        except Exception as e:
+            logger.error(f"获取用户信息失败: {e}")
+            return jsonify({
+                "success": False,
+                "message": f"获取用户信息失败: {str(e)}",
+                "data": {
+                    "authenticated": False,
+                    "user": None
+                }
+            })
+    
+    # 否则检查当前用户是否已登录
+    logger.debug(f"Status check - current_user: {current_user}, is_authenticated: {current_user.is_authenticated}")
     if current_user.is_authenticated:
         return jsonify({
             "success": True,

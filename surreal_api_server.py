@@ -68,16 +68,31 @@ app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 app.json_encoder = CustomJSONEncoder  # 使用自定义JSON编码器
 # 启用CORS - 配置支持认证的跨域请求
 CORS(app, 
-     supports_credentials=True,
+     supports_credentials=True,  # 允许跨域请求携带Cookie
      origins=['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080'],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'])
+     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
+     expose_headers=['Set-Cookie'])  # 允许前端访问Set-Cookie头
 
 # 从rainbow_app复制配置
 app.config.update(rainbow_app.config)
 
 # 设置密钥
 app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_testing')
+
+# 确保会话配置正确
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # 使用Lax允许同站点链接带上Cookie，同时提供安全性
+app.config['SESSION_COOKIE_DOMAIN'] = None  # 使用当前域名，避免域名不匹配问题
+app.config['SESSION_COOKIE_SECURE'] = False  # 开发环境中禁用HTTPS要求
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # 防止JavaScript访问会话Cookie，增强安全性
+
+# 强制启用持久会话
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'session_data')
+app.config['SESSION_PERMANENT'] = True
+
+# 确保会话目录存在
+os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
 
 # Global variables
 storage = None

@@ -683,7 +683,20 @@ class UnifiedSurrealClient:
         except Exception as e:
             logger.error(f"Ensure table exists failed for {table}: {e}")
             return False
-
+    
+    def execute_sql_sync(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Execute SQL query synchronously (alias for execute_sql).
+        
+        Args:
+            sql: SQL query to execute
+            params: Optional parameters (not used in current implementation)
+            
+        Returns:
+            List of records or empty list on failure
+        """
+        return self.execute_sql(sql, params)
+    
     def _make_serializable(self, data: Any) -> Any:
         """
         Convert SurrealDB objects to serializable Python types.
