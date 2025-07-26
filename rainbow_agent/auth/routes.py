@@ -187,11 +187,21 @@ def register():
         
         # 获取用户存储实例
         storage = get_user_storage()
+        logger.info(f"注册使用的存储实例类型: {type(storage)}")
+        logger.info(f"注册使用的存储实例ID: {id(storage)}")
         
         # 检查用户是否已存在
         existing_users = storage.get_all_users_sync()
         for user in existing_users:
-            if user.username == username:
+            # 更robust的用户名检查
+            user_username = None
+            if hasattr(user, 'username'):
+                user_username = user.username
+            elif hasattr(user, 'name') and user.name:
+                user_username = user.name
+                
+            if user_username == username:
+                logger.info(f"用户名 {username} 已存在")
                 return jsonify({
                     "success": False,
                     "error": "用户已存在",
@@ -238,13 +248,23 @@ def register():
         verify_users = storage.get_all_users_sync()
         user_found = False
         for u in verify_users:
-            if hasattr(u, 'username') and u.username == username:
+            # 使用相同的robust检查方法
+            user_username = None
+            if hasattr(u, 'username'):
+                user_username = u.username
+            elif hasattr(u, 'name') and u.name:
+                user_username = u.name
+                
+            if user_username == username:
                 logger.info(f"✅ 验证成功: 在数据库中找到用户 {username}")
                 user_found = True
                 break
         
         if not user_found:
             logger.warning(f"⚠️ 验证失败: 在数据库中未找到用户 {username}")
+            # 打印详细的用户信息
+            for i, u in enumerate(verify_users):
+                logger.warning(f"验证用户 {i}: id={getattr(u, 'id', None)}, username={getattr(u, 'username', None)}, name={getattr(u, 'name', None)}")
         
         # 返回成功响应
         return jsonify({
@@ -252,8 +272,8 @@ def register():
             "message": "用户注册成功",
             "user": {
                 "id": saved_user.id,
-                "username": saved_user.username,
-                "display_name": saved_user.display_name
+                "username": getattr(saved_user, 'username', saved_user.name),
+                "display_name": getattr(saved_user, 'display_name', saved_user.name)
             }
         }), 201
         
@@ -291,6 +311,8 @@ def login():
         
         # 获取用户存储实例
         storage = get_user_storage()
+        logger.info(f"登录使用的存储实例类型: {type(storage)}")
+        logger.info(f"登录使用的存储实例ID: {id(storage)}")
         
         # 查找用户
         users = storage.get_all_users_sync()
@@ -298,12 +320,27 @@ def login():
         found_user = None
         
         for user in users:
-            logger.info(f"检查用户: username={getattr(user, 'username', None)}, name={user.name}, email={user.email}")
-            if hasattr(user, 'username') and user.username == username:
+            # 更robust的用户名检查，支持多种属性名
+            user_username = None
+            if hasattr(user, 'username'):
+                user_username = user.username
+            elif hasattr(user, 'name') and user.name:
+                user_username = user.name
+            
+            logger.info(f"检查用户: username={getattr(user, 'username', None)}, name={user.name}, email={user.email}, actual_username={user_username}")
+            
+            # 检查用户名匹配
+            if user_username == username:
+                logger.info(f"找到匹配用户: {user_username}")
                 found_user = user
                 break
         
         if not found_user:
+            logger.warning(f"未找到用户名为 '{username}' 的用户")
+            # 打印所有用户的详细信息用于调试
+            for i, user in enumerate(users):
+                logger.warning(f"用户 {i}: id={getattr(user, 'id', None)}, username={getattr(user, 'username', None)}, name={getattr(user, 'name', None)}, email={getattr(user, 'email', None)}")
+            
             return jsonify({
                 "success": False,
                 "error": "用户不存在",
@@ -312,7 +349,20 @@ def login():
         
         # 验证密码
         import bcrypt
-        if not found_user.password_hash or not bcrypt.checkpw(password.encode('utf-8'), found_user.password_hash.encode('utf-8')):
+        
+        # 获取密码哈希，处理可能不存在的属性
+        password_hash = getattr(found_user, 'password_hash', None)
+        if not password_hash:
+            logger.error(f"用户 {username} 没有密码哈希")
+            return jsonify({
+                "success": False,
+                "error": "密码错误",
+                "message": "用户名或密码错误"
+            }), 401
+        
+        logger.info(f"验证用户 {username} 的密码")
+        if not bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
+            logger.warning(f"用户 {username} 密码验证失败")
             return jsonify({
                 "success": False,
                 "error": "密码错误",
@@ -323,13 +373,14 @@ def login():
         login_user(found_user)
         
         # 返回成功响应
+        logger.info(f"用户 {username} 登录成功")
         return jsonify({
             "success": True,
             "message": "登录成功",
             "user": {
                 "id": found_user.id,
-                "username": found_user.username,
-                "display_name": found_user.display_name
+                "username": getattr(found_user, 'username', found_user.name),
+                "display_name": getattr(found_user, 'display_name', found_user.name)
             }
         }), 200
         

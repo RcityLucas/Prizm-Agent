@@ -188,6 +188,7 @@ def create_session():
 
 @api.route('/dialogue/sessions/<session_id>', methods=['GET'])
 @ensure_initialized
+@require_auth
 def get_session(session_id):
     """获取特定会话"""
     try:
@@ -256,9 +257,27 @@ def delete_session(session_id):
 
 @api.route('/dialogue/sessions/<session_id>/turns', methods=['GET'])
 @ensure_initialized
+@require_auth
 def get_turns(session_id):
     """获取会话轮次"""
     try:
+        # 首先验证会话是否属于当前用户
+        session = session_manager.get_session(session_id)
+        
+        if not session:
+            return jsonify({
+                "success": False,
+                "error": f"会话 {session_id} 不存在"
+            }), 404
+        
+        # 检查会话是否属于当前用户
+        from flask_login import current_user
+        if session.get('user_id') != current_user.id:
+            return jsonify({
+                "success": False,
+                "error": "无权访问此会话"
+            }), 403
+        
         # 获取轮次
         import asyncio
         response = asyncio.run(dialogue_processor.get_session_history(session_id))
