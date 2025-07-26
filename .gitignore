@@ -99,3 +99,55 @@ rainbow_agent.db
 .cache/
 .pytest_cache/
 .mypy_cache/
+
+# Privacy and sensitive files
+flask_session/
+session_data/
+user_data/
+*.pid
+*.log
+*.key
+*.pem
+
+# Development and debugging files
+debug_*.py
+test_*.py
+test_*.ps1
+*_test.py
+*_test.html
+
+# Duplicate and unnecessary directories
+Prizm-Agent/
+rainbow-agent/
+surreal-test/
+
+# Runtime and process files
+prizm_app.pid
+prizm_app.log
+restart_*.sh
+
+# Docker and container files (if not needed in repo)
+nginx_latest
+prizm-agent-api
+
+# Database files and folders
+*.db/
+db-new/
+surreal.db/
+
+# Upload directories with user content
+static/uploads/
+
+# Command line artifacts
+--network
+--restart
+-e
+-p
+-v
+
+# Nginx configuration (contains potentially sensitive info)
+nginx/conf/
+nginx/ssl/
+
+# Environment backup files
+.env.backup
