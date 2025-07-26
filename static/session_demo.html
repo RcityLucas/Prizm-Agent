@@ -103,6 +103,10 @@
             font-family: 'Courier New', Courier, monospace;
         }
     </style>
+    
+    <!-- 身份验证和会话管理脚本 -->
+    <script src="/static/js/auth-utils.js"></script>
+    <script src="/static/js/session-manager.js"></script>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
@@ -240,15 +244,25 @@
         const sessionTitleInput = document.getElementById('sessionTitle');
         
         // 初始化
-        function init() {
-            // 保存用户 ID
-            localStorage.setItem('userId', userId);
-            
-            // 加载会话列表
-            loadSessions();
-            
-            // 设置事件监听器
-            setupEventListeners();
+        async function init() {
+            try {
+                // 初始化身份验证
+                const isAuthenticated = await AuthUtils.initializeAuth();
+                
+                if (!isAuthenticated) {
+                    return; // 如果未认证，AuthUtils会自动重定向到登录页面
+                }
+                
+                // 加载会话列表（使用新的会话管理器）
+                await sessionManager.loadSessions();
+                
+                // 设置事件监听器
+                setupEventListeners();
+                
+            } catch (error) {
+                console.error('页面初始化失败:', error);
+                AuthUtils.showError('初始化失败', '页面初始化失败，请刷新页面重试');
+            }
         }
         
         // 设置事件监听器
