@@ -498,6 +498,19 @@ class FileUserStorage(UserStorage):
         except Exception as e:
             logger.error(f"列出用户失败: {e}")
             return []
+    
+    def get_all_users_sync(self, limit: int = 100, offset: int = 0) -> List[User]:
+        """
+        获取所有用户（同步版本）
+        
+        Args:
+            limit: 限制数量
+            offset: 偏移量
+            
+        Returns:
+            用户列表
+        """
+        return self._load_all_users()[offset:offset+limit]
 
 
 class SurrealUserStorage(UserStorage):
@@ -1172,7 +1185,7 @@ class SurrealUserStorage(UserStorage):
     
     async def delete_user(self, user_id: str) -> bool:
         """
-        删除用户
+        删除用户 - 修复版本，使用与登录系统相同的查询方式
         
         Args:
             user_id: 用户ID
@@ -1181,13 +1194,65 @@ class SurrealUserStorage(UserStorage):
             是否删除成功
         """
         try:
-            # 执行删除
-            result = await self.db.delete(f"{self.table}:{user_id}")
+            logger.info(f"开始删除用户: {user_id}")
             
-            # 处理结果
-            return result is not None
+            # 使用与登录系统相同的方式获取所有用户，然后找到目标用户
+            all_users_query = f"SELECT * FROM {self.table}"
+            all_users_result = self.db.execute_sql(all_users_query)
+            
+            target_user = None
+            target_username = None
+            
+            if all_users_result:
+                for user_data in all_users_result:
+                    if isinstance(user_data, dict):
+                        # 处理SurrealDB的复杂ID格式
+                        db_user_id = user_data.get('id', {})
+                        if isinstance(db_user_id, dict) and 'id' in db_user_id:
+                            actual_id = db_user_id['id']
+                        else:
+                            actual_id = str(db_user_id)
+                        
+                        # 找到匹配的用户
+                        if actual_id == user_id:
+                            target_user = user_data
+                            target_username = user_data.get('username')
+                            logger.info(f"找到目标用户: {target_username} (ID: {actual_id})")
+                            break
+            
+            if not target_user or not target_username:
+                logger.warning(f"未找到要删除的用户: {user_id}")
+                return False
+            
+            # 使用用户名删除，因为这与登录系统的查询模式一致
+            delete_sql = f"DELETE FROM {self.table} WHERE username = '{target_username}'"
+            logger.info(f"执行删除: {delete_sql}")
+            result = self.db.execute_sql(delete_sql)
+            logger.info(f"删除结果: {result}")
+            
+            # 验证删除 - 使用与登录系统相同的查询方式
+            verify_users = self.db.execute_sql(all_users_query)
+            user_still_exists = False
+            
+            if verify_users:
+                for user_data in verify_users:
+                    if isinstance(user_data, dict):
+                        if user_data.get('username') == target_username:
+                            user_still_exists = True
+                            logger.warning(f"验证失败：用户仍存在: {user_data}")
+                            break
+            
+            if not user_still_exists:
+                logger.info(f"✅ 用户删除成功: {target_username} (ID: {user_id})")
+                return True
+            else:
+                logger.error(f"❌ 用户删除失败，验证显示用户仍存在: {target_username}")
+                return False
+                
         except Exception as e:
-            logger.error(f"删除用户失败: {e}")
+            logger.error(f"删除用户异常: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     async def list_users(self, limit: int = 100, offset: int = 0) -> List[User]:
@@ -1446,9 +1511,9 @@ class SurrealUserStorage(UserStorage):
             用户列表
         """
         try:
-            # 直接使用同步SQL查询，避免异步调用问题
+            # 使用execute_sql方法（它本身就是同步的）
             query = f"SELECT * FROM {self.table} LIMIT {limit}"
-            result = self.db.execute_sql_sync(query)
+            result = self.db.execute_sql(query)
             
             users = []
             if result:

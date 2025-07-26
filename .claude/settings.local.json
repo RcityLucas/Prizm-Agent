@@ -16,7 +16,9 @@
       "Bash(python:*)",
       "Bash(lsof:*)",
       "Bash(ss:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(ls:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }

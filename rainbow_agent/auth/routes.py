@@ -113,28 +113,47 @@ def get_user_storage():
     """获取用户存储实例，如果未初始化则尝试初始化"""
     global user_storage
     
+    # 优先从API模块获取已初始化的存储实例
+    if user_storage is None:
+        try:
+            # 首先尝试从API模块获取
+            from rainbow_agent.api.auth_routes import user_storage as api_user_storage
+            
+            if api_user_storage is not None:
+                user_storage = api_user_storage
+                logger.info("从API模块获取用户存储实例")
+                return user_storage
+        except ImportError:
+            logger.warning("无法导入API模块的用户存储")
+        except Exception as e:
+            logger.warning(f"从API模块获取用户存储失败: {e}")
+    
+    # 如果仍然为空，创建新实例
     if user_storage is None:
         try:
             # 从统一存储系统获取数据库客户端
             from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
-            from rainbow_agent.api.auth_routes import user_storage as api_user_storage
             
-            # 尝试从API模块获取
-            if api_user_storage is not None:
-                user_storage = api_user_storage
-                logger.info("从API模块获取用户存储实例")
-            else:
-                # 创建新的用户存储实例
-                storage_instance = UnifiedDialogueStorage()
+            # 创建新的用户存储实例
+            storage_instance = UnifiedDialogueStorage()
+            
+            # 检查数据库可用性
+            if not storage_instance or not storage_instance.shared_client:
+                raise Exception("无法获取SurrealDB客户端，请检查SurrealDB是否正在运行")
+            
+            # 初始化SurrealDB用户存储
+            from rainbow_agent.auth.storage import SurrealUserStorage
+            user_storage = SurrealUserStorage(db_client=storage_instance.shared_client)
+            logger.info("创建新的SurrealDB用户存储实例")
+            
+            # 设置到API模块以保持一致性
+            try:
+                import rainbow_agent.api.auth_routes
+                rainbow_agent.api.auth_routes.user_storage = user_storage
+                logger.info("已将用户存储实例同步到API模块")
+            except Exception as sync_err:
+                logger.warning(f"无法同步用户存储到API模块: {sync_err}")
                 
-                # 检查数据库可用性
-                if not storage_instance or not storage_instance.shared_client:
-                    raise Exception("无法获取SurrealDB客户端，请检查SurrealDB是否正在运行")
-                
-                # 初始化SurrealDB用户存储
-                from rainbow_agent.auth.storage import SurrealUserStorage
-                user_storage = SurrealUserStorage(db_client=storage_instance.shared_client)
-                logger.info("创建新的SurrealDB用户存储实例")
         except Exception as e:
             logger.error(f"获取用户存储实例失败: {e}")
             raise e
@@ -187,12 +206,13 @@ def register():
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         # 创建用户对象
+        user_id = str(uuid.uuid4())
         new_user = User(
-            id=str(uuid.uuid4()),
+            id=user_id,
             name=username,  # 使用 name 而不是 username
-            email=None,  # 可选邮箱
-            provider=None,  # 本地认证
-            provider_id=None,
+            email=f"{username}@local.user",  # 生成一个本地邮箱
+            provider="local",  # 本地认证
+            provider_id=user_id,  # 使用用户ID作为provider_id
             avatar_url=None
         )
         # 手动设置 username 和 password_hash 属性
@@ -200,7 +220,11 @@ def register():
         setattr(new_user, 'password_hash', password_hash)
         
         # 保存用户
+        logger.info(f"准备保存用户: {new_user.username}, ID: {new_user.id}")
         saved_user = user_storage.create_user_sync(new_user)
+        
+        # 验证保存结果
+        logger.info(f"保存结果: {saved_user.id if saved_user else 'None'}")
         
         if not saved_user or not saved_user.id:
             return jsonify({
@@ -208,6 +232,19 @@ def register():
                 "error": "用户创建失败",
                 "message": "服务器内部错误，请稍后再试"
             }), 500
+        
+        # 立即验证用户是否真的被保存
+        logger.info(f"验证用户是否真的被保存...")
+        verify_users = storage.get_all_users_sync()
+        user_found = False
+        for u in verify_users:
+            if hasattr(u, 'username') and u.username == username:
+                logger.info(f"✅ 验证成功: 在数据库中找到用户 {username}")
+                user_found = True
+                break
+        
+        if not user_found:
+            logger.warning(f"⚠️ 验证失败: 在数据库中未找到用户 {username}")
         
         # 返回成功响应
         return jsonify({
@@ -615,4 +652,215 @@ def update_user():
             "success": False,
             "error": "更新用户信息失败",
             "message": str(e)
+        }), 500
+
+@auth_api.route('/user', methods=['DELETE'])
+@require_auth
+@ensure_initialized
+def delete_user():
+    """删除用户账户"""
+    global user_storage
+    
+    try:
+        # 获取当前用户ID，处理可能的复杂ID格式
+        raw_user_id = current_user.id
+        
+        # 处理SurrealDB的复杂ID格式
+        if isinstance(raw_user_id, dict) and 'id' in raw_user_id:
+            user_id = raw_user_id['id']
+        elif isinstance(raw_user_id, str):
+            user_id = raw_user_id
+        else:
+            user_id = str(raw_user_id)
+            
+        logger.info(f"开始删除用户: {user_id} (原始ID: {raw_user_id})")
+        
+        # 验证用户存在
+        user = user_storage.get_user_sync(user_id)
+        if not user:
+            return jsonify({
+                "success": False,
+                "error": "用户不存在",
+                "message": "无法找到要删除的用户"
+            }), 404
+        
+        # 执行删除操作
+        success = user_storage.delete_user_sync(user_id)
+        
+        if success:
+            # 登出用户
+            logout_user()
+            
+            logger.info(f"用户删除成功: {user_id}")
+            return jsonify({
+                "success": True,
+                "message": "用户账户已成功删除",
+                "data": {
+                    "deleted_user_id": user_id,
+                    "authenticated": False
+                }
+            }), 200
+        else:
+            logger.error(f"用户删除失败: {user_id}")
+            return jsonify({
+                "success": False,
+                "error": "删除失败",
+                "message": "无法删除用户账户，请稍后再试"
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"删除用户时发生异常: {e}")
+        return jsonify({
+            "success": False,
+            "error": "删除失败",
+            "message": "服务器内部错误，请稍后再试"
+        }), 500
+
+@auth_api.route('/admin/users/<user_id>', methods=['DELETE'])
+@require_auth
+@ensure_initialized
+def admin_delete_user(user_id: str):
+    """管理员删除指定用户（需要管理员权限）"""
+    global user_storage
+    
+    try:
+        # 检查当前用户是否有管理员权限
+        if not current_user.has_role('admin'):
+            return jsonify({
+                "success": False,
+                "error": "权限不足",
+                "message": "只有管理员可以删除其他用户"
+            }), 403
+        
+        # 处理current_user.id的复杂格式
+        current_user_id = current_user.id
+        if isinstance(current_user_id, dict) and 'id' in current_user_id:
+            current_user_id = current_user_id['id']
+        elif not isinstance(current_user_id, str):
+            current_user_id = str(current_user_id)
+        
+        # 防止管理员删除自己
+        if current_user_id == user_id:
+            return jsonify({
+                "success": False,
+                "error": "操作不允许",
+                "message": "不能删除自己的账户，请使用普通删除接口"
+            }), 400
+        
+        logger.info(f"管理员 {current_user.id} 开始删除用户: {user_id}")
+        
+        # 验证要删除的用户存在
+        user = user_storage.get_user_sync(user_id)
+        if not user:
+            return jsonify({
+                "success": False,
+                "error": "用户不存在",
+                "message": "无法找到要删除的用户"
+            }), 404
+        
+        # 记录用户信息用于日志
+        user_info = {
+            "id": user.id,
+            "username": getattr(user, 'username', None),
+            "email": user.email,
+            "name": user.name
+        }
+        
+        # 执行删除操作
+        success = user_storage.delete_user_sync(user_id)
+        
+        if success:
+            logger.info(f"管理员删除用户成功: {user_info}")
+            return jsonify({
+                "success": True,
+                "message": "用户已成功删除",
+                "data": {
+                    "deleted_user": user_info,
+                    "deleted_by": current_user.id
+                }
+            }), 200
+        else:
+            logger.error(f"管理员删除用户失败: {user_id}")
+            return jsonify({
+                "success": False,
+                "error": "删除失败",
+                "message": "无法删除指定用户，请稍后再试"
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"管理员删除用户时发生异常: {e}")
+        return jsonify({
+            "success": False,
+            "error": "删除失败",
+            "message": "服务器内部错误，请稍后再试"
+        }), 500
+
+@auth_api.route('/admin/users', methods=['GET'])
+@require_auth
+@ensure_initialized
+def list_users():
+    """管理员获取用户列表（需要管理员权限）"""
+    global user_storage
+    
+    try:
+        # 检查当前用户是否有管理员权限
+        if not current_user.has_role('admin'):
+            return jsonify({
+                "success": False,
+                "error": "权限不足",
+                "message": "只有管理员可以查看用户列表"
+            }), 403
+        
+        # 获取分页参数
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        limit = min(limit, 100)  # 限制最大数量
+        
+        offset = (page - 1) * limit
+        
+        logger.info(f"管理员 {current_user.id} 获取用户列表: page={page}, limit={limit}")
+        
+        # 获取用户列表
+        users = user_storage.get_all_users_sync(limit=limit, offset=offset)
+        
+        # 转换为安全的字典格式（不包含敏感信息）
+        users_data = []
+        for user in users:
+            user_dict = {
+                "id": user.id,
+                "username": getattr(user, 'username', None),
+                "email": user.email,
+                "name": user.name,
+                "provider": user.provider,
+                "avatar_url": user.avatar_url,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "last_login": user.last_login.isoformat() if user.last_login else None,
+                "roles": user.roles,
+                "is_active": user._is_active,
+                "language": user.language,
+                "timezone": user.timezone
+            }
+            users_data.append(user_dict)
+        
+        logger.info(f"返回 {len(users_data)} 个用户信息")
+        
+        return jsonify({
+            "success": True,
+            "message": "获取用户列表成功",
+            "data": {
+                "users": users_data,
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "count": len(users_data)
+                }
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"获取用户列表时发生异常: {e}")
+        return jsonify({
+            "success": False,
+            "error": "获取失败",
+            "message": "服务器内部错误，请稍后再试"
         }), 500
