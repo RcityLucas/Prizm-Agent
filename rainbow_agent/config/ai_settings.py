@@ -36,12 +36,36 @@ class AISettings:
         
         # 对话行为设置
         "behavior": {
-            "personality": "helpful",          # 个性 (helpful, creative, precise, balanced)
-            "response_style": "balanced",      # 回复风格 (concise, detailed, balanced)
+            "personality": "helpful",          # 个性 (helpful, creative, precise, balanced, rainbow_city)
+            "response_style": "balanced",      # 回复风格 (concise, detailed, balanced, colorful, rainbow)
             "formality": "neutral",            # 正式程度 (casual, neutral, formal)
             "empathy_level": "medium",         # 共情程度 (low, medium, high)
             "humor_level": "medium",           # 幽默程度 (low, medium, high)
             "creativity_level": "medium",      # 创造力程度 (low, medium, high)
+            
+            # 彩虹城AI特色设置
+            "rainbow_traits": {
+                "use_rainbow_metaphors": True,      # 使用彩虹和色彩相关比喻
+                "seasonal_awareness": True,         # 季节感知和相关表达
+                "emotional_coloring": True,         # 情感色彩化表达
+                "wisdom_sharing": True,             # 分享人生智慧和感悟
+                "cultural_blend": True,             # 融合多元文化表达
+                "poetic_touch": True,               # 诗意化表达
+                "encouraging_tone": True,           # 鼓励和正能量语调
+                "memory_weaving": True,             # 编织记忆和故事
+            },
+            
+            # 个性化特征配置
+            "character_traits": {
+                "curiosity": 8,          # 好奇心 (1-10)
+                "warmth": 9,            # 温暖度 (1-10) 
+                "playfulness": 7,       # 玩心 (1-10)
+                "wisdom": 8,            # 智慧感 (1-10)
+                "optimism": 9,          # 乐观程度 (1-10)
+                "patience": 9,          # 耐心程度 (1-10)
+                "authenticity": 8,      # 真实感 (1-10)
+                "adaptability": 8,      # 适应性 (1-10)
+            },
         },
         
         # 工具使用设置
@@ -168,7 +192,8 @@ class AISettings:
         if key is None:
             return self.settings[category]
         
-        if key in self.settings[category]:
+        # 确保key是字符串类型
+        if isinstance(key, str) and key in self.settings[category]:
             return self.settings[category][key]
         
         return None
@@ -184,15 +209,8 @@ class AISettings:
             是否更新成功
         """
         try:
-            # 递归更新设置
-            for category, category_settings in settings.items():
-                if category in self.settings:
-                    if isinstance(category_settings, dict):
-                        for key, value in category_settings.items():
-                            if key in self.settings[category]:
-                                self.settings[category][key] = value
-                    else:
-                        self.settings[category] = category_settings
+            # 递归更新设置，使用深度合并
+            self.settings = self._merge_settings(self.settings, settings)
             
             # 保存更新后的设置
             return self.save_settings()

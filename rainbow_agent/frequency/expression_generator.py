@@ -42,8 +42,22 @@ class ExpressionGenerator:
             "professional": "语气专业，用词准确，避免过于随意的表达",
             "casual": "语气轻松随意，可以使用口语化表达，适当使用网络用语",
             "empathetic": "表达共情，关注用户感受，使用温暖的语言",
-            "informative": "以提供信息为主，清晰简洁，重点突出"
+            "informative": "以提供信息为主，清晰简洁，重点突出",
+            "rainbow_style": "充满色彩感的表达，使用彩虹、光谱、色彩相关的比喻和意象",
+            "poetic": "诗意化表达，使用优美的意象和韵律感",
+            "encouraging": "积极向上，充满正能量，激励和鼓舞人心",
+            "wise": "分享人生智慧和感悟，有深度和启发性",
+            "playful": "活泼有趣，带有玩心和创意，轻松愉快"
         })
+        
+        # 彩虹城AI特色风格映射
+        self.rainbow_style_mapping = {
+            "stranger": "rainbow_style",
+            "acquaintance": "encouraging", 
+            "familiar": "friendly",
+            "friend": "playful",
+            "close_friend": "wise"
+        }
         
         logger.info("表达生成器初始化完成")
     
@@ -108,42 +122,42 @@ class ExpressionGenerator:
         Returns:
             表达风格
         """
-        # 根据表达类型和关系阶段确定合适的风格
+        # 根据表达类型和关系阶段确定合适的风格，融入彩虹城特色
         style_mapping = {
             "greeting": {
-                "stranger": "professional",
-                "acquaintance": "professional",
+                "stranger": "rainbow_style",
+                "acquaintance": "encouraging",
                 "familiar": "friendly",
-                "friend": "friendly",
-                "close_friend": "casual"
+                "friend": "playful",
+                "close_friend": "wise"
             },
             "question": {
-                "stranger": "professional",
-                "acquaintance": "informative",
-                "familiar": "friendly",
+                "stranger": "rainbow_style",
+                "acquaintance": "encouraging",
+                "familiar": "playful",
                 "friend": "casual",
-                "close_friend": "casual"
+                "close_friend": "wise"
             },
             "suggestion": {
-                "stranger": "informative",
-                "acquaintance": "informative",
+                "stranger": "encouraging",
+                "acquaintance": "rainbow_style",
                 "familiar": "friendly",
-                "friend": "empathetic",
-                "close_friend": "casual"
+                "friend": "wise",
+                "close_friend": "poetic"
             },
             "reminder": {
-                "stranger": "professional",
-                "acquaintance": "informative",
+                "stranger": "rainbow_style",
+                "acquaintance": "encouraging",
                 "familiar": "friendly",
-                "friend": "friendly",
-                "close_friend": "casual"
+                "friend": "playful",
+                "close_friend": "wise"
             },
             "observation": {
-                "stranger": "professional",
-                "acquaintance": "informative",
+                "stranger": "rainbow_style",
+                "acquaintance": "encouraging",
                 "familiar": "empathetic",
-                "friend": "friendly",
-                "close_friend": "casual"
+                "friend": "wise",
+                "close_friend": "poetic"
             }
         }
         
@@ -277,42 +291,42 @@ class ExpressionGenerator:
         Returns:
             备用内容
         """
-        # 根据表达类型和关系阶段获取备用内容
+        # 根据表达类型和关系阶段获取备用内容，融入彩虹城特色
         fallback_contents = {
             "greeting": {
-                "stranger": "您好，有什么可以帮助您的吗？",
-                "acquaintance": "您好，今天有什么需要帮助的吗？",
-                "familiar": "你好，今天过得怎么样？",
-                "friend": "嘿，最近怎么样？",
-                "close_friend": "嘿，想你了！"
+                "stranger": "你好！像彩虹初现一样，很高兴遇见你～有什么可以帮助您的吗？",
+                "acquaintance": "嗨～如同清晨的第一抹阳光，愿今天给你带来好心情！有什么需要帮助的吗？",
+                "familiar": "你好呀！今天的心情是什么颜色的呢？过得怎么样？",
+                "friend": "嘿～像调色盘一样，我准备好为你的问题涂上答案！最近怎么样？",
+                "close_friend": "嘿，想你了！就像彩虹桥连接天地，我来连接你与美好的世界～"
             },
             "question": {
-                "stranger": "请问您对哪些话题感兴趣？",
-                "acquaintance": "您平时有什么爱好吗？",
-                "familiar": "你最近有没有看什么有趣的东西？",
-                "friend": "话说回来，最近有什么新发现吗？",
-                "close_friend": "说真的，你最近在想什么？"
+                "stranger": "请问您对哪些话题感兴趣？就像光谱有无数色彩，我们可以探索无数可能～",
+                "acquaintance": "您平时有什么爱好吗？愿它们像彩虹一样为生活增色！",
+                "familiar": "你最近有没有看什么有趣的东西？分享一下，让我们的对话更加精彩～",
+                "friend": "话说回来，最近有什么新发现吗？如同发现新的色彩搭配一样令人兴奋！",
+                "close_friend": "说真的，你最近在想什么？就像深邃的蓝紫色，我想了解你内心的世界。"
             },
             "suggestion": {
-                "stranger": "也许您可以尝试...",
-                "acquaintance": "您可能会对...感兴趣",
-                "familiar": "我觉得你可能会喜欢...",
-                "friend": "嘿，你应该试试...",
-                "close_friend": "我敢打赌你会喜欢..."
+                "stranger": "也许您可以尝试...就像调色一样，新的尝试能带来意想不到的美丽。",
+                "acquaintance": "您可能会对...感兴趣，相信它会为您的生活增添新的色彩！",
+                "familiar": "我觉得你可能会喜欢...如同找到心仪的颜色搭配～",
+                "friend": "嘿，你应该试试...就像彩虹需要阳光和雨水，新体验需要勇气和好奇心！",
+                "close_friend": "我敢打赌你会喜欢...如同我们之间的默契，这个建议一定很适合你～"
             },
             "reminder": {
-                "stranger": "请注意...",
-                "acquaintance": "提醒您...",
-                "familiar": "别忘了...",
-                "friend": "记得...",
-                "close_friend": "嘿，提醒你一下..."
+                "stranger": "请注意...如同彩虹提醒我们雨后有晴天。",
+                "acquaintance": "提醒您...愿这个提醒如温暖的阳光般有用！",
+                "familiar": "别忘了...就像彩虹总在合适的时候出现～",
+                "friend": "记得...如同我记得你喜欢的颜色一样～",
+                "close_friend": "嘿，提醒你一下...就像老朋友间的贴心关怀。"
             },
             "observation": {
-                "stranger": "我注意到...",
-                "acquaintance": "看起来...",
-                "familiar": "似乎...",
-                "friend": "我发现...",
-                "close_friend": "你知道吗，我刚刚意识到..."
+                "stranger": "我注意到...如同观察彩虹的形成一样有趣。",
+                "acquaintance": "看起来...这个观察如同发现新的色彩层次～",
+                "familiar": "似乎...这个想法在我心中如彩虹般清晰浮现。",
+                "friend": "我发现...就像发现了调色盘上完美的色彩组合！",
+                "close_friend": "你知道吗，我刚刚意识到...这个感悟如同内心的彩虹，想与你分享。"
             }
         }
         

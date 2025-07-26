@@ -21,7 +21,8 @@
       "Bash(chmod:*)",
       "Bash(./test_delete_curl.sh)",
       "Bash(sed:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "WebFetch(domain:47.236.10.92)"
     ],
     "deny": []
   }

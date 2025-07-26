@@ -19,6 +19,7 @@ from datetime import datetime
 from rainbow_agent.ai.openai_service import OpenAIService
 from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
 from rainbow_agent.core.context_builder import ContextBuilder
+from rainbow_agent.core.response_enhancer import ResponseEnhancer
 from rainbow_agent.memory.memory import Memory
 from rainbow_agent.memory.surreal_memory import SurrealMemory
 from rainbow_agent.frequency.frequency_integrator import FrequencyIntegrator
@@ -26,6 +27,7 @@ from rainbow_agent.frequency.frequency_sense_core import FrequencySenseCore
 from rainbow_agent.frequency.expression_planner import ExpressionPlanner
 from rainbow_agent.frequency.expression_generator import ExpressionGenerator
 from rainbow_agent.frequency.expression_dispatcher import ExpressionDispatcher
+from rainbow_agent.config.ai_settings import AISettings
 from rainbow_agent.utils.logger import get_logger
 
 # 配置日志
@@ -50,6 +52,7 @@ class DialogueManager:
                  ai_service: Optional[OpenAIService] = None,
                  memory: Optional[Memory] = None,
                  frequency_integrator: Optional[FrequencyIntegrator] = None,
+                 ai_settings: Optional[AISettings] = None,
                  use_vector_search: bool = False,
                  vector_weight: float = 0.7):
         """初始化对话管理器
@@ -64,6 +67,10 @@ class DialogueManager:
         self.storage = storage or UnifiedDialogueStorage()
         self.ai_service = ai_service or OpenAIService()
         self.memory = memory
+        self.ai_settings = ai_settings or AISettings()
+        
+        # 初始化回复增强器
+        self.response_enhancer = ResponseEnhancer(self.ai_settings)
         
         # 初始化上下文构建器
         # 使用内部记忆系统初始化上下文构建器
@@ -477,6 +484,39 @@ class DialogueManager:
             # 调用AI服务生成响应
             response = self.ai_service.generate_response(messages)
             
+            # 使用回复增强器增强响应
+            try:
+                # 构建上下文信息用于个性化增强
+                enhancement_context = {
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "user_input": content,  # 添加用户输入用于语言检测
+                    "is_new_conversation": len(turns) <= 2,
+                    "conversation_length": len(turns),
+                    "time_since_last_interaction": 0,  # 可以根据实际情况计算
+                    "user_emotion": metadata.get("emotion") if metadata else None,
+                    "topic": metadata.get("topic") if metadata else None,
+                    "needs_encouragement": self._detect_needs_encouragement(content)
+                }
+                
+                # 根据对话历史长度决定增强级别
+                if len(turns) <= 2:
+                    enhancement_level = "high"  # 新对话，使用高级增强
+                elif len(turns) <= 10:
+                    enhancement_level = "medium"  # 熟悉对话，中等增强
+                else:
+                    enhancement_level = "low"  # 长期对话，轻度增强
+                
+                enhanced_response = self.response_enhancer.enhance_response(
+                    response, enhancement_context, enhancement_level
+                )
+                response = enhanced_response
+                
+                logger.debug(f"回复已通过个性引擎增强，级别: {enhancement_level}")
+                
+            except Exception as e:
+                logger.error(f"回复增强失败，使用原始回复: {e}")
+            
             # 构建响应元数据
             response_metadata = {
                 "processed_at": datetime.now().isoformat(),
@@ -772,3 +812,24 @@ class DialogueManager:
         }
         
         return response, response_metadata
+    
+    def _detect_needs_encouragement(self, content: str) -> bool:
+        """
+        检测用户输入是否需要鼓励
+        
+        Args:
+            content: 用户输入内容
+            
+        Returns:
+            bool: 是否需要鼓励
+        """
+        # 定义需要鼓励的关键词
+        negative_keywords = [
+            "困难", "问题", "挫折", "失败", "担心", "害怕", "不会", "不懂",
+            "不行", "做不到", "太难", "好难", "烦恼", "焦虑", "紧张",
+            "沮丧", "失望", "绝望", "无助", "迷茫", "困惑", "不知道"
+        ]
+        
+        # 检查是否包含需要鼓励的词汇
+        content_lower = content.lower()
+        return any(keyword in content_lower for keyword in negative_keywords)
