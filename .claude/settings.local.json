@@ -18,7 +18,10 @@
       "Bash(ss:*)",
       "Bash(powershell:*)",
       "Bash(ls:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(./test_delete_curl.sh)",
+      "Bash(sed:*)",
+      "Bash(bash:*)"
     ],
     "deny": []
   }
