@@ -178,18 +178,20 @@ class ResponseEnhancer:
         if context and "topic" in context:
             topic = context["topic"]
             
-            # 简化的智慧映射
-            wisdom_mapping = {
-                "学习": "就像彩虹需要阳光和雨水，学习也需要好奇心和坚持。",
-                "工作": "如同调色师创作，工作也是一门艺术，需要耐心和创意。",
-                "生活": "生活就像彩虹，有时需要经历风雨才能看到美丽。",
-                "友谊": "友谊如同彩虹的每种颜色，各有特色却和谐共存。"
-            }
-            
-            for key, wisdom in wisdom_mapping.items():
-                if key in topic and random.random() < 0.4:
-                    response += f"\n\n💫 {wisdom}"
-                    break
+            # 确保topic不为None
+            if topic:
+                # 简化的智慧映射
+                wisdom_mapping = {
+                    "学习": "就像彩虹需要阳光和雨水，学习也需要好奇心和坚持。",
+                    "工作": "如同调色师创作，工作也是一门艺术，需要耐心和创意。",
+                    "生活": "生活就像彩虹，有时需要经历风雨才能看到美丽。",
+                    "友谊": "友谊如同彩虹的每种颜色，各有特色却和谐共存。"
+                }
+                
+                for key, wisdom in wisdom_mapping.items():
+                    if key in topic and random.random() < 0.4:
+                        response += f"\n\n💫 {wisdom}"
+                        break
         
         # 随机添加通用智慧
         elif random.random() < 0.2:
