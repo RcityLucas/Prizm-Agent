@@ -1310,7 +1310,7 @@ class SurrealUserStorage(UserStorage):
                 user.id = str(uuid.uuid4())
             return user
         
-        logger.info(f"开始创建用户: {user.email} (provider: {user.provider})")
+        logger.info(f"开始创建用户: {user.email} (provider: {user.provider}), 数据库客户端ID: {id(self.db)}, 表名: {self.table}")
         
         # 验证数据库模式是否正确
         schema_status = loop.run_until_complete(self.check_db_schema())
