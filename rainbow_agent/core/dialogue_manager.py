@@ -510,12 +510,16 @@ class DialogueManager:
                 enhanced_response = self.response_enhancer.enhance_response(
                     response, enhancement_context, enhancement_level
                 )
+                logger.info(f"增强前回复: {response}")
+                logger.info(f"增强后回复: {enhanced_response}")
                 response = enhanced_response
                 
                 logger.debug(f"回复已通过个性引擎增强，级别: {enhancement_level}")
                 
             except Exception as e:
                 logger.error(f"回复增强失败，使用原始回复: {e}")
+                import traceback
+                logger.error(f"回复增强错误详情: {traceback.format_exc()}")
             
             # 构建响应元数据
             response_metadata = {
