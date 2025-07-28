@@ -159,7 +159,7 @@ class PersonalityEngine:
             
             # 4. 季节感知表达
             if rainbow_traits.get("seasonal_awareness", False):
-                enhanced_response = self._add_seasonal_touch(enhanced_response)
+                enhanced_response = self._add_seasonal_touch(enhanced_response, detected_language)
             
             # 5. 智慧分享
             if rainbow_traits.get("wisdom_sharing", False) and random.random() < 0.3:
@@ -176,7 +176,7 @@ class PersonalityEngine:
                 enhanced_response = self._add_encouragement(enhanced_response, context, detected_language)
             
             # 8. 根据个性特征调整语调
-            enhanced_response = self._adjust_tone_by_traits(enhanced_response, character_traits)
+            enhanced_response = self._adjust_tone_by_traits(enhanced_response, character_traits, detected_language)
             
             logger.debug(f"回复增强完成，原长度: {len(original_response)}, 增强后长度: {len(enhanced_response)}")
             return enhanced_response
@@ -329,10 +329,17 @@ class PersonalityEngine:
         
         return response
     
-    def _add_seasonal_touch(self, response: str) -> str:
+    def _add_seasonal_touch(self, response: str, language: str = "zh") -> str:
         """添加季节感知表达"""
         current_month = datetime.now().month
-        seasonal_expr = self.seasonal_expressions.get(self._get_current_season(current_month), [])
+        season = self._get_current_season(current_month)
+        
+        # 使用多语言季节表达
+        seasonal_expr = self.multilingual_engine.get_seasonal_expressions(language, season)
+        
+        if not seasonal_expr:
+            # 如果没有找到对应语言的季节表达，使用默认中文版本
+            seasonal_expr = self.seasonal_expressions.get(season, [])
         
         if seasonal_expr and random.random() < 0.2:
             expr = random.choice(seasonal_expr)
@@ -421,7 +428,7 @@ class PersonalityEngine:
         
         return response
     
-    def _adjust_tone_by_traits(self, response: str, character_traits: Dict[str, int]) -> str:
+    def _adjust_tone_by_traits(self, response: str, character_traits: Dict[str, int], language: str = "zh") -> str:
         """根据个性特征调整语调"""
         warmth = character_traits.get("warmth", 5)
         playfulness = character_traits.get("playfulness", 5)
@@ -429,7 +436,10 @@ class PersonalityEngine:
         
         # 根据温暖度添加温暖表达
         if warmth >= 8 and random.random() < 0.3:
-            warm_additions = ["～", "呢", "哦", "呀"]
+            if language == "en":
+                warm_additions = ["~", "!", ""]  # 英文温暖表达
+            else:
+                warm_additions = ["～", "呢", "哦", "呀"]  # 中文温暖表达
             response += random.choice(warm_additions)
         
         # 根据玩心添加表情符号
@@ -439,8 +449,12 @@ class PersonalityEngine:
         
         # 根据乐观程度调整语调
         if optimism >= 8:
-            response = response.replace("可能", "一定能")
-            response = response.replace("也许", "相信")
+            if language == "en":
+                response = response.replace("might", "will")
+                response = response.replace("maybe", "definitely")
+            else:
+                response = response.replace("可能", "一定能")
+                response = response.replace("也许", "相信")
         
         return response
     

@@ -87,6 +87,12 @@ class ResponseEnhancer:
             if self.behavior_config.get("personality") != "rainbow_city":
                 return original_response
             
+            # 检测语言
+            user_input = context.get("user_input", "") if context else ""
+            from .language_detector import LanguageDetector
+            language_detector = LanguageDetector()
+            detected_language = language_detector.detect_language(user_input) if user_input else "zh"
+            
             enhanced_response = original_response
             
             # 使用个性引擎进行基础增强
@@ -99,14 +105,14 @@ class ResponseEnhancer:
                 enhanced_response = self._add_signature_elements(enhanced_response, context)
             
             if enhancement_level == "high":
-                enhanced_response = self._add_decorative_elements(enhanced_response)
+                enhanced_response = self._add_decorative_elements(enhanced_response, detected_language)
                 enhanced_response = self._add_contextual_wisdom(enhanced_response, context)
             
             # 应用角色特征调整
-            enhanced_response = self._apply_character_traits(enhanced_response)
+            enhanced_response = self._apply_character_traits(enhanced_response, detected_language)
             
             # 最终润色
-            enhanced_response = self._final_polish(enhanced_response)
+            enhanced_response = self._final_polish(enhanced_response, detected_language)
             
             logger.debug(f"回复增强完成，增强级别: {enhancement_level}")
             return enhanced_response
@@ -136,7 +142,7 @@ class ResponseEnhancer:
         
         return response
     
-    def _add_decorative_elements(self, response: str) -> str:
+    def _add_decorative_elements(self, response: str, language: str = "zh") -> str:
         """添加装饰性元素"""
         
         # 随机添加彩虹表情符号
@@ -190,14 +196,17 @@ class ResponseEnhancer:
         
         return response
     
-    def _apply_character_traits(self, response: str) -> str:
+    def _apply_character_traits(self, response: str, language: str = "zh") -> str:
         """应用角色特征调整"""
         
         # 根据温暖度调整语调
         warmth = self.character_traits.get("warmth", 5)
         if warmth >= 8:
             # 添加温暖的语气词
-            warm_suffixes = ["～", "呢", "哦", "呀"]
+            if language == "en":
+                warm_suffixes = ["~", "!", ""]  # 英文温暖表达
+            else:
+                warm_suffixes = ["～", "呢", "哦", "呀"]  # 中文温暖表达
             if random.random() < 0.3 and not any(response.endswith(suffix) for suffix in warm_suffixes):
                 response += random.choice(warm_suffixes)
         
@@ -205,13 +214,22 @@ class ResponseEnhancer:
         optimism = self.character_traits.get("optimism", 5)
         if optimism >= 8:
             # 将消极表达转为积极表达
-            optimistic_replacements = {
-                "可能不": "相信能",
-                "或许": "一定",
-                "也许": "相信",
-                "困难": "挑战",
-                "问题": "机会"
-            }
+            if language == "en":
+                optimistic_replacements = {
+                    "might not": "believe can",
+                    "perhaps": "definitely",
+                    "maybe": "believe",
+                    "difficulty": "challenge",
+                    "problem": "opportunity"
+                }
+            else:
+                optimistic_replacements = {
+                    "可能不": "相信能",
+                    "或许": "一定",
+                    "也许": "相信",
+                    "困难": "挑战",
+                    "问题": "机会"
+                }
             
             for negative, positive in optimistic_replacements.items():
                 if negative in response and random.random() < 0.4:
@@ -221,33 +239,55 @@ class ResponseEnhancer:
         wisdom = self.character_traits.get("wisdom", 5)
         if wisdom >= 8 and random.random() < 0.2:
             # 添加思考性的表达
-            thoughtful_additions = [
-                "深入思考一下...",
-                "从另一个角度看...",
-                "这让我想到..."
-            ]
-            if "。" in response:
-                sentences = response.split("。")
-                if len(sentences) > 1:
-                    insert_point = random.randint(0, len(sentences) - 2)
-                    addition = random.choice(thoughtful_additions)
-                    sentences[insert_point] += f"，{addition}"
-                    response = "。".join(sentences)
+            if language == "en":
+                thoughtful_additions = [
+                    "let me think deeper...",
+                    "from another perspective...",
+                    "this reminds me of..."
+                ]
+                if "." in response:
+                    sentences = response.split(".")
+                    if len(sentences) > 1:
+                        insert_point = random.randint(0, len(sentences) - 2)
+                        addition = random.choice(thoughtful_additions)
+                        sentences[insert_point] += f", {addition}"
+                        response = ".".join(sentences)
+            else:
+                thoughtful_additions = [
+                    "深入思考一下...",
+                    "从另一个角度看...",
+                    "这让我想到..."
+                ]
+                if "。" in response:
+                    sentences = response.split("。")
+                    if len(sentences) > 1:
+                        insert_point = random.randint(0, len(sentences) - 2)
+                        addition = random.choice(thoughtful_additions)
+                        sentences[insert_point] += f"，{addition}"
+                        response = "。".join(sentences)
         
         return response
     
-    def _final_polish(self, response: str) -> str:
+    def _final_polish(self, response: str, language: str = "zh") -> str:
         """最终润色"""
         
         # 确保标点符号正确
-        response = re.sub(r'([。！？])([。！？])', r'\1', response)
+        if language == "en":
+            response = re.sub(r'([.!?])([.!?])', r'\1', response)
+        else:
+            response = re.sub(r'([。！？])([。！？])', r'\1', response)
         
         # 移除多余的空行
         response = re.sub(r'\n\s*\n', '\n\n', response)
         
         # 确保适当的结尾
-        if response and not response[-1] in "。！？～":
-            response += "～"
+        if response:
+            if language == "en":
+                if not response[-1] in ".!?~":
+                    response += "~"
+            else:
+                if not response[-1] in "。！？～":
+                    response += "～"
         
         return response.strip()
     

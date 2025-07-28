@@ -36,7 +36,7 @@ class AISettings:
         
         # 对话行为设置
         "behavior": {
-            "personality": "helpful",          # 个性 (helpful, creative, precise, balanced, rainbow_city)
+            "personality": "rainbow_city",     # 个性 (helpful, creative, precise, balanced, rainbow_city)
             "response_style": "balanced",      # 回复风格 (concise, detailed, balanced, colorful, rainbow)
             "formality": "neutral",            # 正式程度 (casual, neutral, formal)
             "empathy_level": "medium",         # 共情程度 (low, medium, high)

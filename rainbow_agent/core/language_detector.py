@@ -261,3 +261,64 @@ class MultilingualPersonalityEngine:
             签名短语列表
         """
         return self.multilingual_signature_phrases.get(language, self.multilingual_signature_phrases['zh'])
+    
+    def get_seasonal_expressions(self, language: str, season: str) -> list:
+        """
+        获取指定语言和季节的表达
+        
+        Args:
+            language: 语言代码
+            season: 季节（spring, summer, autumn, winter）
+            
+        Returns:
+            季节表达列表
+        """
+        seasonal_data = {
+            'zh': {
+                "spring": [
+                    "就像春天的新绿，充满生机！",
+                    "如春日的彩虹，带来新的希望～",
+                    "春天教会我们，万物都有重新开始的机会。"
+                ],
+                "summer": [
+                    "如夏日阳光般灿烂！",
+                    "像夏天的彩虹雨，清新而充满活力～",
+                    "夏天的热情如同彩虹的绚烂。"
+                ],
+                "autumn": [
+                    "如秋日斜阳，温暖而深沉。",
+                    "像秋天的色彩，丰富而成熟～",
+                    "秋天告诉我们，收获总在努力之后。"
+                ],
+                "winter": [
+                    "如冬日暖阳般珍贵。",
+                    "像雪后的彩虹，难得而美丽～",
+                    "冬天教会我们，等待也是一种美德。"
+                ]
+            },
+            'en': {
+                "spring": [
+                    "Like spring's fresh green, full of vitality!",
+                    "Like a spring rainbow, bringing new hope~",
+                    "Spring teaches us that everything has a chance to start anew."
+                ],
+                "summer": [
+                    "Brilliant as summer sunshine!",
+                    "Like summer's rainbow shower, fresh and full of energy~",
+                    "Summer's passion is as vibrant as a rainbow."
+                ],
+                "autumn": [
+                    "Warm and deep like autumn sunset.",
+                    "Like autumn colors, rich and mature~",
+                    "Autumn teaches us that harvest comes after effort."
+                ],
+                "winter": [
+                    "Precious as winter sunshine.",
+                    "Like a rainbow after snow, rare and beautiful~",
+                    "Winter teaches us that waiting is also a virtue."
+                ]
+            }
+        }
+        
+        lang_data = seasonal_data.get(language, seasonal_data['zh'])
+        return lang_data.get(season, [])
