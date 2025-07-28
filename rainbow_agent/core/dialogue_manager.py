@@ -18,15 +18,16 @@ from datetime import datetime
 
 from rainbow_agent.ai.openai_service import OpenAIService
 from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
-from rainbow_agent.core.context_builder import ContextBuilder
+# from rainbow_agent.core.context_builder import ContextBuilder  # 延迟导入以避免numpy依赖
 from rainbow_agent.core.response_enhancer import ResponseEnhancer
-from rainbow_agent.memory.memory import Memory
-from rainbow_agent.memory.surreal_memory import SurrealMemory
-from rainbow_agent.frequency.frequency_integrator import FrequencyIntegrator
-from rainbow_agent.frequency.frequency_sense_core import FrequencySenseCore
-from rainbow_agent.frequency.expression_planner import ExpressionPlanner
-from rainbow_agent.frequency.expression_generator import ExpressionGenerator
-from rainbow_agent.frequency.expression_dispatcher import ExpressionDispatcher
+# from rainbow_agent.memory.memory import Memory  # 延迟导入
+# from rainbow_agent.memory.surreal_memory import SurrealMemory  # 延迟导入
+# 频率相关模块延迟导入（可能依赖numpy）
+# from rainbow_agent.frequency.frequency_integrator import FrequencyIntegrator
+# from rainbow_agent.frequency.frequency_sense_core import FrequencySenseCore
+# from rainbow_agent.frequency.expression_planner import ExpressionPlanner
+# from rainbow_agent.frequency.expression_generator import ExpressionGenerator
+# from rainbow_agent.frequency.expression_dispatcher import ExpressionDispatcher
 from rainbow_agent.config.ai_settings import AISettings
 from rainbow_agent.utils.logger import get_logger
 
@@ -50,8 +51,8 @@ class DialogueManager:
     def __init__(self, 
                  storage: Optional[UnifiedDialogueStorage] = None,
                  ai_service: Optional[OpenAIService] = None,
-                 memory: Optional[Memory] = None,
-                 frequency_integrator: Optional[FrequencyIntegrator] = None,
+                 memory: Optional[Any] = None,  # Memory类延迟导入
+                 frequency_integrator: Optional[Any] = None,  # FrequencyIntegrator延迟导入
                  ai_settings: Optional[AISettings] = None,
                  use_vector_search: bool = False,
                  vector_weight: float = 0.7):
@@ -76,35 +77,57 @@ class DialogueManager:
         # 使用内部记忆系统初始化上下文构建器
         self.use_vector_search = use_vector_search
         self.vector_weight = vector_weight
-        self.context_builder = ContextBuilder(memory=self.memory, 
-                                          use_vector_search=use_vector_search,
-                                          vector_weight=vector_weight) if self.memory else None
         
-        # 初始化频率感知系统
+        # 延迟导入ContextBuilder以避免numpy依赖问题
+        if self.memory:
+            try:
+                from rainbow_agent.core.context_builder import ContextBuilder
+                self.context_builder = ContextBuilder(memory=self.memory, 
+                                              use_vector_search=use_vector_search,
+                                              vector_weight=vector_weight)
+                logger.info("上下文构建器初始化成功")
+            except ImportError as e:
+                logger.warning(f"上下文构建器导入失败: {e}，将禁用上下文功能")
+                self.context_builder = None
+        else:
+            self.context_builder = None
+        
+        # 初始化频率感知系统（延迟导入以避免numpy依赖）
         if frequency_integrator:
             self.frequency_integrator = frequency_integrator
         elif self.memory:
-            # 如果有记忆系统但没有提供频率集成器，则创建一个新的
-            frequency_sense_core = FrequencySenseCore(config={"memory": self.memory})
-            expression_planner = ExpressionPlanner(memory=self.memory)
-            expression_generator = ExpressionGenerator(config={"ai_service": self.ai_service})
-            expression_dispatcher = ExpressionDispatcher()
-            # 创建输出回调函数
-            async def output_callback(content, metadata):
-                # 这里可以根据需要处理输出
-                # 例如将输出发送到对话系统
-                return True
+            # 如果有记忆系统但没有提供频率集成器，尝试创建一个新的
+            try:
+                from rainbow_agent.frequency.frequency_integrator import FrequencyIntegrator
+                from rainbow_agent.frequency.frequency_sense_core import FrequencySenseCore
+                from rainbow_agent.frequency.expression_planner import ExpressionPlanner
+                from rainbow_agent.frequency.expression_generator import ExpressionGenerator
+                from rainbow_agent.frequency.expression_dispatcher import ExpressionDispatcher
                 
-            self.frequency_integrator = FrequencyIntegrator(
-                memory=self.memory,
-                output_callback=output_callback,
-                config={
-                    "frequency_sense_core_config": {"memory": self.memory},
-                    "expression_planner_config": {},
-                    "expression_generator_config": {"ai_service": self.ai_service},
-                    "expression_dispatcher_config": {}
-                }
-            )
+                frequency_sense_core = FrequencySenseCore(config={"memory": self.memory})
+                expression_planner = ExpressionPlanner(memory=self.memory)
+                expression_generator = ExpressionGenerator(config={"ai_service": self.ai_service})
+                expression_dispatcher = ExpressionDispatcher()
+                # 创建输出回调函数
+                async def output_callback(content, metadata):
+                    # 这里可以根据需要处理输出
+                    # 例如将输出发送到对话系统
+                    return True
+                    
+                self.frequency_integrator = FrequencyIntegrator(
+                    memory=self.memory,
+                    output_callback=output_callback,
+                    config={
+                        "frequency_sense_core_config": {"memory": self.memory},
+                        "expression_planner_config": {},
+                        "expression_generator_config": {"ai_service": self.ai_service},
+                        "expression_dispatcher_config": {}
+                    }
+                )
+                logger.info("频率感知系统初始化成功")
+            except ImportError as e:
+                logger.warning(f"频率感知系统导入失败: {e}，将禁用频率功能")
+                self.frequency_integrator = None
         else:
             self.frequency_integrator = None
         
@@ -476,15 +499,18 @@ class DialogueManager:
                         content=content,
                         context=context
                     )
-            else:
-                # 如果上下文构建器不可用，则使用传统方法
-                messages = self.ai_service.format_dialogue_history(turns)
-                messages.append({"role": "user", "content": content})
+            
+            # 准备消息历史（无论是否有上下文构建器都需要）
+            messages = self.ai_service.format_dialogue_history(turns)
+            messages.append({"role": "user", "content": content})
             
             # 调用AI服务生成响应
             response = self.ai_service.generate_response(messages)
             
             # 使用回复增强器增强响应
+            personality = self.response_enhancer.behavior_config.get('personality')
+            print(f"[DEBUG] 开始回复增强，个性设置: {personality}")
+            logger.info(f"开始回复增强，个性设置: {personality}")
             try:
                 # 构建上下文信息用于个性化增强
                 enhancement_context = {

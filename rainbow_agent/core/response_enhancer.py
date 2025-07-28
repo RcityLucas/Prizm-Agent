@@ -119,6 +119,8 @@ class ResponseEnhancer:
             
         except Exception as e:
             logger.error(f"回复增强失败: {e}")
+            import traceback
+            logger.error(f"回复增强错误详情: {traceback.format_exc()}")
             return original_response
     
     def _add_signature_elements(self, response: str, context: Optional[Dict[str, Any]]) -> str:
