@@ -129,22 +129,11 @@ class UnifiedDialogueProcessor:
             会话ID
         """
         try:
-            # 尝试获取用户的最近会话
-            recent_sessions = await self.storage.get_user_sessions_async(user_id, limit=1)
+            # 总是创建新会话以确保会话隔离
+            # 注释掉会话重用逻辑，以便每次请求都创建新会话进行测试
+            # TODO: 后续可以根据需要调整会话管理策略
             
-            if recent_sessions:
-                # 如果有最近会话，使用它
-                session = recent_sessions[0]
-                if isinstance(session, dict) and 'id' in session:
-                    session_id = session['id']
-                    logger.info(f"Using existing session {session_id} for user {user_id}")
-                    return session_id
-                else:
-                    logger.error(f"Existing session has invalid structure: {session}")
-                    logger.error(f"Session type: {type(session)}, keys: {list(session.keys()) if isinstance(session, dict) else 'Not a dict'}")
-                    # Fall through to create new session
-            
-            # 创建新会话 (moved outside of else block)
+            # 创建新会话
             dialogue_type = DIALOGUE_TYPES["HUMAN_AI_PRIVATE"]
             if context and "dialogue_type" in context:
                 dialogue_type = context["dialogue_type"]

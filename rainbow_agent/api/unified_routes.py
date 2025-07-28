@@ -294,11 +294,11 @@ def process_input():
         # 解析请求数据
         data = request.json
         
-        # 从数据字典中提取参数
-        user_input = data.get('input', '')
+        # 从数据字典中提取参数 (支持两种格式)
+        user_input = data.get('content', '') or data.get('input', '')
         user_id = data.get('userId', 'default_user')
         session_id = data.get('sessionId')
-        input_type = data.get('inputType', 'text')
+        input_type = data.get('input_type', '') or data.get('inputType', 'text')
         context = data.get('metadata') or data.get('context')
         
         # 处理输入使用同步版本
