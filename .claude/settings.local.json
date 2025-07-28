@@ -26,7 +26,8 @@
       "Bash(pip3 install:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(./restart_prizm_robust.sh:*)"
     ],
     "deny": []
   }

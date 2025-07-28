@@ -156,6 +156,7 @@ def get_sessions():
 @ensure_initialized
 def create_session():
     """创建新会话"""
+    print("🔥 CREATE SESSION ENDPOINT CALLED!")  # Debug print
     try:
         # 解析请求数据
         data = request.json
@@ -164,13 +165,36 @@ def create_session():
         dialogue_type = data.get('dialogueType', DIALOGUE_TYPES["HUMAN_AI_PRIVATE"])
         participants = data.get('participants')
         
+        # 调试日志：记录输入参数
+        logger.info(f"=== 创建会话调试信息 ===")
+        logger.info(f"接收到的user_id: {user_id} (类型: {type(user_id)})")
+        logger.info(f"接收到的title: {title}")
+        logger.info(f"接收到的dialogue_type: {dialogue_type}")
+        logger.info(f"session_manager实例: {session_manager}")
+        logger.info(f"session_manager类型: {type(session_manager)}")
+        
+        # 构建元数据
+        metadata = {}
+        if dialogue_type:
+            metadata['dialogue_type'] = dialogue_type
+        if participants:
+            metadata['participants'] = participants
+        
+        logger.info(f"构建的metadata: {metadata}")
+        
         # 创建会话
+        logger.info(f"调用session_manager.create_session，参数: user_id={user_id}, title={title}")
         session = session_manager.create_session(
             user_id=user_id,
             title=title,
-            dialogue_type=dialogue_type,
-            participants=participants
+            metadata=metadata
         )
+        
+        logger.info(f"session_manager.create_session返回: {session}")
+        if session:
+            logger.info(f"返回会话的user_id: {session.get('user_id')}")
+        else:
+            logger.error("session_manager.create_session返回None!")
         
         # 为了兼容所有客户端，返回多种格式
         return jsonify({
@@ -181,7 +205,7 @@ def create_session():
             "title": session["title"],
             "createdAt": session["created_at"],
             "userId": session["user_id"],
-            "dialogueType": session["dialogue_type"]
+            "dialogueType": session.get("metadata", {}).get("dialogue_type", dialogue_type)
         }), 201
     except Exception as e:
         return handle_api_error(e)

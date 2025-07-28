@@ -113,50 +113,38 @@ def get_user_storage():
     """获取用户存储实例，如果未初始化则尝试初始化"""
     global user_storage
     
-    # 优先从API模块获取已初始化的存储实例
-    if user_storage is None:
-        try:
-            # 首先尝试从API模块获取
-            from rainbow_agent.api.auth_routes import user_storage as api_user_storage
-            
-            if api_user_storage is not None:
-                user_storage = api_user_storage
-                logger.info("从API模块获取用户存储实例")
-                return user_storage
-        except ImportError:
-            logger.warning("无法导入API模块的用户存储")
-        except Exception as e:
-            logger.warning(f"从API模块获取用户存储失败: {e}")
+    # 如果已经有实例，直接返回
+    if user_storage is not None:
+        return user_storage
     
-    # 如果仍然为空，创建新实例
-    if user_storage is None:
+    # 创建新的用户存储实例
+    try:
+        # 从统一存储系统获取数据库客户端
+        from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
+        
+        # 创建新的用户存储实例
+        storage_instance = UnifiedDialogueStorage()
+        
+        # 检查数据库可用性
+        if not storage_instance or not storage_instance.shared_client:
+            raise Exception("无法获取SurrealDB客户端，请检查SurrealDB是否正在运行")
+        
+        # 初始化SurrealDB用户存储
+        from rainbow_agent.auth.storage import SurrealUserStorage
+        user_storage = SurrealUserStorage(db_client=storage_instance.shared_client)
+        logger.info("创建新的SurrealDB用户存储实例")
+        
+        # 尝试同步到API模块以保持一致性
         try:
-            # 从统一存储系统获取数据库客户端
-            from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
+            import rainbow_agent.api.auth_routes
+            rainbow_agent.api.auth_routes.user_storage = user_storage
+            logger.info("已将用户存储实例同步到API模块")
+        except Exception as sync_err:
+            logger.warning(f"无法同步用户存储到API模块: {sync_err}")
             
-            # 创建新的用户存储实例
-            storage_instance = UnifiedDialogueStorage()
-            
-            # 检查数据库可用性
-            if not storage_instance or not storage_instance.shared_client:
-                raise Exception("无法获取SurrealDB客户端，请检查SurrealDB是否正在运行")
-            
-            # 初始化SurrealDB用户存储
-            from rainbow_agent.auth.storage import SurrealUserStorage
-            user_storage = SurrealUserStorage(db_client=storage_instance.shared_client)
-            logger.info("创建新的SurrealDB用户存储实例")
-            
-            # 设置到API模块以保持一致性
-            try:
-                import rainbow_agent.api.auth_routes
-                rainbow_agent.api.auth_routes.user_storage = user_storage
-                logger.info("已将用户存储实例同步到API模块")
-            except Exception as sync_err:
-                logger.warning(f"无法同步用户存储到API模块: {sync_err}")
-                
-        except Exception as e:
-            logger.error(f"获取用户存储实例失败: {e}")
-            raise e
+    except Exception as e:
+        logger.error(f"获取用户存储实例失败: {e}")
+        raise e
     
     return user_storage
 
