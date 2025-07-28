@@ -1513,7 +1513,9 @@ class SurrealUserStorage(UserStorage):
         try:
             # 使用execute_sql方法（它本身就是同步的）
             query = f"SELECT * FROM {self.table} LIMIT {limit}"
+            logger.info(f"SurrealDB查询用户列表: {query}, 数据库客户端ID: {id(self.db)}")
             result = self.db.execute_sql(query)
+            logger.info(f"SurrealDB查询结果类型: {type(result)}, 长度: {len(result) if isinstance(result, (list, tuple)) else 'N/A'}")
             
             users = []
             if result:

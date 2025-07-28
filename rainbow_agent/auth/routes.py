@@ -113,9 +113,16 @@ def get_user_storage():
     """获取用户存储实例，如果未初始化则尝试初始化"""
     global user_storage
     
-    # 如果已经有实例，直接返回
+    # 如果已经有实例，验证实例是否仍然有效
     if user_storage is not None:
-        return user_storage
+        try:
+            # 验证存储实例是否仍然可用
+            if hasattr(user_storage, 'db') and user_storage.db:
+                logger.info(f"复用现有存储实例: {type(user_storage).__name__}, 实例ID: {id(user_storage)}")
+                return user_storage
+        except Exception as e:
+            logger.warning(f"现有存储实例验证失败: {e}, 重新创建")
+            user_storage = None
     
     # 创建新的用户存储实例
     try:
@@ -132,7 +139,7 @@ def get_user_storage():
         # 初始化SurrealDB用户存储
         from rainbow_agent.auth.storage import SurrealUserStorage
         user_storage = SurrealUserStorage(db_client=storage_instance.shared_client)
-        logger.info("创建新的SurrealDB用户存储实例")
+        logger.info(f"创建新的SurrealDB用户存储实例: {type(user_storage).__name__}, 实例ID: {id(user_storage)}, 数据库客户端ID: {id(storage_instance.shared_client)}")
         
         # 尝试同步到API模块以保持一致性
         try:
@@ -177,6 +184,7 @@ def register():
         storage = get_user_storage()
         logger.info(f"注册使用的存储实例类型: {type(storage)}")
         logger.info(f"注册使用的存储实例ID: {id(storage)}")
+        logger.info(f"注册使用的数据库客户端ID: {id(storage.db) if hasattr(storage, 'db') else 'None'}")
         
         # 检查用户是否已存在
         existing_users = storage.get_all_users_sync()
@@ -301,6 +309,7 @@ def login():
         storage = get_user_storage()
         logger.info(f"登录使用的存储实例类型: {type(storage)}")
         logger.info(f"登录使用的存储实例ID: {id(storage)}")
+        logger.info(f"登录使用的数据库客户端ID: {id(storage.db) if hasattr(storage, 'db') else 'None'}")
         
         # 查找用户
         users = storage.get_all_users_sync()
