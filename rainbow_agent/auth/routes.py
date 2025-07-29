@@ -114,7 +114,17 @@ def get_user_storage():
     try:
         from rainbow_agent.storage.storage_singleton import get_global_user_storage
         user_storage = get_global_user_storage()
+        
+        if user_storage is None:
+            logger.error("get_global_user_storage() 返回了 None")
+            raise RuntimeError("无法获取用户存储实例")
+        
         logger.debug(f"获取用户存储实例: {type(user_storage).__name__}, 实例ID: {id(user_storage)}")
+        
+        # 验证用户存储实例是否可用
+        if not hasattr(user_storage, 'get_user_sync'):
+            logger.error(f"用户存储实例缺少必要的方法: {dir(user_storage)}")
+            raise RuntimeError("用户存储实例无效")
         
         # 尝试同步到API模块以保持一致性
         try:
@@ -128,6 +138,8 @@ def get_user_storage():
         
     except Exception as e:
         logger.error(f"获取用户存储实例失败: {e}")
+        import traceback
+        logger.error(f"详细错误信息: {traceback.format_exc()}")
         raise e
 
 # 用户名密码认证端点

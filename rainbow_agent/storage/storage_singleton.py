@@ -44,11 +44,32 @@ def get_global_user_storage():
     
     if _global_user_storage is None:
         logger.info("创建全局用户存储实例（单例）")
-        from rainbow_agent.auth.storage import SurrealUserStorage
-        storage_instance = get_global_storage()
-        _global_user_storage = SurrealUserStorage(db_client=storage_instance.shared_client)
-        logger.info(f"全局用户存储实例创建完成，实例ID: {id(_global_user_storage)}")
-        logger.info(f"使用数据库客户端ID: {id(storage_instance.shared_client)}")
+        try:
+            from rainbow_agent.auth.storage import SurrealUserStorage
+            storage_instance = get_global_storage()
+            
+            if storage_instance is None:
+                logger.error("全局存储实例为None，无法创建用户存储")
+                return None
+                
+            if not hasattr(storage_instance, 'shared_client') or storage_instance.shared_client is None:
+                logger.error(f"存储实例没有有效的shared_client: {storage_instance}")
+                return None
+                
+            _global_user_storage = SurrealUserStorage(db_client=storage_instance.shared_client)
+            
+            if _global_user_storage is None:
+                logger.error("SurrealUserStorage创建失败，返回None")
+                return None
+                
+            logger.info(f"全局用户存储实例创建完成，实例ID: {id(_global_user_storage)}")
+            logger.info(f"使用数据库客户端ID: {id(storage_instance.shared_client)}")
+            
+        except Exception as e:
+            logger.error(f"创建全局用户存储实例时发生异常: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            return None
     else:
         logger.debug(f"复用全局用户存储实例，实例ID: {id(_global_user_storage)}")
     
