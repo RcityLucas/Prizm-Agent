@@ -110,50 +110,25 @@ def ensure_initialized(f):
 
 # 获取用户存储实例
 def get_user_storage():
-    """获取用户存储实例，如果未初始化则尝试初始化"""
-    global user_storage
-    
-    # 如果已经有实例，验证实例是否仍然有效
-    if user_storage is not None:
-        try:
-            # 验证存储实例是否仍然可用
-            if hasattr(user_storage, 'db') and user_storage.db:
-                logger.info(f"复用现有存储实例: {type(user_storage).__name__}, 实例ID: {id(user_storage)}")
-                return user_storage
-        except Exception as e:
-            logger.warning(f"现有存储实例验证失败: {e}, 重新创建")
-            user_storage = None
-    
-    # 创建新的用户存储实例
+    """获取用户存储实例（单例模式）"""
     try:
-        # 从统一存储系统获取数据库客户端
-        from rainbow_agent.storage.unified_dialogue_storage import UnifiedDialogueStorage
-        
-        # 创建新的用户存储实例
-        storage_instance = UnifiedDialogueStorage()
-        
-        # 检查数据库可用性
-        if not storage_instance or not storage_instance.shared_client:
-            raise Exception("无法获取SurrealDB客户端，请检查SurrealDB是否正在运行")
-        
-        # 初始化SurrealDB用户存储
-        from rainbow_agent.auth.storage import SurrealUserStorage
-        user_storage = SurrealUserStorage(db_client=storage_instance.shared_client)
-        logger.info(f"创建新的SurrealDB用户存储实例: {type(user_storage).__name__}, 实例ID: {id(user_storage)}, 数据库客户端ID: {id(storage_instance.shared_client)}")
+        from rainbow_agent.storage.storage_singleton import get_global_user_storage
+        user_storage = get_global_user_storage()
+        logger.debug(f"获取用户存储实例: {type(user_storage).__name__}, 实例ID: {id(user_storage)}")
         
         # 尝试同步到API模块以保持一致性
         try:
             import rainbow_agent.api.auth_routes
             rainbow_agent.api.auth_routes.user_storage = user_storage
-            logger.info("已将用户存储实例同步到API模块")
+            logger.debug("已将用户存储实例同步到API模块")
         except Exception as sync_err:
             logger.warning(f"无法同步用户存储到API模块: {sync_err}")
             
+        return user_storage
+        
     except Exception as e:
         logger.error(f"获取用户存储实例失败: {e}")
         raise e
-    
-    return user_storage
 
 # 用户名密码认证端点
 @auth_api.route('/register', methods=['POST'])
