@@ -634,19 +634,21 @@ def get_current_user():
 @ensure_initialized
 def update_user():
     """更新用户信息"""
-    global user_storage
-    
-    # 获取请求数据
-    data = request.get_json()
-    if not data:
-        return jsonify({
-            "success": False,
-            "error": "无效的请求数据",
-            "message": "请提供有效的JSON数据"
-        }), 400
-    
-    # 更新用户信息
     try:
+        # 获取用户存储实例
+        user_storage = get_user_storage()
+        logger.info(f"更新用户使用的存储实例类型: {type(user_storage)}")
+        logger.info(f"更新用户使用的存储实例ID: {id(user_storage)}")
+    
+        # 获取请求数据
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "无效的请求数据",
+                "message": "请提供有效的JSON数据"
+            }), 400
+        
         # 获取当前用户
         user = user_storage.get_user_sync(current_user.id)
         if not user:
@@ -682,9 +684,10 @@ def update_user():
 @ensure_initialized
 def delete_user():
     """删除用户账户"""
-    global user_storage
-    
     try:
+        # 获取用户存储实例
+        user_storage = get_user_storage()
+        
         # 获取当前用户ID，处理可能的复杂ID格式
         raw_user_id = current_user.id
         
@@ -697,6 +700,8 @@ def delete_user():
             user_id = str(raw_user_id)
             
         logger.info(f"开始删除用户: {user_id} (原始ID: {raw_user_id})")
+        logger.info(f"删除使用的存储实例类型: {type(user_storage)}")
+        logger.info(f"删除使用的存储实例ID: {id(user_storage)}")
         
         # 验证用户存在
         user = user_storage.get_user_sync(user_id)
@@ -744,9 +749,12 @@ def delete_user():
 @ensure_initialized
 def admin_delete_user(user_id: str):
     """管理员删除指定用户（需要管理员权限）"""
-    global user_storage
-    
     try:
+        # 获取用户存储实例
+        user_storage = get_user_storage()
+        logger.info(f"管理员删除使用的存储实例类型: {type(user_storage)}")
+        logger.info(f"管理员删除使用的存储实例ID: {id(user_storage)}")
+        
         # 检查当前用户是否有管理员权限
         if not current_user.has_role('admin'):
             return jsonify({
@@ -823,9 +831,12 @@ def admin_delete_user(user_id: str):
 @ensure_initialized
 def list_users():
     """管理员获取用户列表（需要管理员权限）"""
-    global user_storage
-    
     try:
+        # 获取用户存储实例
+        user_storage = get_user_storage()
+        logger.info(f"列表用户使用的存储实例类型: {type(user_storage)}")
+        logger.info(f"列表用户使用的存储实例ID: {id(user_storage)}")
+        
         # 检查当前用户是否有管理员权限
         if not current_user.has_role('admin'):
             return jsonify({
