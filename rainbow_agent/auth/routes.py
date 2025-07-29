@@ -698,7 +698,18 @@ def delete_user():
     """删除用户账户"""
     try:
         # 获取用户存储实例
+        logger.info("正在调用 get_user_storage()...")
         user_storage = get_user_storage()
+        logger.info(f"get_user_storage() 返回: {user_storage}")
+        logger.info(f"用户存储类型: {type(user_storage)}")
+        
+        if user_storage is None:
+            logger.error("get_user_storage() 返回了 None，无法继续删除操作")
+            return jsonify({
+                "success": False,
+                "error": "存储服务不可用",
+                "message": "用户存储服务初始化失败，请稍后再试"
+            }), 500
         
         # 获取当前用户ID，处理可能的复杂ID格式
         raw_user_id = current_user.id
@@ -716,6 +727,18 @@ def delete_user():
         logger.info(f"删除使用的存储实例ID: {id(user_storage)}")
         
         # 验证用户存在
+        logger.info(f"准备调用 user_storage.get_user_sync({user_id})")
+        logger.info(f"user_storage 是否为None: {user_storage is None}")
+        logger.info(f"user_storage 是否有 get_user_sync 方法: {hasattr(user_storage, 'get_user_sync')}")
+        
+        if user_storage is None:
+            logger.error("user_storage 在调用 get_user_sync 时为 None")
+            return jsonify({
+                "success": False,
+                "error": "存储服务不可用",
+                "message": "用户存储服务异常，请稍后再试"
+            }), 500
+            
         user = user_storage.get_user_sync(user_id)
         if not user:
             return jsonify({
@@ -750,6 +773,8 @@ def delete_user():
             
     except Exception as e:
         logger.error(f"删除用户时发生异常: {e}")
+        import traceback
+        logger.error(f"详细错误信息: {traceback.format_exc()}")
         return jsonify({
             "success": False,
             "error": "删除失败",
