@@ -124,7 +124,6 @@ surreal-test/
 # Runtime and process files
 prizm_app.pid
 prizm_app.log
-restart_*.sh
 
 # Docker and container files (if not needed in repo)
 nginx_latest
