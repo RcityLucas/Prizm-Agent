@@ -156,13 +156,13 @@ def register():
             }), 400
         
         # 获取用户存储实例
-        storage = get_user_storage()
-        logger.info(f"注册使用的存储实例类型: {type(storage)}")
-        logger.info(f"注册使用的存储实例ID: {id(storage)}")
-        logger.info(f"注册使用的数据库客户端ID: {id(storage.db) if hasattr(storage, 'db') else 'None'}")
+        user_storage = get_user_storage()
+        logger.info(f"注册使用的存储实例类型: {type(user_storage)}")
+        logger.info(f"注册使用的存储实例ID: {id(user_storage)}")
+        logger.info(f"注册使用的数据库客户端ID: {id(user_storage.db) if hasattr(user_storage, 'db') else 'None'}")
         
         # 检查用户是否已存在
-        existing_users = storage.get_all_users_sync()
+        existing_users = user_storage.get_all_users_sync()
         for user in existing_users:
             # 更robust的用户名检查
             user_username = None
@@ -216,7 +216,7 @@ def register():
         
         # 立即验证用户是否真的被保存
         logger.info(f"验证用户是否真的被保存...")
-        verify_users = storage.get_all_users_sync()
+        verify_users = user_storage.get_all_users_sync()
         user_found = False
         for u in verify_users:
             # 使用相同的robust检查方法
