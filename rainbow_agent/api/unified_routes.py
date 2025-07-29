@@ -154,13 +154,16 @@ def get_sessions():
 
 @api.route('/dialogue/sessions', methods=['POST'])
 @ensure_initialized
+@require_auth
 def create_session():
     """创建新会话"""
     print("🔥 CREATE SESSION ENDPOINT CALLED!")  # Debug print
     try:
         # 解析请求数据
         data = request.json
-        user_id = data.get('userId', str(uuid.uuid4()))
+        # 使用当前已认证用户的ID，忽略前端传递的userId
+        from flask_login import current_user
+        user_id = str(current_user.id)
         title = data.get('title')
         dialogue_type = data.get('dialogueType', DIALOGUE_TYPES["HUMAN_AI_PRIVATE"])
         participants = data.get('participants')
@@ -333,6 +336,7 @@ def get_turns(session_id):
 # 对话处理API
 @api.route('/dialogue/input', methods=['POST'])
 @ensure_initialized
+@require_auth
 def process_input():
     """处理用户输入"""
     try:
@@ -341,7 +345,9 @@ def process_input():
         
         # 从数据字典中提取参数 (支持两种格式)
         user_input = data.get('content', '') or data.get('input', '')
-        user_id = data.get('userId', 'default_user')
+        # 使用当前已认证用户的ID，忽略前端传递的userId
+        from flask_login import current_user
+        user_id = str(current_user.id)
         session_id = data.get('sessionId')
         input_type = data.get('input_type', '') or data.get('inputType', 'text')
         context = data.get('metadata') or data.get('context')
@@ -358,8 +364,7 @@ def process_input():
         
         # 检查是否启用了频率感知系统
         if hasattr(dialogue_manager, 'frequency_integrator') and dialogue_manager.frequency_integrator:
-            # 获取用户ID和会话ID
-            user_id = data.get('userId', 'default_user')
+            # 使用已认证用户的ID（user_id变量已在上面定义）
             session_id = data.get('sessionId')
             
             # 异步更新用户交互计数（不阻塞响应）
