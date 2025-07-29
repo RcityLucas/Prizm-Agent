@@ -301,29 +301,29 @@ class UnifiedSurrealClient:
             # 特别检查嵌入向量字段，确保它被正确处理
             if 'embedding' in processed_data:
                 embedding_data = processed_data['embedding']
-                logger.info(f"Embedding data type: {type(embedding_data)}, length: {len(embedding_data) if isinstance(embedding_data, list) else 'not a list'}, first few values: {embedding_data[:5] if isinstance(embedding_data, list) and len(embedding_data) > 0 else 'empty or not a list'}")
+                logger.debug(f"Embedding data type: {type(embedding_data)}, length: {len(embedding_data) if isinstance(embedding_data, list) else 'not a list'}")
                 
                 # 如果嵌入向量是空列表，保持为空列表，与 simpleChat_with_vectors.py 保持一致
                 if isinstance(embedding_data, list) and len(embedding_data) == 0:
-                    logger.info("Empty embedding list detected, keeping as empty list [] for SurrealDB compatibility")
+                    logger.debug("Empty embedding list detected, keeping as empty list [] for SurrealDB compatibility")
                     # 不做任何修改，保持为空列表
                     
                 # 如果嵌入向量是非空列表，确保它被正确处理
                 elif isinstance(embedding_data, list) and len(embedding_data) > 0:
                     # 确保所有元素都是浮点数，避免类型问题
                     processed_data['embedding'] = [float(x) for x in embedding_data]
-                    logger.info(f"Processed embedding to ensure all elements are floats, length: {len(processed_data['embedding'])}, first few: {processed_data['embedding'][:5]}")
+                    logger.debug(f"Processed embedding to ensure all elements are floats, length: {len(processed_data['embedding'])}")
                 elif not isinstance(embedding_data, list) and embedding_data is not None:
                     # 如果不是列表但也不是None，尝试转换为列表
                     try:
                         processed_data['embedding'] = list(embedding_data)
-                        logger.info(f"Converted non-list embedding to list: {len(processed_data['embedding'])} elements")
+                        logger.debug(f"Converted non-list embedding to list: {len(processed_data['embedding'])} elements")
                     except Exception as e:
                         logger.error(f"Failed to convert embedding to list: {e}, keeping original")
                 elif embedding_data is None:
                     # 如果是None，初始化为空列表
                     processed_data['embedding'] = []
-                    logger.info("None embedding detected, initializing as empty list []")
+                    logger.debug("None embedding detected, initializing as empty list []")
             
             logger.info(f"Creating record in {table} with data keys: {list(processed_data.keys())}")
             
@@ -341,7 +341,7 @@ class UnifiedSurrealClient:
                         
                         # 检查返回的记录中是否包含嵌入向量
                         if 'embedding' in processed_data and 'embedding' in created_record:
-                            logger.info(f"Embedding in created record: type={type(created_record['embedding'])}, length={len(created_record['embedding']) if isinstance(created_record['embedding'], list) else 'not a list'}")
+                            logger.debug(f"Embedding in created record: type={type(created_record['embedding'])}, length={len(created_record['embedding']) if isinstance(created_record['embedding'], list) else 'not a list'}")
                         else:
                             logger.warning(f"Embedding field missing in created record. Original had embedding: {'embedding' in processed_data}, Created has embedding: {'embedding' in created_record}")
                             
@@ -356,7 +356,7 @@ class UnifiedSurrealClient:
                             
                             # 检查验证的记录中是否包含嵌入向量
                             if 'embedding' in processed_data and 'embedding' in verified_record:
-                                logger.info(f"Embedding in verified record: type={type(verified_record['embedding'])}, length={len(verified_record['embedding']) if isinstance(verified_record['embedding'], list) else 'not a list'}")
+                                logger.debug(f"Embedding in verified record: type={type(verified_record['embedding'])}, length={len(verified_record['embedding']) if isinstance(verified_record['embedding'], list) else 'not a list'}")
                             else:
                                 logger.warning(f"Embedding field missing in verified record. Original had embedding: {'embedding' in processed_data}, Verified has embedding: {'embedding' in verified_record}")
                                 

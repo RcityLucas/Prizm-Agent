@@ -237,15 +237,14 @@ class DialogueManager:
             user_embedding = []
             if content and self.ai_service:
                 try:
-                    logger.info(f"正在为用户内容生成嵌入向量: {content[:30]}...")
+                    logger.debug(f"正在为用户内容生成嵌入向量: {content[:30]}...")
                     user_embedding = await self.ai_service.get_embedding_async(content)
-                    logger.info(f"[DEBUG] Generated user embedding: type={type(user_embedding)}, length={len(user_embedding) if isinstance(user_embedding, list) else 'not a list'}, first few values: {user_embedding[:5] if isinstance(user_embedding, list) and len(user_embedding) > 0 else 'empty or not a list'}")
                 except Exception as e:
                     logger.error(f"生成用户内容嵌入向量失败: {e}")
             
             # 2. 创建用户轮次，包含嵌入向量
             user_turn = await self.create_turn(str_session_id, "human", content, metadata, embedding=user_embedding)
-            logger.info(f"[DEBUG] Created user turn: {user_turn}")
+            logger.debug(f"创建用户轮次: turn_id={user_turn.get('id') if isinstance(user_turn, dict) else 'unknown'}")
             
             # 3. 获取会话历史
             session_info = await self.storage.get_session_async(str_session_id)
@@ -267,15 +266,14 @@ class DialogueManager:
             ai_embedding = []
             if response_content and self.ai_service:
                 try:
-                    logger.info(f"正在为AI响应生成嵌入向量: {response_content[:30]}...")
+                    logger.debug(f"正在为AI响应生成嵌入向量: {response_content[:30]}...")
                     ai_embedding = await self.ai_service.get_embedding_async(response_content)
-                    logger.info(f"[DEBUG] Generated AI embedding: type={type(ai_embedding)}, length={len(ai_embedding) if isinstance(ai_embedding, list) else 'not a list'}, first few values: {ai_embedding[:5] if isinstance(ai_embedding, list) and len(ai_embedding) > 0 else 'empty or not a list'}")
                 except Exception as e:
                     logger.error(f"生成AI响应嵌入向量失败: {e}")
             
             # 7. 创建AI轮次，包含嵌入向量
             ai_turn = await self.create_turn(str_session_id, "ai", response_content, response_metadata, embedding=ai_embedding)
-            logger.info(f"[DEBUG] Created AI turn: {ai_turn}")
+            logger.debug(f"创建AI轮次: turn_id={ai_turn.get('id') if isinstance(ai_turn, dict) else 'unknown'}")
             
             # 8. 更新用户信息（如果频率集成器可用）
             if self.frequency_integrator and self.memory:
@@ -330,11 +328,11 @@ class DialogueManager:
             创建的轮次信息
         """
         try:
-            # 添加详细的嵌入向量调试信息
+            # 验证嵌入向量
             if embedding is not None:
-                logger.info(f"创建轮次前的嵌入向量: 类型={type(embedding)}, 长度={len(embedding)}, 前5个值={embedding[:5] if len(embedding) > 0 else '空列表'}")
+                logger.debug(f"创建轮次前的嵌入向量: 类型={type(embedding)}, 长度={len(embedding)}")
             else:
-                logger.warning("创建轮次时嵌入向量为None")
+                logger.debug("创建轮次时嵌入向量为None")
                 
             # 调用统一存储创建轮次，包含嵌入向量
             turn = await self.storage.create_turn_async(session_id, role, content, metadata=metadata, embedding=embedding)
@@ -343,11 +341,11 @@ class DialogueManager:
             if turn and isinstance(turn, dict):
                 if 'embedding' in turn:
                     turn_embedding = turn.get('embedding')
-                    logger.info(f"存储返回的轮次嵌入向量: 类型={type(turn_embedding)}, 长度={len(turn_embedding) if isinstance(turn_embedding, list) else '非列表'}, 值={turn_embedding[:5] if isinstance(turn_embedding, list) and len(turn_embedding) > 0 else '空或非列表'}")
+                    logger.debug(f"存储返回的轮次包含嵌入向量，长度={len(turn_embedding) if isinstance(turn_embedding, list) else '非列表'}")
                 else:
-                    logger.warning("存储返回的轮次中没有embedding字段")
+                    logger.debug("存储返回的轮次中没有embedding字段")
                     
-                logger.info(f"成功创建轮次: {turn.get('id', 'unknown_id')}，嵌入向量维度: {len(embedding) if embedding else 0}")
+                logger.info(f"成功创建轮次: {turn.get('id', 'unknown_id')}")
                 return turn
             else:
                 logger.error("存储系统返回了无效的轮次数据")

@@ -154,24 +154,24 @@ class TurnModel:
                     # 确保所有元素都是浮点数
                     try:
                         embedding_data = [float(x) for x in embedding_data]
-                        logger.info(f"Processed embedding in TurnModel.to_dict: {len(embedding_data)} elements, first 5: {embedding_data[:5]}")
+                        logger.debug(f"Processed embedding in TurnModel.to_dict: {len(embedding_data)} elements")
                     except Exception as e:
                         logger.error(f"Error converting embedding to float list: {e}")
                 else:
                     # 即使是空列表，也保留为空列表而不是None，与simpleChat_with_vectors.py保持一致
-                    logger.warning("Empty embedding list in TurnModel.to_dict, keeping as empty list []")
+                    logger.debug("Empty embedding list in TurnModel.to_dict, keeping as empty list []")
             else:
                 logger.warning(f"Non-list embedding in TurnModel.to_dict: {type(embedding_data)}")
                 # 尝试转换为列表
                 try:
                     embedding_data = list(embedding_data)
-                    logger.info(f"Converted non-list embedding to list: {len(embedding_data)} elements")
+                    logger.debug(f"Converted non-list embedding to list: {len(embedding_data)} elements")
                 except Exception as e:
                     logger.error(f"Failed to convert embedding to list: {e}")
         else:
             # 如果是None，初始化为空列表
             embedding_data = []
-            logger.warning("None embedding in TurnModel.to_dict, initializing as empty list []")
+            logger.debug("None embedding in TurnModel.to_dict, initializing as empty list []")
         
         return {
             'id': self.id,
