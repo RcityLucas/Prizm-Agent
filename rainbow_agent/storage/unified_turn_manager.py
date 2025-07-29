@@ -345,165 +345,44 @@ class UnifiedTurnManager:
             else:
                 logger.debug(f"Session verified: {session_result[0].get('id')}")
             
-            # Try a direct query first with explicit table name and field selection
-            # This approach avoids count records and ensures we get actual turn data
-            query = f"SELECT id, session_id, role, content, created_at, updated_at, metadata FROM turns WHERE session_id = '{raw_session_id}' ORDER BY created_at ASC LIMIT {limit} START {offset};"
+            # 优化的查询方法：同时查询两种可能的session_id格式
+            query = f"SELECT * FROM turns WHERE session_id IN ['{raw_session_id}', '{prefixed_session_id}'] ORDER BY created_at ASC LIMIT {limit} START {offset};"
             result = self.client.execute_sql(query)
             
-            # Check if we got valid results
-            if result and isinstance(result, list) and len(result) > 0:
-                # Check if the first result is a count record (which we want to avoid)
-                if len(result) == 1 and 'count' in result[0] and len(result[0]) == 1:
-                    logger.warning(f"Received count record instead of turn: {result[0]}")
-                    result = []  # Reset result to empty to try alternative query
-            
-            # If first approach didn't work, try with prefixed session_id
-            if not result or not isinstance(result, list) or len(result) == 0:
-                query = f"SELECT id, session_id, role, content, created_at, updated_at, metadata FROM turns WHERE session_id = '{prefixed_session_id}' ORDER BY created_at ASC LIMIT {limit} START {offset};"
-                result = self.client.execute_sql(query)
+            # 过滤有效的轮次记录（必须包含content和role字段）
+            if result and isinstance(result, list):
+                valid_turns = []
+                for record in result:
+                    # 跳过count记录或无效记录
+                    if (isinstance(record, dict) and 
+                        'content' in record and 
+                        'role' in record and
+                        len(record) > 2):  # 确保不是简单的count记录
+                        valid_turns.append(record)
                 
-                # Check again for count records
-                if result and isinstance(result, list) and len(result) > 0:
-                    if len(result) == 1 and 'count' in result[0] and len(result[0]) == 1:
-                        logger.warning(f"Received count record instead of turn: {result[0]}")
-                        result = []  # Reset result to empty to try alternative query
+                if valid_turns:
+                    result = valid_turns
+                    logger.info(f"Found {len(valid_turns)} valid turns for session: {raw_session_id}")
+                else:
+                    result = []
+                    logger.debug(f"No valid turns found for session: {raw_session_id}")
+            else:
+                result = []
             
-            # If still no results, try with type filter to exclude session records
-            if not result or not isinstance(result, list) or len(result) == 0:
-                logger.info("Trying with type filter to exclude session records")
-                query = f"SELECT * FROM turns WHERE type::table(id) = 'turns' AND session_id = '{raw_session_id}' ORDER BY created_at ASC LIMIT {limit} START {offset};"
-                result = self.client.execute_sql(query)
-            
-            # If still no results, try direct table access without WHERE clause
-            # This is a diagnostic approach to see what's in the table
-            if not result or not isinstance(result, list) or len(result) == 0:
-                logger.info("Trying direct table access to diagnose data structure")
-                query = f"SELECT * FROM turns LIMIT 10;"
-                diagnostic_result = self.client.execute_sql(query)
-                
-                if diagnostic_result and isinstance(diagnostic_result, list) and len(diagnostic_result) > 0:
-                    # Log the first record to understand structure
-                    logger.info(f"Sample record in turns table: {diagnostic_result[0]}")
-                    
-                    # Check each record for the session_id we're looking for
-                    for record in diagnostic_result:
-                        if record.get('session_id') in [raw_session_id, prefixed_session_id]:
-                            logger.info(f"Found matching turn in diagnostic sample: {record}")
-                    
-                    # If we found records, try a more specific query based on what we found
-                    if 'session_id' in diagnostic_result[0]:
-                        # Use the exact format of session_id as seen in the database
-                        sample_session_id = diagnostic_result[0]['session_id']
-                        logger.info(f"Sample session_id format in database: {sample_session_id}")
-            
-            # If still no results, try one more approach with direct ID access
-            if not result or not isinstance(result, list) or len(result) == 0:
-                # Try with explicit ID format
-                logger.info("Trying with explicit ID format")
-                query = f"SELECT * FROM turns:* WHERE session_id = '{raw_session_id}' ORDER BY created_at ASC LIMIT {limit} START {offset};"
-                result = self.client.execute_sql(query)
-            
-            # If still no results, try a direct query for all turns and filter client-side
-            if not result or not isinstance(result, list) or len(result) == 0:
-                logger.info("Trying to fetch all turns and filter client-side")
-                query = f"SELECT * FROM turns LIMIT 100;"
-                all_turns = self.client.execute_sql(query)
-                
-                if all_turns and isinstance(all_turns, list):
-                    # Filter turns by session_id client-side
-                    result = [turn for turn in all_turns if turn.get('session_id') in [raw_session_id, prefixed_session_id]]
-                    logger.info(f"Client-side filtering found {len(result)} turns from {len(all_turns)} total turns")
-                    
-                    # If no turns found, check for swapped session IDs
-                    if not result or len(result) == 0:
-                        # Check if we have a known mapping for this session ID
-                        if raw_session_id in self._session_id_mapping:
-                            mapped_session_id = self._session_id_mapping[raw_session_id]
-                            logger.warning(f"Using known session ID mapping: {raw_session_id} -> {mapped_session_id}")
-                            
-                            # Try to find turns with the mapped session ID
-                            result = [turn for turn in all_turns if turn.get('session_id') == mapped_session_id]
-                            
-                            if result and len(result) > 0:
-                                logger.warning(f"Found {len(result)} turns using mapped session ID {mapped_session_id}")
-                                
-                                # Override session_id in the turns to match the requested session_id
-                                for turn in result:
-                                    turn['original_session_id'] = turn['session_id']
-                                    turn['session_id'] = raw_session_id
-                        else:
-                            # Look for patterns of session ID mismatches
-                            session_id_counts = {}
-                            for turn in all_turns:
-                                turn_session_id = turn.get('session_id')
-                                if turn_session_id:
-                                    if turn_session_id not in session_id_counts:
-                                        session_id_counts[turn_session_id] = 0
-                                    session_id_counts[turn_session_id] += 1
-                            
-                            # Find the most common session ID that isn't the requested one
-                            most_common_session_id = None
-                            max_count = 0
-                            for sid, count in session_id_counts.items():
-                                if sid != raw_session_id and sid != prefixed_session_id and count > max_count:
-                                    most_common_session_id = sid
-                                    max_count = count
-                            
-                            if most_common_session_id and max_count >= 2:  # At least 2 turns with this session ID
-                                logger.warning(f"Detected potential session ID mismatch: requested={raw_session_id}, found={most_common_session_id}")
-                                
-                                # Store this mapping for future use
-                                self._session_id_mapping[raw_session_id] = most_common_session_id
-                                
-                                # Get turns with this session ID
-                                result = [turn for turn in all_turns if turn.get('session_id') == most_common_session_id]
-                                
-                                if result and len(result) > 0:
-                                    logger.warning(f"Found {len(result)} turns with session ID {most_common_session_id}")
-                                    
-                                    # Override session_id in the turns to match the requested session_id
-                                    for turn in result:
-                                        turn['original_session_id'] = turn['session_id']
-                                        turn['session_id'] = raw_session_id
-            
-            # If still no results, log the issue and return empty list
-            if not result or not isinstance(result, list) or len(result) == 0:
-                logger.warning(f"No turns found for session: raw={raw_session_id}, prefixed={prefixed_session_id}")
-                return []
-            
-            # Filter out invalid turns and ensure they match the requested session_id
-            valid_turns = []
-            for turn in result:
-                # Skip count records
-                if 'count' in turn and len(turn) == 1:
-                    logger.debug(f"Skipping count record: {turn}")
-                    continue
-                
-                # Skip session records incorrectly returned as turns
-                if 'id' in turn and isinstance(turn['id'], dict) and turn['id'].get('table_name') == 'sessions':
-                    logger.warning(f"Session record incorrectly returned as turn: {turn}")
-                    continue
-                    
-                valid_turn = self._validate_turn(turn, raw_session_id, prefixed_session_id)
-                if valid_turn:
-                    valid_turns.append(valid_turn)
-            
-            # Sort by created_at if available
-            valid_turns.sort(key=lambda x: x.get('created_at', ''), reverse=False)
-            
-            # Cache successful results
-            if valid_turns:
+            # 缓存结果
+            if result:
+                cache_key = f"{raw_session_id}:{limit}:{offset}"
                 self._turns_cache[cache_key] = {
-                    'turns': valid_turns,
-                    'timestamp': time.time()
+                    'turns': result,
+                    'timestamp': current_time
                 }
-            
-            logger.info(f"Retrieved {len(valid_turns)} valid turns for session: raw={raw_session_id}, prefixed={prefixed_session_id}")
-            return valid_turns
-            
+                
+            return result or []
+                
         except Exception as e:
-            logger.error(f"Failed to get turns for session {session_id}: {str(e)}", exc_info=True)
+            logger.error(f"Error getting turns for session {session_id}: {e}")
             return []
+    
     
     def _cleanup_cache(self):
         """

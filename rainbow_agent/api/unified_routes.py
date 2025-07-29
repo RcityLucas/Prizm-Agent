@@ -283,7 +283,10 @@ def delete_session(session_id):
 @ensure_initialized
 @require_auth
 def get_turns(session_id):
-    """获取会话轮次"""
+    """获取会话轮次 - 优化版本"""
+    import time
+    start_time = time.time()
+    
     try:
         # 首先验证会话是否属于当前用户
         session = session_manager.get_session(session_id)
@@ -302,10 +305,28 @@ def get_turns(session_id):
                 "error": "无权访问此会话"
             }), 403
         
-        # 获取轮次
+        # 获取轮次 - 添加超时保护
         import asyncio
-        response = asyncio.run(dialogue_processor.get_session_history(session_id))
-        return jsonify(response), 200
+        try:
+            response = asyncio.wait_for(
+                dialogue_processor.get_session_history(session_id),
+                timeout=30.0  # 30秒超时
+            )
+            response = asyncio.run(response)
+            
+            processing_time = time.time() - start_time
+            logger.info(f"获取会话轮次耗时: {processing_time:.2f}秒")
+            
+            return jsonify(response), 200
+            
+        except asyncio.TimeoutError:
+            processing_time = time.time() - start_time
+            logger.warning(f"获取会话轮次超时: {processing_time:.2f}秒")
+            return jsonify({
+                "success": False,
+                "error": "请求处理超时",
+                "message": "会话数据较多，请稍后重试"
+            }), 408
     except Exception as e:
         return handle_api_error(e)
 
