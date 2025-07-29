@@ -27,7 +27,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git config:*)",
-      "Bash(./restart_prizm_robust.sh:*)"
+      "Bash(./restart_prizm_robust.sh:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
