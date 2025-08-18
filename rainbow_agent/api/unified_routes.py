@@ -163,14 +163,20 @@ def create_session():
         data = request.json
         # 使用当前已认证用户的ID，忽略前端传递的userId
         from flask_login import current_user
-        user_id = str(current_user.id)
+        # 处理SurrealDB的复杂ID格式
+        raw_user_id = current_user.id
+        if isinstance(raw_user_id, dict) and 'id' in raw_user_id:
+            user_id = raw_user_id['id']
+        else:
+            user_id = str(raw_user_id)
         title = data.get('title')
         dialogue_type = data.get('dialogueType', DIALOGUE_TYPES["HUMAN_AI_PRIVATE"])
         participants = data.get('participants')
         
         # 调试日志：记录输入参数
         logger.info(f"=== 创建会话调试信息 ===")
-        logger.info(f"接收到的user_id: {user_id} (类型: {type(user_id)})")
+        logger.info(f"原始current_user.id: {raw_user_id} (类型: {type(raw_user_id)})")
+        logger.info(f"处理后的user_id: {user_id} (类型: {type(user_id)})")
         logger.info(f"接收到的title: {title}")
         logger.info(f"接收到的dialogue_type: {dialogue_type}")
         logger.info(f"session_manager实例: {session_manager}")
@@ -347,7 +353,12 @@ def process_input():
         user_input = data.get('content', '') or data.get('input', '')
         # 使用当前已认证用户的ID，忽略前端传递的userId
         from flask_login import current_user
-        user_id = str(current_user.id)
+        # 处理SurrealDB的复杂ID格式
+        raw_user_id = current_user.id
+        if isinstance(raw_user_id, dict) and 'id' in raw_user_id:
+            user_id = raw_user_id['id']
+        else:
+            user_id = str(raw_user_id)
         session_id = data.get('sessionId')
         input_type = data.get('input_type', '') or data.get('inputType', 'text')
         context = data.get('metadata') or data.get('context')

@@ -110,12 +110,14 @@ class UnifiedSessionManager:
             session_data = session_model.to_dict()
             
             logger.info(f"Creating session: {session_model.id} for user: {user_id}")
+            logger.info(f"Session data to create: {session_data}")
             
             # Create record using unified client
             result = self.client.create_record("sessions", session_data)
             
             if result:
                 logger.info(f"Session created successfully: {session_model.id}")
+                logger.info(f"Returned session result: {result}")
                 return result
             else:
                 logger.error(f"Failed to create session: {session_model.id}")
