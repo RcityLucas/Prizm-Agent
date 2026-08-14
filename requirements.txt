@@ -22,6 +22,9 @@ flask-login>=0.6.2
 
 # Authentication
 authlib>=1.2.0
+# 注册/登录都要用（auth/routes.py:195 和 :335 的函数内 import）。
+# 之前漏在这里，导致 /api/auth/register 和 /login 一调用就 500。
+bcrypt>=4.0.0
 
 # Data and storage
 SQLAlchemy>=2.0.0
