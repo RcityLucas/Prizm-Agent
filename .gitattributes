@@ -1,0 +1,7 @@
+# 仓库的 core.autocrlf=true 会把脚本转成 CRLF，容器里会报
+# `bad interpreter: /usr/bin/env bash^M`。这里强制这些文件用 LF。
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+docker-entrypoint.sh text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf

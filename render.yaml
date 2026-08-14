@@ -1,0 +1,33 @@
+# Render Blueprint —— 在 Render 上点 New → Blueprint 并指向本仓库即可自动建服务。
+# 也可以不用这个文件，在网页上手动 New → Web Service 选 Docker，效果一样。
+services:
+  - type: web
+    name: prizm-agent-api
+    runtime: docker
+    plan: free
+    region: singapore          # 离国内最近的免费区域
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/auth/status
+    autoDeploy: true
+    envVars:
+      # Render 自动生成一个随机值，避免用上 surreal_api_server.py:81 里
+      # 那个硬编码的 'dev_key_for_testing'（开源仓库里人人可见，能伪造会话）
+      - key: SECRET_KEY
+        generateValue: true
+
+      # sync: false = 不写在仓库里，去 Render 网页的 Environment 里填
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # 免费层 512MB 内存，SurrealDB 已占一部分，多 worker 会 OOM
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: WEB_THREADS
+        value: "4"
+      - key: DEBUG
+        value: "false"

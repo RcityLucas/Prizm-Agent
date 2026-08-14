@@ -28,7 +28,24 @@
       "Bash(git commit:*)",
       "Bash(git config:*)",
       "Bash(./restart_prizm_robust.sh:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "PowerShell(git fetch *)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/expo/package.json'\\).version\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"console.log\\('edge-to-edge', require\\('./node_modules/react-native-edge-to-edge/package.json'\\).version\\)\")",
+      "Bash(npm view *)",
+      "Bash(tar -tzf expo-template-bare-minimum-54.0.52.tgz)",
+      "Bash(rm -rf package)",
+      "Bash(npm pack *)",
+      "Bash(tar -xzf react-native-0.81*.tgz -O package/gradle/libs.versions.toml)",
+      "Bash(docker version *)",
+      "Bash(git --version)",
+      "Bash(xargs -0 -I{} ls -l \"{}\")",
+      "Bash(sort -k5 -n -r)",
+      "Bash(awk '{printf \"%8.2f MB %s\\\\n\", $5/1048576, $9}')",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)",
+      "Bash(git rm *)"
     ],
     "deny": []
   }

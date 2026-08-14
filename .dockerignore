@@ -1,0 +1,45 @@
+# 之前没有这个文件，导致 `COPY . .` 把密钥和本地数据库一起烤进了镜像。
+
+# --- 密钥：绝不能进镜像，HF Spaces 用 Settings → Secrets 注入 ---
+.env
+.env.*
+cookies.txt
+*.pem
+*.key
+*.p8
+
+# --- 本地数据库 / 运行时数据（容器启动时自己重建）---
+rainbow-agent/
+database.db/
+surreal_data/
+data/
+flask_session/
+session_data/
+
+# --- 版本控制 / 编辑器 ---
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# --- Python 缓存与测试产物 ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- 镜像里用不到的东西 ---
+docs/
+tests/
+examples/
+frontend-example/
+*.md
+*.ps1
+check_docker_db.sh
+health_check.sh
+restart_prizm_fixed.sh
+debug_*.py
+test_*.py
